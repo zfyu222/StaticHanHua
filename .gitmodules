@@ -1,0 +1,21 @@
+[submodule "Tools/AINiee"]
+	path = Tools/AINiee
+	url = https://github.com/zfyu222/AiNiee.git
+[submodule "Tools/AssetRipper-CLI"]
+	path = Tools/AssetRipper-CLI
+	url = https://github.com/zfyu222/AssetRipper-CLI.git
+[submodule "Tools/baidu-netdisk-mcp"]
+	path = Tools/baidu-netdisk-mcp
+	url = https://github.com/zfyu222/baidu-netdisk-mcp.git
+[submodule "Tools/BepInEx"]
+	path = Tools/BepInEx
+	url = https://github.com/zfyu222/BepInEx.git
+[submodule "Tools/dnSpy-source"]
+	path = Tools/dnSpy-source
+	url = https://github.com/zfyu222/dnSpy.git
+[submodule "Tools/UABEA"]
+	path = Tools/UABEA
+	url = https://github.com/zfyu222/UABEA.git
+[submodule "Tools/XUnity.AutoTranslator"]
+	path = Tools/XUnity.AutoTranslator
+	url = https://github.com/zfyu222/XUnity.AutoTranslator.git

@@ -1,6 +1,7 @@
 # This repository is the StaticHanHua toolchain workspace.  Individual games
 # are separate, local-only projects and must never be committed here.
 /Projects/
+/Tools/dnSpy-net-win64/
 
 # Local agent/editor state
 /.agents/
@@ -18,6 +19,7 @@
 *.bak0000
 __pycache__/
 *.py[cod]
+*.obj
 .venv/
 venv/
 bin/
