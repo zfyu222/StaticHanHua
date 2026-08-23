@@ -2,6 +2,8 @@
 # are separate, local-only projects and must never be committed here.
 /Projects/
 /Tools/dnSpy-net-win64/
+/Tools/*.zip
+/font.tga
 
 # Local agent/editor state
 /.agents/
