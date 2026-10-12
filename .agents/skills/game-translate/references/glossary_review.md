@@ -6,11 +6,13 @@
 
 本地 AINiee 的项目表在缓存 `extra.analysis_v1`，包含 characters、terms、non_translate。程序明确支持此格式；其他版本或全局词典先核对并适配，不能猜测字段或替换整个缓存。输入为正式无表头、单列 UTF-8 CSV；行号按 CSV 逻辑记录计数。
 
+新产物统一保存在 TranslateFiles/glossary，完整缓存及备份放 TranslateFiles/cache 或 backups。既有缓存不自动搬迁；以下缓存路径按实际位置替换。自定义自动审校由流程程序调用 audit/build，无需操作 AINiee 缓存。
+
 在游戏项目目录执行，替换缓存与源文件路径：
 
 ```powershell
 $glossaryTool = 'D:\StaticHanHua\Tools\localization\glossary_tool.py'
-python $glossaryTool audit --cache .\AiNieeCache\AinieeCacheData.json --source .\gamename_text.csv --output .\glossary_review\v1
+python $glossaryTool audit --cache .\TranslateFiles\source\AiNieeCache\AinieeCacheData.json --source .\gamename_text.csv --output .\TranslateFiles\glossary\v1
 ```
 
 输出 `glossary_original.json`（仅分析表，不含完整缓存）、`glossary_audit.json`、`glossary_audit.md`、`glossary_contexts.json` 与待填写的 `glossary_decisions.json`。检查空译名、同源重复、来源命中、分类、斜杠合成 source 和共用译名。来源匹配为忽略大小写的字面子串，只用于筛查；短名称可能误命中词内，必须读语境。上下文文件每条最多提供两处摘录及原文记录号，必要时查更多原文和资源映射。
@@ -52,7 +54,7 @@ python $glossaryTool audit --cache .\AiNieeCache\AinieeCacheData.json --source .
 ## 构建和应用
 
 ```powershell
-python $glossaryTool build --snapshot .\glossary_review\v1\glossary_original.json --source .\gamename_text.csv --decisions .\glossary_review\v1\glossary_decisions.json --output .\glossary_review\v1\built
+python $glossaryTool build --snapshot .\TranslateFiles\glossary\v1\glossary_original.json --source .\gamename_text.csv --decisions .\TranslateFiles\glossary\v1\glossary_decisions.json --output .\TranslateFiles\glossary\v1\built
 ```
 
 生成 `glossary_reviewed.json`、`glossary_review_changes.json`、`glossary_manifest.json`，保留分析表其他元数据，重算统计。未解决的无命中项必须修正、隔离或填写有依据的 allow_no_match。
@@ -60,7 +62,7 @@ python $glossaryTool build --snapshot .\glossary_review\v1\glossary_original.jso
 正常退出 AINiee，让它保存当前项目，然后检查并应用：
 
 ```powershell
-$applyArgs = @('apply', '--cache', '.\AiNieeCache\AinieeCacheData.json', '--snapshot', '.\glossary_review\v1\glossary_original.json', '--source', '.\gamename_text.csv', '--decisions', '.\glossary_review\v1\glossary_decisions.json', '--reviewed', '.\glossary_review\v1\built\glossary_reviewed.json', '--manifest', '.\glossary_review\v1\built\glossary_manifest.json')
+$applyArgs = @('apply', '--cache', '.\TranslateFiles\source\AiNieeCache\AinieeCacheData.json', '--snapshot', '.\TranslateFiles\glossary\v1\glossary_original.json', '--source', '.\gamename_text.csv', '--decisions', '.\TranslateFiles\glossary\v1\glossary_decisions.json', '--reviewed', '.\TranslateFiles\glossary\v1\built\glossary_reviewed.json', '--manifest', '.\TranslateFiles\glossary\v1\built\glossary_manifest.json')
 python $glossaryTool @applyArgs
 python $glossaryTool @applyArgs --apply
 ```

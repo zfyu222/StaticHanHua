@@ -1,0 +1,36 @@
+{
+  "status": "passed",
+  "source_sha256": "3e7c8b5926f74d692e75309de7f546f474be59aacdc5619c3e4151f97c755537",
+  "translation_sha256": "dcc3deda7dd259ef9a8f6e971c9c440283f6e5397defe032a4cddbd2b1c4f278",
+  "records": 6,
+  "semantic_review": "full",
+  "polish": false,
+  "revision": 1,
+  "glossary": {
+    "hash": "2482d5d16092d4cf169768603652e6f5e47040ca4dbafa78de42832c3596320a",
+    "path": "glossary\\r1\\freeze_9005dd4f\\built\\glossary_reviewed.json",
+    "revision": 1
+  },
+  "ainiee": {
+    "actual_commit": "c50570c1dee7df7bd51316a253f0b42d10a8ca4c",
+    "expected_commit": "c50570c1dee7df7bd51316a253f0b42d10a8ca4c",
+    "license": "AGPL-3.0; Tools/AINiee/LICENSE",
+    "modules": {
+      "Domain/PromptBuilder/GlossaryHelper.py": "6b3072989b77c84787774439c79aaea7d4727fcda104667d8833b53bb490446f",
+      "Domain/TextProcessor/TextProcessor.py": "805f49f68302fab2c5832aad8c7597fb4c3382cea131618765248f30a5963eed",
+      "Infrastructure/LLMRequester/LLMClientFactory.py": "70d43af749640604813887241604edf0472a75afbbf106fb5e69cfd3753a1a4b",
+      "Infrastructure/LLMRequester/OpenaiRequester.py": "b2b1f5e6fd3a31727b2e1d2597e1bcca3e5e4db2cfec550ff6cfcd6a6cff3f79"
+    }
+  },
+  "test": "six synthetic English records; two gpt-6-luna workers in parallel",
+  "tested_stages": [
+    "extract",
+    "glossary_review",
+    "freeze-glossary",
+    "translate",
+    "review",
+    "export"
+  ],
+  "test_date": "2026-10-13",
+  "api_live_tested": false
+}

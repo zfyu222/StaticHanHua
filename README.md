@@ -34,6 +34,10 @@
 
 4. 构建 AINiee 后，可从根目录运行 `startAINiee.bat`。
 
+## 翻译工作流
+
+翻译阶段可选择原有 AINiee 工作流或自定义工作流；自定义可选择 Codex 子代理或 API 程序。源文和正式译文留在游戏汉化项目根目录，翻译中间产物统一放 `TranslateFiles/`。执行规则由 `game-translate` 技能维护，程序入口为 `Tools/localization/translation_workflow.py`，操作参考见 [翻译流程工具说明](Tools/localization/README.md)。
+
 ## 更新工具
 
 先更新对应 fork 的 `main`/`master` 分支并验证，再在此仓库执行：

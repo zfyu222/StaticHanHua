@@ -1,113 +1,35 @@
 ---
 name: game-translate
 description: |
-  Prepare and validate Step 2 of the StaticHanHua localization pipeline. Use for game text translation, AINiee, TranslateDoc, exclusion lists, glossary review, or damaged placeholders. Analyze source text, generate configuration, review extracted glossaries before body translation, and validate completed translations. By default leave actual translation to the user in AINiee; never create a translated CSV unless explicitly requested.
+  Manage the translation stage of StaticHanHua game localization. Preserve the AINiee workflow and offer a custom file-driven workflow with Codex subagents or API execution. Use for translation preparation, terminology extraction and contextual review, translation, proofreading, polishing, placeholder validation, and recovery. Do not translate a game merely because the workflow is being developed.
 ---
 
-# Game Translate（翻译准备与校验）
+# Game Translate（翻译阶段）
 
-## Default behavior
+## 入口与授权
 
-默认只完成翻译准备，不直接翻译：
+先读项目 README.md 和已保存的 TranslateFiles/config/workflow.json。未指定工作流时让用户选择 **AINiee** 或 **自定义工作流**；自定义再选择 **Codex 子代理** 或 **API 程序**。已有明确选择直接沿用，不重复询问。选择尚未确定时可继续源文分析，不运行正文翻译或付费请求。
 
-1. 分析源文本中的占位符、标签和字面转义；
-2. 生成 AINiee 可导入的禁翻表、TranslateDoc.md 与术语建议；
-3. 术语提取完成后必须进行来源、结构与语义审校，应用审校结果并验证；
-4. 由用户在 AINiee GUI 中执行实际翻译；
-5. 用户提供译文后，校验并修复可安全修复的格式问题。
+- AINiee：保留已有工作流和本地改进，读取 [AINiee 流程](references/ainiee_workflow.md)。默认生成准备文件，由用户在 GUI 翻译；用户明确要求 AI 直接翻译时按授权执行。
+- 自定义：用户要求采用自定义流程执行汉化即授权其内部自动处理，读取 [自定义流程及调度](references/custom_workflow.md)，调用 Tools/localization/translation_workflow.py。Codex 方式按参考规则用子代理并行任务；API 方式由程序请求用户已选服务。未指定模型时当前采用 Luna 子代理，后续用户选择优先。
+- 仅术语审校：按 [术语审校规则](references/glossary_review.md)；不要因此启动全文翻译。
+- 用户提供译文仅要求校验：直接执行校验，不必询问工作流或改动原项目后端。
 
-不要因为用户说「开始翻译」或「翻译」就创建 {gamename}_text_translated.csv。只有用户明确要求「直接帮我翻译」「由你翻译」或同等意思时，才可直接翻译。
+## 共同边界
 
-若源文本很少（建议不超过 50 条），可以在完成分析后询问：「本次只有 N 条，是否要我直接翻译，还是仅生成 AINiee 配置？」在用户作答前仍不得生成译文。
+总体仍是一个翻译阶段，内部子阶段不要铺到基础 AGENTS.md 或项目概览。
 
-## Inputs and outputs
+- 正式输入：Projects/{GameName}/{gamename}_text.csv；正式输出：同目录 {gamename}_text_translated.csv。无表头、单列，按 CSV 逻辑记录逐条对应，逗号/换行合规转义；不能用物理行或模型输出顺序对齐。
+- 所有翻译中间产物位于项目 TranslateFiles/，包括 TranslateDoc、配置、术语审校、任务、结果、报告、缓存及备份。绝不写入 Game/ 链接。既有项目不自动批量搬迁。
+- 正文前完成全文术语提取、整理、程序检查和语义审校，再冻结使用；无术语亦记录检查。程序通过不等于语义审校完成。
+- 自定义正文、审校和润色任务由程序筛选相关术语；子代理不读取完整表，不新增或自行修改冻结表。
+- 占位符、字面转义、标签与变量严格保护；源文中的玩家选项不误当机器变量。细则见 [保护边界](references/placeholder_patterns.md)。
+- 自定义使用 ID JSON 协议；AINiee 才使用原 textarea 提示词要求。两种协议不能混用。
+- AI 可在执行中检查和调整；通过程序暂停、修订和增量复查，不能直接改 DB、覆盖在途版本或忽略锁定译文。按配置限制重试，关键未解决问题不能标记通过。
+- 缓存/备份/运行状态及凭据不得提交。Game/ 永不提交。
 
-- 输入：Projects/{GameName}/{gamename}_text.csv
-- 准备阶段产物：
-  - Projects/{GameName}/TranslateDoc.md
-  - Projects/{GameName}/placeholder_report.md
-  - Projects/{GameName}/ainiee_exclusion_list.json
-- 译后校验输入：Projects/{GameName}/{gamename}_text_translated.csv
-- 校验失败时：Projects/{GameName}/need_retranslate.csv
+## 验证与交接
 
-源文件与译文必须一行对应一条文本；没有表头。文本本身含逗号或换行时，使用合规 CSV 转义，避免 CSV 解析拆列。
+AINiee 译后使用 scripts/validate_translation.py，显式指定 --src-col 0 --dst-col 0；报告与备份用 --report-dir 和 --backup-dir 指向 TranslateFiles。退出码 0 才能交接。自定义必须由程序 export 完成其全部质量门槛，不能手工拼接最终 CSV 绕过验收。
 
-## Workflow
-
-### 1. Read the project
-
-阅读项目 README.md，确认原语言、目标语言、引擎、文本来源和已知的字体或术语限制。
-
-### 2. Analyze placeholders
-
-运行：
-
-    python "D:\StaticHanHua\.agents\skills\game-translate\scripts\analyze_placeholders.py" "Projects/{GameName}/{gamename}_text.csv"
-
-检查 placeholder_report.md。确认机器型标记才进入禁翻表；不要把玩家可见的句型花括号选项误当作变量。详细规则见 references/placeholder_patterns.md。
-
-### 3. Generate translation guidance
-
-用 assets/TranslateDoc_template.md 生成 TranslateDoc.md，并据实际分析结果填写：
-
-- 文本条数、源语言和目标语言；
-- 占位符种类、次数与样例；
-- ainiee_exclusion_list.json 的导入步骤；
-- 必须开启的 AINiee 开关：禁翻表、自动处理文本代码段；
-- 项目术语建议和上下文提示；
-- 译后校验命令。
-
-AINiee 的界面与设置细节见 references/ainiee_setup.md。
-
-Every generated translation prompt must include the following block verbatim. Do not
-translate it, paraphrase it, omit it, or place it outside the prompt:
-
-```text
-###以textarea标签输出译文
-<textarea>
-1.{target_language}文本
-</textarea>
-```
-
-### 4. Ask or hand off
-
-在正文翻译前完成固定术语审校。读取 [references/glossary_review.md](references/glossary_review.md)，使用共享程序 `Tools/localization/glossary_tool.py` 冻结并检查项目分析表，结合原文审查全表译名、分类和一致性，重点核对错译、人物/物品合并、专名、称谓及可疑条目。生成带依据的人工决定、审校版、修改/隔离清单并校验后，正常退出 AINiee、备份并应用。不要把自动检查通过当成语义审校完成，也不要套用 Inquisitor 的具体译名到其他游戏。
-
-用户要求本流程即包含项目内术语修正与可逆应用，无需重复征询；不扩大为自动启动付费全文翻译。术语尚未提取时明确记录未完成步骤，提取完成后继续；没有术语的项目记录检查为空即可。若原文或术语重新提取，重新审校并记录旧译文需复查。
-
-- 默认：告知用户准备文件已生成，请其按 TranslateDoc.md 在 AINiee 中翻译，并等待译文文件。
-- 文本少于 50 条：可以询问是否要 Codex 直接翻译；没有明确同意时，仍只交付准备文件。
-- 用户明确授权直接翻译：逐行产出译文，严格保留每个受保护标记、字面 \n、标签和变量；随后执行第 5 步校验。
-
-### 5. Validate a completed translation
-
-运行：
-
-    python "D:\StaticHanHua\.agents\skills\game-translate\scripts\validate_translation.py" "Projects/{GameName}/{gamename}_text.csv" "Projects/{GameName}/{gamename}_text_translated.csv" --fix --fix-newlines
-
-检查逻辑行和物理行、受保护标记的多重集合、半角字符、变量名，以及字面 \n 是否变成真实换行。退出码 0 才能交接回填。
-
-若生成 need_retranslate.csv：
-
-- 少量问题：仅在用户已授权直接翻译时由 Codex 修复；否则让用户在 AINiee 中重译这些行。
-- 大量问题：检查禁翻表与自动处理文本代码段开关后再批量重译。
-
-### 6. Document and commit
-
-更新 README.md 的「翻译」节，记录翻译方式、占位符/禁翻表、术语表与校验结果。
-
-术语审校阶段还要记录原表/审校版数量、人工核对范围、隔离问题与应用验证；提交项目内的原表快照、自动报告、审校决定、审校版、修改/隔离清单、manifest 和相关文档。完整 AINiee 缓存、备份与凭据永不提交。
-
-- 仅准备阶段：提交 README.md、TranslateDoc.md、placeholder_report.md 和 ainiee_exclusion_list.json，提交信息前缀为 文档。
-- 翻译完成且校验通过：加入 {gamename}_text_translated.csv，提交信息前缀为 翻译。
-
-绝不提交 Game 目录。
-
-## References
-
-- references/placeholder_patterns.md：标记识别与保护边界
-- references/ainiee_setup.md：AINiee 设置
-- references/glossary_review.md：固定术语审校流程、共享工具命令与人工决定格式
-- assets/TranslateDoc_template.md：操作文档模板
-- scripts/analyze_placeholders.py：占位符分析
-- scripts/validate_translation.py：译后校验
+更新 README 的翻译节与技术栈，记录方式/后端/模型、术语版本和审校范围、占位符、验证及待确认问题；按项目规范提交 README、正式译文和 TranslateFiles 下适合入库的配置/审校/交付材料。仅准备阶段用“文档”提交，翻译通过用“翻译”提交。

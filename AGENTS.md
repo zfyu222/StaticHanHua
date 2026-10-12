@@ -15,7 +15,7 @@ StaticHanHua/
 │       ├── .git/      # 该游戏的独立 git 仓库（由 start-translate 初始化，仅管汉化工程）
 │       ├── {gamename}_text.csv            # 第1步：提取的待翻译文本（1列，1个文本1行）
 │       ├── {gamename}_text_translated.csv # 第2步：翻译完成后的文本（对应原文逐行翻译）
-│       └── *.csv / *.txt                  # 其他中间文件
+│       └── TranslateFiles/               # 翻译配置、术语、任务、报告、缓存等中间产物
 │
 ├── Tools/             # 工具集
 │   ├── AINiee/        # AI 翻译工具（主翻译引擎）
@@ -55,13 +55,15 @@ StaticHanHua/
 
 ### 第 2 步：翻译
 
-> 使用 `game-translate` Skill 分析原文占位符、生成 AINiee 配置（禁翻表/自动占位）与操作文档 `TranslateDoc.md`，并在译后校验修复占位符破坏问题。
+> 使用 `game-translate` Skill 完成翻译阶段。保留 AINiee 工作流，也可选择自定义工作流；自定义可用 Codex 子代理或 API 程序执行。内部规则与工具见该技能，不在基础文档展开。
+
+首次执行让用户选择工作流，已明确选择直接沿用。源文和正式译文在项目根目录；所有翻译中间产物统一放 `TranslateFiles/`，包括 `TranslateDoc.md`、配置、术语审校、任务、结果、报告、缓存与备份。
 
 | 项目 | 说明 |
 |------|------|
 | **输入** | `{gamename}_text.csv`（1 列，逐行原文） |
 | **输出** | `{gamename}_text_translated.csv`（逐行译文，与原文一一对应） |
-| **方式** | 手动翻译 / AiNiee AI 翻译 / 混合 |
+| **方式** | AINiee 工作流 / 自定义工作流（Codex 子代理或 API） / 手动翻译 |
 | **AI 接口** | DeepSeek（推荐）、OpenAI、Anthropic、Google 等 |
 
 **翻译流程**：
@@ -69,21 +71,16 @@ StaticHanHua/
 2. 若使用 AI 辅助翻译（AiNiee）：
    - 启动 AINiee：`cd Tools\AINiee && .\venv\Scripts\python.exe AiNiee.py`
    - 在「接口管理」中添加并激活 API（如 DeepSeek）
-   - 将 `{gamename}_text.csv` 拖入输入框，设置源语言/目标语言
+   - 新项目导入 `TranslateFiles/source/{gamename}_text.csv` 源文快照，设置源语言/目标语言；既有项目沿用已保存的缓存与进度
    - 先提取项目术语（全文分析），完成下面的固定术语审校步骤并应用审校版
    - 点击「开始翻译」
 3. 翻译完成后将译文保存为 `{gamename}_text_translated.csv`，与原文逐行一一对应。
 
-**固定步骤：术语提取后、正文翻译前必须审校。** 以后每个游戏均执行：冻结原术语表 → 程序检查 → 结合原文语境审校 → 保存审校版及修改/隔离依据 → 备份并应用 → 验证仅术语表改变。术语提取尚未完成时记录待办，完成后继续，不能把自动提取结果直接当成已审校结果。人工维护的固定译名同样要核查来源和一致性；确实没有术语时记录检查结果。
-
-- 通用程序：`Tools/localization/glossary_tool.py`，支持 `audit`、`build`、`apply`；详细格式与命令见 `.agents/skills/game-translate/references/glossary_review.md`。
-- 检查 source 命中、空译名、同源冲突、译名一致性、人物/物品/地名分类、复合名称、省略称谓、提示词示例混入与占位符误收。程序检查不能代替语义审校；保留原文记录号与判断依据，不把无命中项一律判为虚构。
-- 应用前正常退出 AINiee，备份完整缓存；只替换 `extra.analysis_v1`，保留翻译结果、进度与其他配置。原表自审校后发生变化时重新核对，不强制覆盖。项目分析表不得当成全局词典导入。
-- 原表快照、检查报告、人工审校决定、审校版、修改与隔离清单、校验清单在各项目内保存并提交；完整缓存和备份不得入库。README 记录审校范围、数量、待确认问题与应用验证。源文或术语重新提取后重新检查；旧译文不会自动按新术语回改。
+**共同要求**：正文前先完成全文术语整理与语义审校，再冻结使用；程序检查通过不等于语义审校完成。两种工作流都需保护占位符并完成译后校验。具体内部阶段、调度、缓存与修复规则由 `.agents/skills/game-translate/` 维护。缓存、备份和凭据不入库。
 
 **翻译过程中**：如果有需要注意的信息（字体选择、术语表、特殊语境说明、文本分组等），补充到 `README.md` 中，供打包阶段参考。
 
-**完成后必须**：将翻译方式、占位符/禁翻表、校验结果写入 `README.md` 的「翻译」节，并提交 git（`git add {gamename}_text_translated.csv README.md TranslateDoc.md && git commit`）。
+**完成后必须**：将翻译方式、占位符/禁翻表、校验结果写入 `README.md` 的「翻译」节，并提交 git（`git add {gamename}_text_translated.csv README.md TranslateFiles/TranslateDoc.md && git commit`）。
 
 ### 第 3 步：打包回填
 
@@ -271,7 +268,7 @@ StaticHanHua/
 |------|-----------|----------|-------------|
 | 初始化 | `start-translate` | `README.md` + `.gitignore`（脚本自动提交） | `初始化汉化项目工作区 (start-translate)` |
 | 提取 | `game-unpack` | `{gamename}_text.csv` + `README.md`（文本提取节） | `提取: 从 resources.assets 提取 1234 条文本` |
-| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateDoc.md` + 占位符报告 | `翻译: 完成 AINiee 翻译并校验通过` |
+| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateFiles/` 内适合入库的配置、术语审校及交付报告 | `翻译: 完成 AINiee 翻译并校验通过` |
 | 回填 | `game-repack` | `README.md`（回填/已知问题节）+ 汉化产物（视体积） | `回填: 替换 12 个 TextAsset，游戏内验证通过` |
 | 发布 | `game-release-patch` | `README.md`（对外发布节）+ 小型说明/清单 | `发布: 生成 v1.0 对外汉化补丁` |
 
@@ -382,8 +379,8 @@ git commit -m "<阶段>: <简述>"
 - 每个游戏在 `Projects/` 下建独立子目录，命名使用英文游戏名
 - **每个项目必须创建 `README.md`**，按上方规范填写游戏信息和汉化方案
 - 游戏文件通过 `Game/` 软连接引用，不直接复制
-- 翻译过程文件放在项目根目录下，与 `Game/` 同级：
+- 原文和正式译文放在项目根目录下，与 `Game/` 同级：
   - **第 1 步输出**：`{gamename}_text.csv`（提取的待翻译文本，1 列，1 个文本 1 行）
   - **第 2 步输出**：`{gamename}_text_translated.csv`（翻译完成后的译文，与原文逐行对应）
-  - 其他中间文件命名使用小写下划线
+  - 翻译中间文件统一放在 `TranslateFiles/`；其他阶段中间文件沿用原约定。缓存、备份和凭据不入库
 - 新增工具放入 `Tools/` 目录，按功能归类

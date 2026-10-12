@@ -1,6 +1,7 @@
 # {游戏名} AINiee 翻译操作指南
 
 > 本文档由 game-translate Skill 生成，指导使用 AINiee 完成本游戏的文本翻译，
+> 本指南及其他翻译中间产物保存于项目 TranslateFiles/，下面的校验命令在该目录执行。
 > 核心是**防止 AI 破坏占位符与格式化字符串**。按顺序执行即可。
 
 ## 一、翻译前必做：占位符防护
@@ -59,15 +60,15 @@
 ## 二、翻译
 
 1. 「接口管理」添加并激活 API（推荐 DeepSeek）
-2. 将 `{gamename}_text.csv` 拖入输入框
+2. 新项目将 `source/{gamename}_text.csv` 快照拖入输入框，开启“项目缓存随输入目录”
 3. 源语言 {源语言} → 目标语言 简体中文
 4. 点击「开始翻译」，等待完成
-5. 输出保存为 `{gamename}_text_translated.csv`
+5. 先输出到本 TranslateFiles 目录的 `{gamename}_text_translated.csv`，校验通过后复制到项目根目录
 
 ## 三、翻译后必做：完整性校验
 
 ```powershell
-python ".codebuddy/skills/game-translate/scripts/validate_translation.py" "{gamename}_text.csv" "{gamename}_text_translated.csv" --fix --fix-newlines
+python "D:/StaticHanHua/.agents/skills/game-translate/scripts/validate_translation.py" "../{gamename}_text.csv" "{gamename}_text_translated.csv" --fix --fix-newlines --src-col 0 --dst-col 0 --report-dir . --backup-dir ./backups
 ```
 
 校验项：行数对齐 / 标记多重集合一致 / 标记未被中文化 / 无全角转换 / 字面 `\n` 未变真实换行。
