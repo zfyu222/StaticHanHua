@@ -314,6 +314,21 @@ class WorkflowTests(unittest.TestCase):
         self.flow.configure({'style': '更简洁但保持原意'}, '改变文体')
         self.assertEqual(self.flow.status()['records'], {'source': 4})
 
+    def test_background_change_invalidates_body_and_old_runs_can_upgrade(self):
+        self.freeze(True); self.translate(); self.review()
+        # An existing run created before the background field can still be reconfigured.
+        with self.flow.db() as db:
+            old = self.flow.meta(db, 'config')
+            old.pop('game_background')
+            self.flow.put(db, 'config', old)
+        workflow.write_json(self.flow.root / 'config/workflow.json', old)
+        self.flow.pause(True)
+        result = self.flow.configure({'game_background': '这是古典奇幻游戏，角色口吻克制。'}, '补充已核实背景')
+        self.assertTrue(result['semantic_reset'])
+        self.assertEqual(self.flow.status()['records'], {'source': 4})
+        self.flow.pause(False); self.flow.prepare('translate')
+        self.assertIn('古典奇幻', self.flow.claim('translate', 'w')['payload']['game_background'])
+
     def test_no_header_mode_preserves_first_text_record(self):
         source = self.flow.root / 'source/header_test.csv'
         source.write_text('text\n[mc]\n', encoding='utf-8')
@@ -359,6 +374,50 @@ class WorkflowTests(unittest.TestCase):
         self.flow.prepare('translate')
         claim = self.flow.claim('translate', 'w')
         self.assertEqual(len(claim['payload']['records']), 1)
+
+
+class BackgroundTests(unittest.TestCase):
+    def test_automatic_background_snapshot_and_shared_backend_prompt(self):
+        with tempfile.TemporaryDirectory(prefix='shh_background_') as directory:
+            project = Path(directory)
+            source = project / 'sample_text.csv'
+            source.write_text('Welcome to the north.\n', encoding='utf-8')
+            readme = project / 'README.md'
+            readme.write_text('# 示例游戏\n\n## 游戏信息\n- 原名：North\n'
+                              '## 游戏简介\n维京时代的策略 RPG。\n### 人物\n角色说话直接。\n'
+                              '## 技术栈\nprivate-build-path\n## 翻译\nold-progress-log\n', encoding='utf-8')
+            flow = workflow.Workflow(project)
+            flow.init(source)
+            snapshot = workflow.read_json(flow.root / 'config/game_background.json')
+            self.assertIn('维京时代', snapshot['text'])
+            self.assertIn('角色说话直接', snapshot['text'])
+            self.assertNotIn('private-build-path', snapshot['text'])
+            self.assertNotIn('old-progress-log', snapshot['text'])
+            readme.write_text('## 游戏简介\n已修订的时代设定。\n', encoding='utf-8')
+            flow.prepare('extract')
+            claim = flow.claim('extract', 'w')
+            self.assertEqual(claim['payload']['game_background'], snapshot['text'])
+            _, api_user = workflow.prompt(claim['payload'])
+            self.assertEqual(json.loads(api_user)['game_background'], snapshot['text'])
+            flow.pause(True); flow.recover(claim['task_id'], True)
+            flow.configure({'api': {'max_requests': 101}}, '只改预算')
+            self.assertEqual(workflow.read_json(flow.root / 'config/game_background.json')['source'], snapshot['source'])
+            updated = flow.configure({'game_background': None}, '重新载入已核实背景')
+            self.assertTrue(updated['semantic_reset'])
+            flow.pause(False); flow.prepare('extract')
+            self.assertIn('已修订', flow.claim('extract', 'w2')['payload']['game_background'])
+
+    def test_missing_readme_and_explicit_background_override(self):
+        with tempfile.TemporaryDirectory(prefix='shh_background_') as directory:
+            project = Path(directory)
+            self.assertEqual(workflow.project_background(project)[0], '')
+            (project / 'README.md').write_text('## 游戏简介\n旧世界设定\n', encoding='utf-8')
+            source = project / 'sample_text.csv'
+            source.write_text('Welcome.\n', encoding='utf-8')
+            flow = workflow.Workflow(project)
+            flow.init(source, {'game_background': '人工确认的新世界设定'})
+            flow.prepare('extract')
+            self.assertEqual(flow.claim('extract', 'w')['payload']['game_background'], '人工确认的新世界设定')
 
 
 class LocalFixTests(unittest.TestCase):

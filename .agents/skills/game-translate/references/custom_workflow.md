@@ -18,6 +18,8 @@ $project = 'D:\StaticHanHua\Projects\GameName'
 
 exclusions 使用 AINiee 禁翻表条目结构：markers、regex、info（可空）；markers/regex 至少一项非空。stage_backends 可为各阶段指定 codex/api，未指定则沿用 backend。设置风格时读取项目 README 和提取上下文；不能杜撰角色或场景。
 
+`game_background=null`（默认）在 init 时自动读取 README 的游戏信息、简介、背景/世界观、人物设定、汉化目标及文体章节，保存 `config/game_background.json` 快照；技术步骤和进度日志不进入背景。每阶段的 Luna/API 任务自动携带相同背景和配置文体。主代理应核对背景完整性，根据已核实资料自动整理游戏文体；需要压缩或更正时用 game_background 字符串及 style 覆盖，不能编造未记载的设定。缺少背景章节时明确记录缺失，按原文处理。README 后续更新不会暗中改变在途提示词；暂停并通过 configure 提交 `{"game_background":null}` 重新读取，或提交修订摘要。背景改变会重置正文完成状态；影响译名时同时按术语修订规则复查。
+
 默认整批 API 请求/结果不会写入 AINiee 的全局 config 或原 GUI 缓存。程序依赖当前本地 AINiee 修复版及技能内占位符脚本；每个运行固定其模块 hash，变更后拒绝继续，先回归再创建新运行。
 
 ## 固定阶段及质量门槛

@@ -32,6 +32,8 @@ selection.json 为配置补丁。例如：
 
 已有配置恢复时不重新 init。`--context` 可读取提取时的上下文映射：JSON 对象按源文逻辑记录号索引，值可包含 group、speaker、resource、scene、text_type、note；各字段为字符串。group 用于避免跨场景合批，speaker 可让程序补充相关人物术语。
 
+init 默认从项目 README 的游戏信息、简介、背景设定、世界观和文体等章节自动读取游戏背景，保存到 TranslateFiles/config/game_background.json。Luna 与 API 的每阶段任务都会携带这份快照、文体及相关上下文。可用 game_background 字符串替换为已核实的背景摘要；设为 null 则自动读取，设为空字符串则不载入背景。运行中更新 README 后需暂停并 configure 重新读取，不会自动改变在途任务。背景缺失时不推测剧情。
+
 AINiee 选择为 `workflow=ainiee`；init 只生成准备文件，不调用翻译。新 GUI 项目导入 TranslateFiles/source 下的源文快照，保持“项目缓存随输入目录”开启，缓存即可留在 TranslateFiles 内。旧项目缓存不自动移动或覆盖，原始 GUI 入口及使用方式继续可用。
 
 ## 程序接口
