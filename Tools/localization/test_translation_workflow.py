@@ -103,6 +103,28 @@ class WorkflowTests(unittest.TestCase):
         self.freeze()
         self.assertTrue(self.flow.status()['glossary_frozen'])
 
+    def test_glossary_context_is_local_to_sparse_evidence(self):
+        texts = ['Alice'] + ['unrelated'] * 98 + ['Wolf']
+        other = self.project / 'Sparse'
+        other.mkdir()
+        source = other / 'sparse_text.csv'
+        with source.open('w', encoding='utf-8', newline='') as f:
+            csv.writer(f).writerows([[s] for s in texts])
+        flow = workflow.Workflow(other)
+        flow.init(source, {'batch_records': 100, 'context_records': 2})
+        flow.prepare('extract')
+        claim = flow.claim('extract', 'extractor')
+        analysis = {'characters': [{'source': 'Alice', 'recommended_translation': '爱丽丝',
+                                   'gender': '女性', 'evidence_rows': [1]}],
+                    'terms': [{'source': 'Wolf', 'recommended_translation': '狼',
+                               'category_path': '种族', 'evidence_rows': [100]}],
+                    'non_translate': []}
+        flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'analysis': analysis})
+        flow.prepare('glossary_review')
+        review = flow.claim('glossary_review', 'reviewer')['payload']
+        self.assertEqual(len(review['context']), 4)
+        self.assertEqual({r['source'] for r in review['context']}, {'unrelated'})
+
     def test_atomic_claim_and_duplicate_submit(self):
         prepared = self.flow.prepare('extract')['tasks']
         with ThreadPoolExecutor(max_workers=6) as pool:

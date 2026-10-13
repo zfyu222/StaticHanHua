@@ -68,10 +68,24 @@ def matched_terms(analysis, texts, options):
     return matched
 
 
-def patterns(named_curly=True, exclusions=()):
+def patterns(named_curly=True, exclusions=(), family_overrides=None):
     module = load_script('analyze_placeholders')
-    result = [(name, pattern) for name, pattern, _ in module.FAMILIES
-              if name != 'curly_named' or named_curly]
+    overrides = family_overrides or {}
+    names = {name for name, _, _ in module.FAMILIES}
+    if not isinstance(overrides, dict) or any(name not in names for name in overrides):
+        raise ValueError('Unknown placeholder family override')
+    result = []
+    for name, pattern, _ in module.FAMILIES:
+        if name == 'curly_named' and not named_curly:
+            continue
+        if name in overrides:
+            expression = overrides[name]
+            if expression is None:
+                continue
+            if not isinstance(expression, str) or not expression:
+                raise ValueError('Placeholder family override must be a non-empty regex or null')
+            pattern = re.compile(expression)
+        result.append((name, pattern))
     for index, item in enumerate(exclusions):
         expression = item.get('regex') or re.escape(item['markers'])
         result.append((f'exclusion_{index}', re.compile(expression)))

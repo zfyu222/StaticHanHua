@@ -34,7 +34,7 @@ DEFAULT = {
     'batch_records': 60, 'batch_chars': 12000, 'context_records': 2,
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
     'polish': False, 'max_attempts': 3, 'lease_seconds': 3600,
-    'exclusions': [], 'stage_backends': {},
+    'exclusions': [], 'stage_backends': {}, 'placeholder_family_overrides': {},
     'api': {'api_format': 'OpenAI', 'target_platform': 'custom_platform_shh',
             'api_url': '', 'model_name': '', 'api_key_env': 'SHH_TRANSLATION_API_KEY',
             'request_timeout': 120, 'think_switch': False, 'temperature': 1,
@@ -133,7 +133,7 @@ def merge_config(base, patch, nested=False):
     for key, value in patch.items():
         if key not in result:
             raise ValueError('Unknown configuration field: ' + key)
-        if isinstance(result[key], dict) and isinstance(value, dict) and key not in ('stage_backends', 'extra_body'):
+        if isinstance(result[key], dict) and isinstance(value, dict) and key not in ('stage_backends', 'extra_body', 'placeholder_family_overrides'):
             result[key] = merge_config(result[key], value, True)
         else:
             result[key] = copy.deepcopy(value)
@@ -157,6 +157,7 @@ def validate_config(config):
             raise ValueError('Boolean required: ' + key)
     if config['protect_named_curly'] not in (True, False, None):
         raise ValueError('Invalid protect_named_curly')
+    bridge.patterns(config['protect_named_curly'] is not False, (), config.get('placeholder_family_overrides', {}))
     if any(k not in STAGES or v not in ('api', 'codex') for k, v in config['stage_backends'].items()):
         raise ValueError('Invalid stage_backends')
     api = config['api']
@@ -326,7 +327,7 @@ class Workflow:
             self.event(db, 'pause' if paused else 'resume', {})
 
     def rules(self, db, config):
-        return bridge.patterns(self.meta(db, 'named_curly'), config['exclusions'])
+        return bridge.patterns(self.meta(db, 'named_curly'), config['exclusions'], config.get('placeholder_family_overrides', {}))
 
     def glossary(self, db):
         info = self.meta(db, 'glossary')
@@ -436,8 +437,16 @@ class Workflow:
                     continue
                 record_ids = [r['id'] for r in group]
                 lo, hi = (group[0]['ordinal'], group[-1]['ordinal']) if group else (0, 0)
-                context = [r for r in records if lo - config['context_records'] <= r['ordinal'] <= hi + config['context_records']
-                           and r['id'] not in record_ids]
+                if stage == 'glossary_review':
+                    # Evidence can span the entire corpus. Include local neighbours,
+                    # not every unrelated record between the first and last evidence.
+                    neighbours = {n for row in group for n in range(
+                        row['ordinal'] - config['context_records'],
+                        row['ordinal'] + config['context_records'] + 1)}
+                    context = [r for r in records if r['ordinal'] in neighbours and r['id'] not in record_ids]
+                else:
+                    context = [r for r in records if lo - config['context_records'] <= r['ordinal'] <= hi + config['context_records']
+                               and r['id'] not in record_ids]
                 payload = {'protocol': 1, 'stage': stage, 'revision': revision,
                            'source_hash': self.meta(db, 'source_hash'), 'config_hash': fingerprint(config),
                            'language': {'source': config['source_language'], 'target': config['target_language']},
@@ -754,14 +763,14 @@ class Workflow:
             old = self.meta(db, 'config')
             if digest(self.meta(db, 'source_path')) != self.meta(db, 'source_hash'):
                 raise ValueError('Source changed; cannot reconfigure this run')
-            new = merge_config({**old, 'game_background': old.get('game_background', '')}, patch)
+            new = merge_config({**DEFAULT, **old, 'game_background': old.get('game_background', '')}, patch)
             background = resolve_background(self.project, new)
             background_file = self.root / 'config/game_background.json'
             if 'game_background' not in patch and background_file.exists():
                 background['source'] = read_json(background_file)['source']
             revision = self.meta(db, 'revision') + 1
-            semantic_keys = ('source_language', 'target_language', 'style', 'game_background', 'case_sensitive', 'whole_word', 'protect_named_curly', 'exclusions')
-            semantic = any(new[k] != old.get(k, '') for k in semantic_keys)
+            semantic_keys = ('source_language', 'target_language', 'style', 'game_background', 'case_sensitive', 'whole_word', 'protect_named_curly', 'exclusions', 'placeholder_family_overrides')
+            semantic = any(new[k] != old.get(k, DEFAULT.get(k, '')) for k in semantic_keys)
             if semantic and db.execute('SELECT 1 FROM records WHERE locked=1').fetchone():
                 raise ValueError('Unlock confirmed translations before changing semantic rules')
             write_json(self.root / f'history/config_r{revision}.json', {'before': old, 'after': new, 'reason': reason})
