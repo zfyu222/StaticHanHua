@@ -36,3 +36,10 @@ dist/
 .idea/
 Thumbs.db
 Desktop.ini
+
+# REA native analysis dependencies and local verification outputs
+/Tools/REA/node_modules/
+/Tools/REA/runtime/
+/Tools/REA/verification/
+/Tools/Ghidra/
+/Tools/Java/

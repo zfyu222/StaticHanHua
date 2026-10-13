@@ -30,6 +30,7 @@
 - 百度网盘 MCP：多个 Python `__pycache__/` 文件；其中部分目前被上游历史追踪，迁移时不得纳入自定义提交。
 - dnSpy：`Tools/dnSpy-net-win64/` 是预编译运行目录，不是源码 fork。
 - UABEA、BepInEx、XUnity.AutoTranslator：仓库内可能有上游已追踪的第三方 DLL；不要为“清理编译产物”而删除上游已追踪文件。
+- REA：`Tools/REA/` 保存 npm manifest/lock 和启动脚本，发布包装在 `node_modules/`；独立 Node 运行时在 `runtime/`。Ghidra、JDK 分别放在 `Tools/Ghidra/`、`Tools/Java/`，这些本地依赖均不入库。安装版本和校验值见 [REA 工具说明](Tools/REA/README.md)。
 
 ## 验证
 

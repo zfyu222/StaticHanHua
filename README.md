@@ -38,6 +38,12 @@
 
 翻译阶段可选择原有 AINiee 工作流或自定义工作流；自定义可选择 Codex 子代理或 API 程序。源文和正式译文留在游戏汉化项目根目录，翻译中间产物统一放 `TranslateFiles/`。执行规则由 `game-translate` 技能维护，程序入口为 `Tools/localization/translation_workflow.py`，操作参考见 [翻译流程工具说明](Tools/localization/README.md)。
 
+## 逆向工作流
+
+需要原生代码逆向时统一使用 REA + Ghidra：字符串定位、引用追踪、函数反编译、IL2CPP 原生代码分析及回填位置确认。工作区 MCP 注册 `rea`，固定 `ghidra` 后端；CLI 入口为 `Tools/REA/rea.ps1`。依赖安装与验证记录见 [REA 工具说明](Tools/REA/README.md)。
+
+`Game/` 联接路径不能直接交给 Windows REA；使用真实游戏路径或带 SHA-256 记录的分析副本。分析证据放在各游戏项目 `Analysis/`，Windows 后端只读分析，回填通过独立补丁脚本或插件实现并完成游戏内验证。Unity 资源、托管 .NET 和 RPG Maker 继续使用各自专用提取与回填工具。
+
 ## 更新工具
 
 先更新对应 fork 的 `main`/`master` 分支并验证，再在此仓库执行：

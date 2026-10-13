@@ -25,7 +25,7 @@ StaticHanHua/
 │   ├── UABEA/           # UABEAvalonia（跨平台 Unity Asset Bundle 编辑器，支持 CLI）
 │   └── ...            # 新工具放此处
 │
-└── .mcp.json          # MCP 服务器配置（含 IDA Pro MCP）
+└── .mcp.json          # MCP 服务器配置（含 REA + Ghidra MCP）
 ```
 
 ## 汉化流程（四步走）
@@ -36,10 +36,10 @@ StaticHanHua/
 
 | 游戏引擎 | 提取工具 | 输入 | 输出 |
 |----------|----------|------|------|
-| .NET / IL2CPP | `dnSpy` 反编译 + 手动提取字符串 | `Game/` 中的 DLL | `{gamename}_text.csv` |
+| .NET / IL2CPP | 托管 DLL 用 `dnSpy`；IL2CPP 元数据提取 + REA/Ghidra 原生逆向 | DLL / `global-metadata.dat` | `{gamename}_text.csv` |
 | Unity | `AssetRipper-CLI` / `UABEAvalonia` 导出资源 | `Game/` 游戏目录 | `{gamename}_text.csv` |
 | RPG Maker | `StevExtraction`（AiNiee 子工具） | `Game/` 游戏目录 | `{gamename}_text.csv` |
-| 原生二进制 | IDA Pro + IDA MCP | 可执行文件 | `{gamename}_text.csv` |
+| 原生二进制 | REA + Ghidra | 可执行文件 | `{gamename}_text.csv` |
 
 **输出格式**：`{gamename}_text.csv`
 
@@ -146,7 +146,7 @@ StaticHanHua/
     dnSpy.Console.exe Assembly-CSharp.dll -o ./project --sln-name Game --sdk-project --vs 2022
     ```
   - 注意：PowerShell 下可能因编码问题报错，可通过 `cmd` 运行
-- **IDA Pro + IDA MCP** — 通过 `.mcp.json` 配置的 IDA Pro MCP 服务器，用于原生二进制逆向分析
+- **REA + Ghidra** — 通过 `.mcp.json` / `.codex/config.toml` 配置 REA MCP，固定使用 Ghidra 后端。入口 `Tools/REA/rea.ps1`；原生 EXE/DLL、IL2CPP 原生代码及其他需要逆向定位的环节均使用此工具链。操作规范见 `.agents/skills/game-unpack/references/rea_ghidra.md`。
 
 ### 提取工具
 - **AssetRipper (GUI)** — `Tools/AssetRipper_win_x64/` — Unity 游戏资源与脚本提取（旧版 GUI）
@@ -384,3 +384,7 @@ git commit -m "<阶段>: <简述>"
   - **第 2 步输出**：`{gamename}_text_translated.csv`（翻译完成后的译文，与原文逐行对应）
   - 翻译中间文件统一放在 `TranslateFiles/`；其他阶段中间文件沿用原约定。缓存、备份和凭据不入库
 - 新增工具放入 `Tools/` 目录，按功能归类
+
+## 逆向工具链约定
+
+需要逆向分析时统一使用 REA + Ghidra，固定选择 `ghidra` 后端。适用于原生 EXE/DLL、IL2CPP 原生代码、文本/字体/编码/排版函数及回填定位。分析证据与副本放在项目 `Analysis/`，执行前阅读 `.agents/skills/game-unpack/references/rea_ghidra.md`；工具失败时排查依赖和目标支持。
