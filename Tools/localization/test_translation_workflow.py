@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import ainiee_bridge as bridge
 import translation_workflow as workflow
+from workflow_quality import REVIEW_CHECKS, GLOSSARY_CHECKS
 
 
 class WorkflowTests(unittest.TestCase):
@@ -48,7 +49,32 @@ class WorkflowTests(unittest.TestCase):
                                       'category_path': '种族', 'evidence_rows': [1, 2]})
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'analysis': table})
 
-    def freeze(self, analysis=False):
+    @staticmethod
+    def glossary_evidence(payload):
+        sources = {r['ordinal']: r['source'] for r in payload['records']}
+        return [{'ref': e['ref'], 'evidence_rows': [next(n for n in e['row']['evidence_rows'] if n in sources)],
+                 'source_excerpt': sources[next(n for n in e['row']['evidence_rows'] if n in sources)],
+                 'reason': '测试语境已核对来源、译名、分类和重复条目。',
+                 'checks': {k: {'status': 'pass', 'evidence': e['row']['source']} for k in GLOSSARY_CHECKS}}
+                for e in payload['entries']]
+
+    @staticmethod
+    def review_evidence(row):
+        return {'source_excerpt': row['source'], 'changes': [],
+                'checks': {k: {'status': 'pass', 'evidence': row['source'] or '原文与译文均为空。'} for k in REVIEW_CHECKS}}
+
+    def approve(self, kind):
+        result = self.flow.quality_report(kind)
+        report = workflow.read_json(result['report_file'])
+        self.flow.approve_quality(kind, {'report_hash': report['report_hash'], 'reviewer': 'sol',
+            'summary': '测试验收：逐项核对风险、文体及跨批一致性。',
+            'decisions': [{'id': key, 'disposition': 'pass', 'reason': '测试核对通过。'} for key in report['required_decisions']]})
+
+    def pilot(self):
+        self.translate('pilot_translate')
+        self.review('pilot_review')
+
+    def freeze(self, analysis=False, pilot=True):
         self.extract(analysis)
         self.flow.prepare('glossary_review')
         while claim := self.flow.claim('glossary_review', 'glossary-reviewer'):
@@ -57,17 +83,23 @@ class WorkflowTests(unittest.TestCase):
                          'review_complete': True, 'review_summary': '逐条核对来源和译名；无待确认项。',
                          'reviewed_refs': [e['ref'] for e in payload['entries']],
                          'acknowledged_findings': [f['id'] for f in payload['audit']['findings']],
-                         'edits': [], 'quarantine': [], 'additions': [], 'allow_no_match': []}
+                         'edits': [], 'quarantine': [], 'additions': [], 'allow_no_match': [],
+                         'entry_reviews': self.glossary_evidence(payload)}
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'decisions': decisions})
         self.flow.freeze_glossary()
+        if pilot:
+            self.pilot()
 
-    def translate(self):
-        self.flow.prepare('translate')
-        while claim := self.flow.claim('translate', 'translator'):
+    def translate(self, stage='translate'):
+        self.flow.prepare(stage)
+        while claim := self.flow.claim(stage, 'translator'):
             records = []
             for row in claim['payload']['records']:
                 value = row['source'].replace('Alice sees a Wolf.', '爱丽丝看见一只狼。').replace(
                     'The Wolf has', '这只狼拥有').replace('gold.', '金币。').replace('text', '文本')
+                for term in claim['payload']['terms']:
+                    if term['src'] == 'Alice':
+                        value = value.replace('爱丽丝', term['dst'])
                 records.append({'id': row['id'], 'translation': value})
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'records': records})
 
@@ -75,8 +107,14 @@ class WorkflowTests(unittest.TestCase):
         self.flow.prepare(stage)
         while claim := self.flow.claim(stage, 'reviewer'):
             rows = [{'id': r['id'], 'translation': r['translation'], 'reviewed': True,
-                     'reason': '对照原文核对称谓、动作、变量及含义。'} for r in claim['payload']['records']]
+                     'reason': '对照原文核对称谓、动作、变量及含义。', **self.review_evidence(r)} for r in claim['payload']['records']]
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'records': rows})
+        with self.flow.db() as db:
+            config = self.flow.config(db)
+        if stage == 'pilot_review':
+            self.approve('pilot')
+        elif stage == ('final_review' if config['polish'] else 'review'):
+            self.approve('final')
 
     def test_end_to_end_and_csv_alignment(self):
         self.freeze(True)
@@ -102,6 +140,27 @@ class WorkflowTests(unittest.TestCase):
     def test_empty_glossary_still_reviewed(self):
         self.freeze()
         self.assertTrue(self.flow.status()['glossary_frozen'])
+
+    def test_atomic_write_retries_windows_reader_lock(self):
+        target = self.project / 'inbox.json'
+        target.write_text('old', encoding='utf-8')
+        replace = os.replace
+        sharing_error = PermissionError('destination temporarily held by a reader')
+        sharing_error.winerror = 32
+        calls = []
+
+        def transient_lock(src, dst):
+            calls.append((src, dst))
+            if len(calls) == 1:
+                self.assertEqual(target.read_text(encoding='utf-8'), 'old')
+                raise sharing_error
+            return replace(src, dst)
+
+        with patch.object(workflow.os, 'replace', side_effect=transient_lock):
+            workflow.atomic_write(target, 'new')
+        self.assertEqual(target.read_text(encoding='utf-8'), 'new')
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(list(self.project.glob('inbox.json.*.tmp')), [])
 
     def test_glossary_context_is_local_to_sparse_evidence(self):
         texts = ['Alice'] + ['unrelated'] * 98 + ['Wolf']
@@ -270,7 +329,8 @@ class WorkflowTests(unittest.TestCase):
         result = {**self.envelope(claim), 'decisions': {
             'snapshot_sha256': p['snapshot_sha256'], 'source_sha256': p['source_hash'],
             'review_complete': True, 'review_summary': '已核对', 'reviewed_refs': [e['ref'] for e in p['entries']],
-            'acknowledged_findings': [f['id'] for f in p['audit']['findings']], 'edits': [], 'quarantine': [], 'additions': [], 'allow_no_match': []}}
+            'acknowledged_findings': [f['id'] for f in p['audit']['findings']], 'edits': [], 'quarantine': [], 'additions': [], 'allow_no_match': [],
+            'entry_reviews': self.glossary_evidence(p)}}
         self.flow.submit(claim['task_id'], claim['lease_token'], result)
         self.flow.reopen_review(claim['task_id'], '补充审校依据')
         next_claim = self.flow.claim('glossary_review', 'w2')
@@ -348,7 +408,7 @@ class WorkflowTests(unittest.TestCase):
         result = self.flow.configure({'game_background': '这是古典奇幻游戏，角色口吻克制。'}, '补充已核实背景')
         self.assertTrue(result['semantic_reset'])
         self.assertEqual(self.flow.status()['records'], {'source': 4})
-        self.flow.pause(False); self.flow.prepare('translate')
+        self.flow.pause(False); self.pilot(); self.flow.prepare('translate')
         self.assertIn('古典奇幻', self.flow.claim('translate', 'w')['payload']['game_background'])
 
     def test_no_header_mode_preserves_first_text_record(self):
@@ -388,11 +448,17 @@ class WorkflowTests(unittest.TestCase):
                      'reviewed_refs': ['characters:0', 'terms:0'], 'acknowledged_findings': [],
                      'edits': [{'table': 'characters', 'index': 0, 'patch': {'recommended_translation': '艾丽丝'},
                                 'reason': '角色音译调整', 'evidence_rows': [1]}], 'quarantine': [], 'additions': [], 'allow_no_match': []}
+        entries = [{'ref': f'{table}:{i}', 'row': entry} for table in ('characters', 'terms', 'non_translate') for i, entry in enumerate(old[table])]
+        with self.flow.db() as db:
+            records = self.flow.quality_rows(db)
+        decisions['entry_reviews'] = self.glossary_evidence({'entries': entries, 'records': records})
+        decisions['review_instances'] = {e['ref']: 'revised-glossary-independent-instance' for e in entries}
         decision_path = self.flow.root / 'glossary/revise_decisions.json'
         workflow.write_json(decision_path, decisions)
         changed = self.flow.revise_glossary(snapshot, decision_path, '角色译名调整')
         self.assertEqual(len(changed['affected_records']), 1)
         self.flow.pause(False)
+        self.pilot()
         self.flow.prepare('translate')
         claim = self.flow.claim('translate', 'w')
         self.assertEqual(len(claim['payload']['records']), 1)

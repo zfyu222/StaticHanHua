@@ -24,6 +24,7 @@ Repack translated text back into game files as Step 3 of the 3-step StaticHanHua
 3. **Identify the repack method** based on the game engine and extraction method documented in README.
 4. **Execute repack** following the engine-specific guide below.
 5. **Test** — launch the game and verify translations appear correctly.
+   - 对使用自定义翻译流程且存在 `TranslateFiles/state/workflow.sqlite3` 的项目，阅读 `../game-translate/references/quality_workflow.md` 的实机检查节。按照导出模板检查字体、排版、UI、对白和任务，保存具体场景、截图/测试记录及实测载荷哈希，用 `translation_workflow.py --project <项目> record-game-check --file <检查JSON>` 记录。未实际验证时保持待测；文本校验通过不能代替实机检查。载荷须保存项目内副本并记录游戏根目录安装路径。
 6. **Update README.md** — write repack tech stack, verification results, known issues into the 回填 / 已知问题 sections.
 7. **Commit to git** — in the project directory, stage README (+ repack artifacts if reasonably sized) and commit (see `CODEBUDDY.md` → Git 与 README 协作规范):
    ```powershell

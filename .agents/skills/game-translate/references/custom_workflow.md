@@ -26,13 +26,17 @@ exclusions 使用 AINiee 禁翻表条目结构：markers、regex、info（可空
 
 按顺序 `prepare --stage <阶段>`；将该阶段所有任务执行并验收完成后才进入下一个阶段。
 
+执行自定义路线前同时读取 [质量门槛与审查协议](quality_workflow.md)。新运行默认 quality_version=2，pilot_records=150（不足时用全部记录），可通过 pilot_ordinals 指定代表性记录号。试译默认按文本类型、说话人、场景、风险类型和长度分层抽取；主代理必须检查覆盖报告，缺少元数据时不宣称已覆盖真实场景。
+
 1. `extract`：覆盖全部源文，收集候选，条目保留 evidence_rows（从 1 开始的 CSV 逻辑记录号），不能凭提示词示例生成专名。结果含 analysis={characters,terms,non_translate}，采用 AINiee analysis_v1 字段。
 2. `glossary_review`：程序汇总同一条目、运行共享 glossary_tool 的检查、按条目分批提供出处。任务只有分配条目，table:index 指向完整原快照。每项做语义核对，提交 reviewed_refs、review_summary、所有命中自动 finding 的处理与带依据的决定。跨批冲突由主代理汇总处理；不能把程序检查通过等同审校完成。
 3. `freeze-glossary`：汇总审校决定并调用共享 build；全部检查通过才冻结正式表。无术语仍要确认全文检查为空。失败时用 `reopen-review --task <相关审校任务> --reason <原因>` 重新领取、修正、提交，再冻结；已提交任务不能直接覆盖，不编辑 DB。轮次仍受 max_attempts 限制。
-4. `translate`：程序按 ID 分批，筛选本批及上下文所需的已冻结术语、人物信息、保留原文要求。每个任务附术语版本与 input_hash。占位符在译前保护、提交时还原；不能手动绕开检查。
-5. `review`：全量逐条对照原文、译文、术语及上下文，返回 reviewed=true 和核对理由。有错则修正；疑难项交主代理处理，不伪造通过记录。语境例外必须绑定命中的术语 source 和理由，不能变成全局忽略。
-6. 可选 `polish` → `final_review`：润色必须保留含义，改变时记录理由；润色后再次逐条语义复核。未启用 polish 时无需这两步。
-7. `export`：程序重新检查，全部记录完成必要审校才导出项目根目录单列 CSV，并生成 TranslateFiles/reports/final_validation.json。README 记录结果、已知问题及实际后端/模型，提交正式译文和适合入库的翻译材料后交接回填。
+4. `pilot_translate` → `pilot_review`：冻结术语后进行代表性试译，另一实例逐条审校。主代理执行 quality-report --kind pilot，审查覆盖、文体、术语与语义证据；有错用 reopen-body 退回，全部通过后 approve-quality --kind pilot。试译结果保存在已验收报告中，正式记录恢复原有状态；全文任务携带通过的试译样例和文体总结。
+5. `translate`：试译验收通过后，程序按 ID 分批，筛选相关术语、人物信息、保留原文要求。每个任务附术语版本与 input_hash。占位符在译前保护、提交时还原；不能手动绕开检查。
+6. `review`：由不同实例全量逐条对照原文、译文、术语及上下文，提交六维 checks、source_excerpt、修改前后及错误类型。疑难项写 issues；语境例外绑定命中术语和理由。
+7. 可选 `polish` → `final_review`：润色保留含义，改变时记录理由；复审实例必须与对应译文和润色产出实例不同。未启用 polish 时无需这两步。
+8. Sol 最终审查：quality-report --kind final 汇总高风险文本、普通抽样、同源多译和角色口吻组。Sol 逐项核对原文、审校证据及跨批一致性，通过后 approve-quality --kind final；有错退回子代理修订并重新生成报告。不得自动批量填“通过”。
+9. `export`：程序检查全部记录及当前 Sol 验收，才导出根目录单列 CSV 和 final_validation.json；实机状态记为 pending_repack。交接回填后按质量参考完成字体、排版、UI、对白及任务检查，record-game-check 保存版本、载荷与证据；release-check 通过后才发布。
 
 任务协议、完整字段及提示词由程序 `prompt` 命令生成。不要使用 AINiee 的 textarea 输出协议处理自定义任务，也不要根据回复顺序推测 ID。
 
@@ -40,7 +44,7 @@ exclusions 使用 AINiee 禁翻表条目结构：markers、regex、info（可空
 
 本工作流明确要求使用子代理执行独立批次。主代理按当前可用并发容量领取任务，按用户确认的项目 model 配置运行（默认 Luna `gpt-6-luna`，`fork_turns=none`），避免继承整段聊天。若用户指定不同模型则遵从。主对话使用 Sol 负责主流程和产出物审查，不承担术语提取或正文翻译。
 
-- 子代理负责 `extract`、`glossary_review`、`translate`、`review`、可选 `polish` 和 `final_review` 的批次结果，以及退回后的术语与译文修订。全量逐条语义审校仍由子代理完成，主代理审查不替代该质量门槛。
+- 子代理负责 `extract`、`glossary_review`、`pilot_translate`、`pilot_review`、`translate`、`review`、可选 `polish` 和 `final_review` 的批次结果，以及退回后的术语与译文修订。全量逐条语义审校仍由子代理完成，主代理审查不替代该质量门槛。
 - 主代理负责准备配置和上下文、领取及派发任务、租约和重试管理、调用程序验收、审查术语依据与跨批一致性、审查译文及报告、冻结术语、导出与文档交接。发现错误或冲突时写明问题和验收要求，退回相关子代理任务；不自行生成、改写或补齐批次术语和译文结果。
 - 主代理审查跨批冲突并确定复核范围，具体语境核对和修订结果由子代理按任务协议提交；依然通过程序接受结果，不直接改数据库或冻结表。
 - 子代理并发数按运行环境剩余槽位安排，主代理即使只做调度和审查也占一个槽位。当前会话总容量为 4 时最多并行 3 个子代理；阶段按顺序推进，批次结束后继续领取下一批，不把该数值写死为其他环境的限制。
@@ -48,11 +52,11 @@ exclusions 使用 AINiee 禁翻表条目结构：markers、regex、info（可空
 正文、审校和润色子代理只读取任务内筛选的相关术语；术语提取与术语审校子代理读取各自分配的源文或条目。
 
 ```powershell
-& $python $flow --project $project claim --stage translate --worker luna-1
+& $python $flow --project $project claim --stage translate --worker <spawn_agent返回的实际实例ID>
 & $python $flow --project $project prompt --task-file <领取返回的task_file>
 ```
 
-spawn_agent 的消息应包含：领取的任务文件绝对路径、生成的提示词文件绝对路径、独立结果文件绝对路径、所用 Python 路径，要求读取任务和提示词、仅生成指定 JSON 结果，不修改原文、术语表、DB 或最终 CSV。结果写在 TranslateFiles/results/ 内任务自己的目录。子代理完成后主代理执行：
+先创建只等待任务的子代理，取得 spawn_agent 的实际 agent ID，再以该 ID claim，生成 prompt 后通过 followup_task 发送任务。不能用别名、换 worker 字符串或新租约冒充新实例；程序记录并检查实例 ID，真实身份由主代理如实提供。提取与术语审校、翻译与审校、润色与复审分别使用不同实例；同一实例可处理同阶段多个批次。派发消息包含任务、提示词、独立结果文件绝对路径及 Python 路径，要求仅生成指定 JSON，不修改原文、术语表、DB 或最终 CSV。结果写在 TranslateFiles/results/ 内自己的目录。子代理完成后主代理执行：
 
 ```powershell
 & $python $flow --project $project submit --task <task_id> --token <lease_token> --result <结果JSON>
