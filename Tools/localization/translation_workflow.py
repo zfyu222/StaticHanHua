@@ -33,7 +33,7 @@ DEFAULT = {
     'style': '忠实原文、自然简洁；保留人物口吻，不补充原文没有的信息。',
     'game_background': None,
     'quality_version': 2, 'pilot_records': 150, 'pilot_ordinals': [],
-    'batch_records': 60, 'batch_chars': 12000, 'context_records': 2,
+    'batch_records': 60, 'batch_chars': 12000, 'context_records': 0,
     'agent_task_limit': 1, 'agent_attempt_limit': 2, 'task_input_chars': 48000,
     'review_batch_records': 20,
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
@@ -474,14 +474,9 @@ class Workflow(QualityMixin):
                 if not group and stage != 'glossary_review':
                     continue
                 record_ids = [r['id'] for r in group]
-                # Repairs and pilot evidence can be far apart. Include local neighbours,
-                # never the entire corpus between the first and last eligible record.
-                neighbours = {n for row in group for n in range(
-                    row['ordinal'] - config['context_records'],
-                    row['ordinal'] + config['context_records'] + 1)}
-                group_names = {r['metadata'].get('group') for r in group}
-                context = [r for r in records if r['ordinal'] in neighbours and r['id'] not in record_ids
-                           and (stage == 'glossary_review' or r['metadata'].get('group') in group_names)]
+                # Extraction order is not narrative order. Keep the legacy setting readable,
+                # but never infer context from neighbouring CSV records.
+                context = []
                 payload = {'protocol': 1, 'stage': stage, 'revision': revision,
                            'source_hash': self.meta(db, 'source_hash'), 'config_hash': fingerprint(config),
                            'language': {'source': config['source_language'], 'target': config['target_language']},
@@ -578,6 +573,8 @@ class Workflow(QualityMixin):
                 raise ValueError('Independent reviewer instance required; this worker produced the assigned text')
             if not task:
                 return None
+            if json.loads(task['payload']).get('context'):
+                raise ValueError('Legacy task contains adjacent text; pause/configure context_records=0 and prepare a new revision before claiming')
             if backend == 'codex':
                 previous = db.execute('SELECT task_id, count(*) n FROM quality_attempts WHERE instance=? GROUP BY task_id', (worker,)).fetchall()
                 used_tasks = {r['task_id'] for r in previous}

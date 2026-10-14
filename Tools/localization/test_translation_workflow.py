@@ -199,7 +199,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(len(calls), 2)
         self.assertEqual(list(self.project.glob('inbox.json.*.tmp')), [])
 
-    def test_glossary_context_is_local_to_sparse_evidence(self):
+    def test_glossary_keeps_cited_evidence_without_adjacent_text(self):
         texts = ['Alice'] + ['unrelated'] * 98 + ['Wolf']
         other = self.project / 'Sparse'
         other.mkdir()
@@ -218,8 +218,8 @@ class WorkflowTests(unittest.TestCase):
         flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'analysis': analysis})
         flow.prepare('glossary_review')
         review = flow.claim('glossary_review', 'reviewer')['payload']
-        self.assertEqual(len(review['context']), 4)
-        self.assertEqual({r['source'] for r in review['context']}, {'unrelated'})
+        self.assertEqual(review['context'], [])
+        self.assertEqual({r['source'] for r in review['records']}, {'Alice', 'Wolf'})
 
     def test_atomic_claim_and_duplicate_submit(self):
         prepared = self.flow.prepare('extract')['tasks']

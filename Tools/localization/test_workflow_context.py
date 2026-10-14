@@ -102,7 +102,7 @@ class ContextTests(unittest.TestCase):
             sizes = [len(workflow.json.loads(r['ids'])) for r in db.execute('SELECT ids FROM tasks WHERE stage="pilot_review"')]
         self.assertEqual(sizes, [20, 20, 5])
 
-    def test_local_context_does_not_cross_explicit_groups(self):
+    def test_adjacent_text_is_omitted_even_with_legacy_setting(self):
         self.source.write_text('first\nsecond\nthird\n', encoding='utf-8')
         contexts = self.project / 'contexts.json'
         workflow.write_json(contexts, {'1': {'group': 'A'}, '2': {'group': 'B'}, '3': {'group': 'A'}})
@@ -110,7 +110,20 @@ class ContextTests(unittest.TestCase):
         self.flow.prepare('extract')
         task = self.flow.claim('extract', 'real-instance-1')['payload']
         self.assertEqual(task['records'][0]['ordinal'], 1)
-        self.assertEqual([r['source'] for r in task['context']], ['third'])
+        self.assertEqual(task['context'], [])
+        self.assertEqual([r['source'] for r in task['records']], ['first'])
+
+    def test_legacy_prepared_context_requires_regeneration_without_consuming_lease(self):
+        self.initialize()
+        with self.flow.db() as db:
+            task = db.execute('SELECT id,payload FROM tasks ORDER BY id').fetchone()
+            payload = json.loads(task['payload'])
+            payload['context'] = [{'source': 'legacy neighbour', 'translation': None}]
+            db.execute('UPDATE tasks SET payload=? WHERE id=?', (workflow.encoded(payload), task['id']))
+        with self.assertRaisesRegex(ValueError, 'Legacy task contains adjacent text'):
+            self.flow.claim('extract', 'real-instance-1')
+        with self.flow.db() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM quality_attempts').fetchone()[0], 0)
 
 
 if __name__ == '__main__':
