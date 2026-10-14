@@ -12,7 +12,7 @@ $project = 'D:\StaticHanHua\Projects\GameName'
 & $python $flow --project $project status
 ```
 
-项目配置为 JSON，只写需要覆盖的默认项。可用 init --context 提供提取上下文 JSON（按逻辑记录号索引，含 group、speaker、resource、scene、text_type、note）；正文按 group 分批，试译跨 group 合批且保留每条元数据。源文、正式译文在项目根目录；所有其他翻译文件放 TranslateFiles，包括输入配置。不要在 Game/ 链接内运行。
+项目配置为 JSON，只写需要覆盖的默认项。可用 init --context 提供提取上下文 JSON（按逻辑记录号索引，含 group、speaker、resource、scene、text_type、note）；正文翻译、审校和润色跨 group 合批，保留每条元数据，不把批内记录当作连续剧情。术语提取仍按 group 分批，试译使用单独的批数配置。源文、正式译文在项目根目录；所有其他翻译文件放 TranslateFiles，包括输入配置。不要在 Game/ 链接内运行。
 
 常用配置：workflow=custom，backend=codex/api，model=gpt-6-luna，source_language、target_language、style、batch_records、batch_chars、context_records、case_sensitive、whole_word、protect_named_curly、exclusions、polish、max_attempts。`protect_named_curly=null` 沿用现有游戏选项识别；结合原文确认命名花括号是否是变量，必要时显式覆盖。`batch_chars` 是字符预算，不是精确 token 数；长单条记录需单独处理并核对模型上下文容量。
 
@@ -50,7 +50,7 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 
 - agent_task_limit=1：同一实际实例最多领取一个不同任务；程序会拒绝超过工作量的领取。更改 worker 别名不能代替新上下文。
 - agent_attempt_limit=2：同一实例最多领取两次（包括同批恢复/重试），不是允许处理第二个不同任务。同一租约内至多一次局部格式或遗漏修复；需要再次修复时记录 fail --retry 并交新实例，仍受任务总 max_attempts 限制。
-- 默认正文/术语提取最多 batch_records=60 条、batch_chars=12000 个原译文字符；术语审校和正文复审另限制 review_batch_records=20。试译使用单独 pilot_batch_count=1 合批，不受场景或正文 20 条限制；输入总预算仍检查，超限可改为 2～3 批，但总领取/重试不得超过 6 次。
+- 默认正文翻译/润色最多 batch_records=80 条、batch_chars=12000 个原译文字符；正文审校/复审另限制 review_batch_records=40。条数是上限，长文本按字符预算提前拆批；场景变化不拆正文批次。术语提取另限制 extract_batch_records=60，术语审校另限制 glossary_review_batch_records=20，均不超过 batch_records。审校逐条六维证据不简化，报告更长，因此条数比翻译小；若输出截断或修复增多，应降低批量，不盲目增大。试译仍默认 30 条，单独 pilot_batch_count=1 合批，不受正文批量限制；输入总预算仍检查，超限可改为 2～3 批，但总领取/重试不得超过 6 次。
 - task_input_chars=48000：领取前计算完整提示词和任务 JSON 的字符数，包含背景、术语、本批文本、试译参考、占位符映射等。它是字符预算，不是模型 token 数；超限不消耗租约，暂停后缩小批次或整理经核实的背景，再准备新版本。不能截断正文或审校证据；单条超长记录需另设计保留对齐关系的切分方案。
 - 每个新实例只读取自己的任务与提示词，获得相同游戏背景、文体、冻结相关术语、已确认的角色/场景元数据、本批原文及待审译文和通过的试译样例。不附带 CSV 相邻记录，不加载已完成任务的完整聊天、全库或日志；不据提取顺序推断剧情关系。
 - 主代理领取时使用 claim --compact，只接收任务 ID、文件路径、租约和预算信息；完整任务包留在文件中，不反复进入 Sol 对话。子代理结束时仅报告任务 ID、结果文件路径、完成状态及简短疑难项，不粘贴整批译文或审校报告。Sol 按需读取落盘证据，继续承担调度和质量审查。
@@ -58,6 +58,8 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 默认每批换上下文适用于所有 Codex 内部阶段。仅当用户明确希望同一实例连续处理紧密相关的小批次时才提高 agent_task_limit，同时检查 agent_attempt_limit 和完整输入预算；独立审校约束始终有效。API 请求本身已逐次使用独立上下文。调整以上调度字段使用 pause/configure/resume，不重置已完成译文。
 
 既有运行沿用新上下文生命周期的默认限制，但已经生成的大任务不会自动改 ID 或拆分。需要重新分批时先暂停、结束/回收在途任务，再 configure 设置批次与输入预算并重新 prepare；保留已验收结果，不直接编辑任务文件或数据库。
+
+既有项目显式保存的 batch_records=20 不会因升级默认值自动变大。正文开始前或无在途任务时，通过 pause/configure/resume 应用 {"batch_records":80,"review_batch_records":40}，再 prepare 剩余正文任务；这是调度变更，不重跑已验收译文。字符上限可先沿用项目配置，根据实际批量、截断和返工情况再调整。短文本理想情况下，翻译任务数相对 20 条上限约减少四分之三，审校约减少一半；这不是总 token 或额度节省比例，正文和逐条证据成本仍然存在。
 
 本工作流明确要求使用子代理执行独立批次。主代理按当前可用并发容量领取任务，按用户确认的项目 model 配置运行（默认 Luna `gpt-6-luna`，`fork_turns=none`），避免继承整段聊天。若用户指定不同模型则遵从。主对话使用 Sol 负责主流程和产出物审查，不承担术语提取或正文翻译。
 

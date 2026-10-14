@@ -76,7 +76,8 @@ class ContextTests(unittest.TestCase):
         self.initialize()
         first = self.flow.claim('extract', 'real-instance-1'); self.submit_empty_glossary(first)
         self.flow.pause(True)
-        result = self.flow.configure({'agent_task_limit': 2, 'agent_attempt_limit': 2}, '调整单实例工作量')
+        result = self.flow.configure({'agent_task_limit': 2, 'agent_attempt_limit': 2,
+                                      'batch_records': 80, 'review_batch_records': 40}, '调整工作量与批量')
         self.assertFalse(result['semantic_reset'])
         self.flow.pause(False); self.flow.prepare('extract')
         second = self.flow.claim('extract', 'real-instance-1')
@@ -97,10 +98,35 @@ class ContextTests(unittest.TestCase):
         source = other / 'review_text.csv'; source.write_text('text\n' * 45, encoding='utf-8')
         fixture.flow = workflow.Workflow(other); fixture.flow.init(source, {'batch_records': 60})
         fixture.freeze(); fixture.translate()
-        self.assertEqual(len(fixture.flow.prepare('review')['tasks']), 3)
+        self.assertEqual(len(fixture.flow.prepare('review')['tasks']), 2)
         with fixture.flow.db() as db:
             sizes = [len(workflow.json.loads(r['ids'])) for r in db.execute('SELECT ids FROM tasks WHERE stage="review"')]
-        self.assertEqual(sizes, [20, 20, 5])
+        self.assertEqual(sizes, [40, 5])
+
+    def test_body_batches_cross_groups_but_keep_size_and_character_limits(self):
+        records = [{'id': str(i), 'source': 'text', 'translation': None,
+                    'metadata': {'group': str(i)}} for i in range(161)]
+        self.assertEqual([len(b) for b in self.flow.batches(records, workflow.DEFAULT, False)], [80, 80, 1])
+        self.assertEqual(len(list(self.flow.batches(records, workflow.DEFAULT))), 161)
+        limited = {**workflow.DEFAULT, 'batch_chars': 9}
+        groups = list(self.flow.batches(records[:5], limited, False))
+        self.assertEqual([len(b) for b in groups], [2, 2, 1])
+        self.assertEqual(groups[0][1]['metadata'], {'group': '1'})
+
+    def test_full_translation_preparation_combines_scene_metadata(self):
+        fixture = fixtures.WorkflowTests(); fixture.setUp(); self.addCleanup(fixture.tearDown)
+        other = fixture.project / 'Groups'; other.mkdir()
+        source = other / 'group_text.csv'; source.write_text('text\n' * 85, encoding='utf-8')
+        contexts = other / 'contexts.json'
+        workflow.write_json(contexts, {str(i): {'group': str(i)} for i in range(1, 86)})
+        fixture.flow = workflow.Workflow(other); fixture.flow.init(source, {}, contexts)
+        fixture.freeze()
+        fixture.flow.prepare('translate')
+        with fixture.flow.db() as db:
+            tasks = db.execute('SELECT payload FROM tasks WHERE stage="translate"').fetchall()
+        rows = [json.loads(t['payload'])['records'] for t in tasks]
+        self.assertEqual([len(batch) for batch in rows], [80, 5])
+        self.assertEqual(rows[0][1]['metadata']['group'], '2')
 
     def test_adjacent_text_is_omitted_even_with_legacy_setting(self):
         self.source.write_text('first\nsecond\nthird\n', encoding='utf-8')
