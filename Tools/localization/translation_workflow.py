@@ -1084,6 +1084,13 @@ def prompt(payload):
     common += schemas[stage]
     if stage not in ('extract', 'glossary_review'):
         common += ' 正文沿用已冻结术语，不自行新增或修改术语表。'
+    if stage in ('pilot_review', 'review', 'final_review'):
+        common += (' 审校以修复明确错误为目标：含义准确、自然可读且符合术语和既定文体就通过。'
+                   '同义措辞、个人偏好、另一种同样正确的译法不构成错误，不为此改写或提出返工。'
+                   'warning 只报告有具体原文依据、会影响理解或一致性的疑点，不记录可选润色建议。'
+                   '每项问题一次写清具体 ID、原文依据、错误及验收要求，避免反复试探不同措辞。'
+                   '若有 revision_request，只修复明确指定的问题并检查本条修复是否引入错误，'
+                   '不顺带改动未受影响的表达，不重复扩展此前已经解决的问题。')
     if stage == 'pilot_review':
         common += (' 试译优先采用精简协议：顶层 review_summary 为 accuracy/completeness/terminology/tone/logic/placeholders '
                    '六项对象，各项含 status=pass/corrected/not_applicable 和具体 evidence；整批总结一次，不逐条重复六维说明。'
