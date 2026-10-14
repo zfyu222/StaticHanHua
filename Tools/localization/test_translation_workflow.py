@@ -238,7 +238,7 @@ class WorkflowTests(unittest.TestCase):
         with source.open('w', encoding='utf-8', newline='') as f:
             csv.writer(f).writerows([[s] for s in texts])
         flow = workflow.Workflow(other)
-        flow.init(source, {'batch_records': 100, 'context_records': 2})
+        flow.init(source, {'batch_records': 100, 'extract_batch_records': 100, 'context_records': 2})
         flow.prepare('extract')
         claim = flow.claim('extract', 'extractor')
         analysis = {'characters': [{'source': 'Alice', 'recommended_translation': '爱丽丝',

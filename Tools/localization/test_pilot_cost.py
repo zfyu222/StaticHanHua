@@ -15,6 +15,7 @@ class PilotCostTests(unittest.TestCase):
     def setUp(self):
         self.f = fixtures.WorkflowTests(); self.f.setUp(); self.addCleanup(self.f.tearDown)
         self.flow = self.f.flow
+        self.flow.pause(True); self.flow.configure({'pilot_call_limit': 6}, 'Exercise legacy six-call budget'); self.flow.pause(False)
         self.f.freeze(True, pilot=False)
 
     @staticmethod
@@ -30,7 +31,8 @@ class PilotCostTests(unittest.TestCase):
 
     def test_default_plan_is_one_translator_and_one_independent_reviewer(self):
         plan = self.flow.pilot_plan()
-        self.assertEqual(workflow.DEFAULT['pilot_records'], 30)
+        self.assertEqual(workflow.DEFAULT['pilot_records'], 150)
+        self.assertEqual(workflow.DEFAULT['pilot_call_limit'], 12)
         self.assertEqual((plan['translation_batches'], plan['review_batches']), (1, 1))
         self.assertEqual(plan['execution_limit'], 6)
         self.assertTrue(plan['within_budget'])
@@ -50,7 +52,7 @@ class PilotCostTests(unittest.TestCase):
 
     def test_oversized_task_count_is_rejected_before_creating_tasks(self):
         self.flow.pause(True); self.flow.configure({'pilot_batch_count': 4}, 'Synthetic over-budget split'); self.flow.pause(False)
-        with self.assertRaisesRegex(ValueError, '6-execution budget'):
+        with self.assertRaisesRegex(ValueError, 'configured execution budget'):
             self.flow.prepare('pilot_translate')
         with self.flow.db() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM tasks WHERE stage LIKE "pilot_%"').fetchone()[0], 0)
@@ -67,9 +69,61 @@ class PilotCostTests(unittest.TestCase):
         self.assertEqual(self.flow.pilot_plan()['executions_used'], 6)
         self.assertFalse(self.flow.pilot_plan()['within_budget'])
 
-    def test_hard_limit_cannot_be_configured_above_six(self):
-        with self.assertRaisesRegex(ValueError, 'cannot exceed 6'):
-            workflow.merge_config(workflow.DEFAULT, {'pilot_call_limit': 7})
+    def test_hard_limit_cannot_be_configured_above_twelve(self):
+        with self.assertRaisesRegex(ValueError, 'cannot exceed 12'):
+            workflow.merge_config(workflow.DEFAULT, {'pilot_call_limit': 13})
+
+    def test_150_samples_fit_four_batches_of_at_most_40(self):
+        rows = [{'id': str(i)} for i in range(150)]
+        batches = self.flow.fixed_pilot_batches(rows, rows, 1)
+        self.assertEqual(len(batches), 4)
+        self.assertEqual([len(b) for b in batches], [40, 40, 40, 30])
+        self.assertTrue(all(len(b) <= 40 for b in batches))
+        self.assertEqual([r for b in batches for r in b], rows)
+
+    def test_targeted_repair_preserves_other_review_evidence(self):
+        claim, result = self.compact_claim()
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        ids = [r['id'] for r in claim['payload']['records']]
+        report = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
+        checked = [{'id': i, 'disposition': 'pass', 'reason': 'Sol inspected unchanged sentence.'}
+                   for i in report['required_decisions'] if i != ids[0]]
+        saved = self.flow.checkpoint_quality('pilot', {'report_hash': report['report_hash'],
+            'reviewer': 'sol', 'summary': 'All other checks passed; repair only first sentence.', 'decisions': checked})
+        self.assertFalse(saved['stage_approved'])
+        with self.assertRaisesRegex(ValueError, 'subset'):
+            self.flow.reopen_body(claim['task_id'], 'Bad scope', ['unknown'])
+        repair = self.flow.reopen_body(claim['task_id'], 'Recheck this sentence only', ids[:1])
+        self.assertEqual(repair['repair_records'], 1)
+        self.assertEqual(repair['preserved_records'], len(ids) - 1)
+        retry = self.flow.claim('pilot_review', 'fresh-review-' + uuid.uuid4().hex)
+        self.assertEqual([r['id'] for r in retry['payload']['records']], ids[:1])
+        self.flow.submit(retry['task_id'], retry['lease_token'], {**self.f.envelope(retry),
+            'review_summary': self.summary(), 'records': [{'id': ids[0], 'reviewed': True, 'verdict': 'pass'}]})
+        with self.flow.db() as db:
+            evidence = self.flow.latest_reviews(db, 'pilot')
+        self.assertEqual(evidence[ids[0]]['task_id'], repair['task_id'])
+        self.assertTrue(all(evidence[i]['task_id'] == claim['task_id'] for i in ids[1:]))
+        updated = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
+        self.assertEqual(updated['required_decisions'], ids[:1])
+        self.assertEqual([r['id'] for r in updated['records_to_check']], ids[:1])
+        self.f.approve('pilot')
+
+    def test_repair_invalidates_saved_check_for_the_repaired_sentence(self):
+        claim, result = self.compact_claim()
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        report = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
+        self.flow.checkpoint_quality('pilot', {'report_hash': report['report_hash'], 'reviewer': 'sol',
+            'summary': 'Explicit checks before repair', 'decisions': [{'id': i, 'disposition': 'pass',
+                'reason': 'Sol inspected this check.'} for i in report['required_decisions']]})
+        self.assertEqual(workflow.read_json(self.flow.quality_report('pilot')['report_file'])['required_decisions'], [])
+        target = claim['payload']['records'][0]['id']
+        self.flow.reopen_body(claim['task_id'], 'Recheck one prior passed item', [target])
+        retry = self.flow.claim('pilot_review', 'fresh-review-' + uuid.uuid4().hex)
+        self.flow.submit(retry['task_id'], retry['lease_token'], {**self.f.envelope(retry),
+            'review_summary': self.summary(), 'records': [{'id': target, 'reviewed': True, 'verdict': 'pass'}]})
+        changed = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
+        self.assertEqual(changed['required_decisions'], [target])
 
     def test_compact_review_keeps_one_batch_summary_and_all_ids(self):
         claim, result = self.compact_claim()

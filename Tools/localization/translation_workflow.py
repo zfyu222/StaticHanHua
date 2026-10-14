@@ -32,8 +32,8 @@ DEFAULT = {
     'source_language': 'auto', 'target_language': '简体中文',
     'style': '忠实原文、自然简洁；保留人物口吻，不补充原文没有的信息。',
     'game_background': None,
-    'quality_version': 2, 'pilot_records': 30, 'pilot_ordinals': [], 'pilot_batch_count': 1,
-    'pilot_call_limit': 6,
+    'quality_version': 2, 'pilot_records': 150, 'pilot_ordinals': [], 'pilot_batch_count': 1,
+    'pilot_call_limit': 12,
     'batch_records': 80, 'batch_chars': 12000, 'context_records': 0,
     'agent_task_limit': 1, 'agent_attempt_limit': 2, 'task_input_chars': 48000,
     'review_batch_records': 40, 'extract_batch_records': 60, 'glossary_review_batch_records': 20,
@@ -171,8 +171,8 @@ def validate_config(config):
     if config.get('pilot_batch_count') is not None and (
             type(config['pilot_batch_count']) is not int or not 1 <= config['pilot_batch_count'] <= 6):
         raise ValueError('pilot_batch_count must be null or an integer between 1 and 6')
-    if config['pilot_call_limit'] > 6:
-        raise ValueError('Pilot execution limit cannot exceed 6')
+    if config['pilot_call_limit'] > 12:
+        raise ValueError('Pilot execution limit cannot exceed 12')
     for key in ('case_sensitive', 'whole_word', 'polish'):
         if type(config[key]) is not bool:
             raise ValueError('Boolean required: ' + key)
@@ -386,9 +386,12 @@ class Workflow(QualityMixin):
 
     @staticmethod
     def fixed_pilot_batches(scope, eligible, count):
-        """Explicit pilot task count; retain per-record context and completed work."""
+        """Requested minimum task count, at most 40 rows each; keep completed work."""
         eligible_ids = {row['id'] for row in eligible}
-        count = min(count, len(scope))
+        if count <= (len(scope) + 39) // 40:
+            return [[row for row in scope[i:i + 40] if row['id'] in eligible_ids]
+                    for i in range(0, len(scope), 40)]
+        count = min(max(count, (len(scope) + 39) // 40), len(scope))
         if not count:
             return []
         return [[row for row in scope[i * len(scope) // count:(i + 1) * len(scope) // count]
@@ -502,7 +505,7 @@ class Workflow(QualityMixin):
                 remaining = config.get('pilot_call_limit', 6) - self.pilot_spent(db)
                 reserve = len(self.fixed_pilot_batches(scope, scope, config.get('pilot_batch_count') or 1)) if stage == 'pilot_translate' else 0
                 if len(groups) + reserve > remaining:
-                    raise ValueError('Pilot plan exceeds total 6-execution budget; consolidate batches or reuse a smaller completed sample; no tasks created')
+                    raise ValueError('Pilot plan exceeds configured execution budget; consolidate batches or reuse a smaller completed sample; no tasks created')
             task_ids = [r['id'] for r in existing]
             for group_index, group in enumerate(groups):
                 if not group and stage != 'glossary_review':
@@ -1189,11 +1192,12 @@ def main():
     p = sub.add_parser('recover'); p.add_argument('--task', required=True); p.add_argument('--worker-stopped', action='store_true')
     p = sub.add_parser('heartbeat'); p.add_argument('--task', required=True); p.add_argument('--token', required=True)
     p = sub.add_parser('reopen-review'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True)
-    p = sub.add_parser('reopen-body'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True)
+    p = sub.add_parser('reopen-body'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True); p.add_argument('--ids', nargs='+')
     p = sub.add_parser('quality-report'); p.add_argument('--kind', choices=('pilot', 'final'), required=True)
     sub.add_parser('pilot-plan')
     p = sub.add_parser('reduce-pilot'); p.add_argument('--records', type=int, default=30); p.add_argument('--reason', required=True)
     p = sub.add_parser('approve-quality'); p.add_argument('--kind', choices=('pilot', 'final'), required=True); p.add_argument('--decisions', required=True)
+    p = sub.add_parser('checkpoint-quality'); p.add_argument('--kind', choices=('pilot', 'final'), required=True); p.add_argument('--decisions', required=True)
     p = sub.add_parser('record-game-check'); p.add_argument('--file', required=True)
     sub.add_parser('release-check')
     p = sub.add_parser('configure'); p.add_argument('--file', required=True); p.add_argument('--reason', required=True)
@@ -1220,11 +1224,12 @@ def main():
         elif args.command == 'recover': result = flow.recover(args.task, args.worker_stopped)
         elif args.command == 'heartbeat': result = flow.heartbeat(args.task, args.token)
         elif args.command == 'reopen-review': result = flow.reopen_review(args.task, args.reason)
-        elif args.command == 'reopen-body': result = flow.reopen_body(args.task, args.reason)
+        elif args.command == 'reopen-body': result = flow.reopen_body(args.task, args.reason, args.ids)
         elif args.command == 'quality-report': result = flow.quality_report(args.kind)
         elif args.command == 'pilot-plan': result = flow.pilot_plan()
         elif args.command == 'reduce-pilot': result = flow.reduce_pilot(args.records, args.reason)
         elif args.command == 'approve-quality': result = flow.approve_quality(args.kind, read_json(args.decisions))
+        elif args.command == 'checkpoint-quality': result = flow.checkpoint_quality(args.kind, read_json(args.decisions))
         elif args.command == 'record-game-check': result = flow.record_game_check(read_json(args.file))
         elif args.command == 'release-check': result = flow.release_check()
         elif args.command == 'configure': result = flow.configure(read_json(args.file), args.reason)

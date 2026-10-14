@@ -8,6 +8,7 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import uuid
 
 REVIEW_CHECKS = ('accuracy', 'completeness', 'terminology', 'tone', 'logic', 'placeholders')
 GLOSSARY_CHECKS = ('source', 'translation', 'category', 'consistency')
@@ -361,7 +362,13 @@ class QualityMixin:
             if changes_path.exists():
                 glossary_checks.append({'id': 'G:review_changes', 'report': read_json(changes_path),
                                         'reviewed_glossary': glossary_info['path']})
-        required = [r['id'] for r in selected] + [g['id'] for g in consistency + glossary_checks]
+        items = selected + consistency + glossary_checks
+        key = self.pilot_key(db, config)
+        checkpoints = self.meta(db, 'quality_checkpoints', {}).get(kind, {})
+        signatures = {item['id']: signature({'policy': key, 'item': item}) for item in items}
+        reused = {item['id']: checkpoints[item['id']] for item in items
+                  if checkpoints.get(item['id'], {}).get('signature') == signatures[item['id']]}
+        required = [item['id'] for item in items if item['id'] not in reused]
         report = {'schema': 2, 'kind': kind, 'pilot_key': self.pilot_key(db, config),
                   'source_sha256': self.meta(db, 'source_hash'), 'glossary': glossary_info,
                   'snapshot_hash': signature({'rows': rows, 'reviews': {r['id']: reviews[r['id']] for r in rows},
@@ -370,12 +377,36 @@ class QualityMixin:
                                'missing_context': sum(not r['metadata'] for r in rows),
                                'risk_records': len(risks), 'ordinary_sample': len(selected) - len(risks)},
                   'risk_detection': 'Heuristic candidates plus reviewer findings; absence of flags is not proof of correctness.',
-                  'records_to_check': selected, 'consistency': consistency, 'glossary_checks': glossary_checks,
+                  'records_to_check': [r for r in selected if r['id'] not in reused],
+                  'consistency': [r for r in consistency if r['id'] not in reused],
+                  'glossary_checks': [r for r in glossary_checks if r['id'] not in reused],
                   'pilot_batch_summaries': {reviews[r['id']]['task_id']: reviews[r['id']]['batch_summary'] for r in rows
-                                           if kind == 'pilot' and reviews[r['id']].get('batch_summary') is not None},
+                                           if kind == 'pilot' and r['id'] not in reused and reviews[r['id']].get('batch_summary') is not None},
+                  'check_signatures': signatures, 'reused_decisions': reused,
                   'required_decisions': required}
         report['report_hash'] = signature(report)
         return report
+
+    def checkpoint_quality(self, kind, decisions):
+        """Record Sol's passed checks before repair without approving the whole stage."""
+        with self.db() as db:
+            report = self.build_quality_report(db, kind, self.config(db))
+            entries = decisions.get('decisions', [])
+            if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'sol'
+                    or not nonempty(decisions.get('summary')) or not isinstance(entries, list) or not entries
+                    or any(not isinstance(e, dict) for e in entries)
+                    or len({e.get('id') for e in entries}) != len(entries)
+                    or any(e.get('id') not in report['required_decisions']
+                           or e.get('disposition') not in ('pass', 'contextual') or not nonempty(e.get('reason')) for e in entries)):
+                raise ValueError('Checkpoint requires explicit Sol passed decisions bound to the current report')
+            checkpoints = self.meta(db, 'quality_checkpoints', {})
+            saved = checkpoints.setdefault(kind, {})
+            for entry in entries:
+                saved[entry['id']] = {'signature': report['check_signatures'][entry['id']],
+                                      'report_hash': report['report_hash'], 'decision': entry}
+            self.put(db, 'quality_checkpoints', checkpoints)
+            self.event(db, 'checkpoint_quality', {'kind': kind, 'decisions': entries, 'report_hash': report['report_hash']})
+            return {'status': 'checks_saved', 'saved_checks': len(entries), 'stage_approved': False}
 
     def quality_report(self, kind):
         from translation_workflow import write_json
@@ -426,7 +457,7 @@ class QualityMixin:
             raise ValueError('Current Sol risk/consistency approval required before export')
         return {'report_hash': receipt['report_hash'], 'reviewer': 'sol'}
 
-    def reopen_body(self, task_id, reason):
+    def reopen_body(self, task_id, reason, record_ids=None):
         """Return a rejected batch to a subagent, preserving attempt budgets and locks."""
         with self.db() as db:
             config = self.config(db)
@@ -439,13 +470,27 @@ class QualityMixin:
                 raise ValueError('Accepted pilot is immutable; revise configuration/glossary and run a new pilot')
             if task['attempt'] >= config['max_attempts']:
                 raise ValueError('Attempt limit reached')
-            ids = set(json.loads(task['ids']))
+            original_ids = set(json.loads(task['ids']))
+            ids = original_ids if record_ids is None else set(record_ids)
+            if not ids or not ids.issubset(original_ids) or (record_ids is not None and len(ids) != len(record_ids)):
+                raise ValueError('Repair IDs must be a nonempty unique subset of the assigned records')
+            prior_attempts = max((t['attempt'] for t in db.execute('SELECT attempt,ids FROM tasks WHERE stage=? AND revision=?',
+                                  (task['stage'], task['revision'])) if ids.intersection(json.loads(t['ids']))), default=task['attempt'])
+            if prior_attempts >= config['max_attempts']:
+                raise ValueError('Attempt limit reached for selected repair records')
             # Later stage tasks touching these records must not override the repair.
             order = {'pilot_review': 0, 'review': 1, 'polish': 2, 'final_review': 3}
             for other in db.execute('SELECT * FROM tasks WHERE revision=?', (task['revision'],)).fetchall():
                 if other['id'] != task_id and order.get(other['stage'], -1) > order[task['stage']] and ids.intersection(json.loads(other['ids'])):
                     db.execute('UPDATE tasks SET status="obsolete" WHERE id=?', (other['id'],))
             payload = json.loads(task['payload'])
+            partial = ids != original_ids
+            if partial:
+                # Keep the old completed result as provenance for every untouched record.
+                payload['records'] = [r for r in payload['records'] if r['id'] in ids]
+                payload['repair_of'] = task_id
+                task_id = task['stage'] + '-repair-' + uuid.uuid4().hex[:16]
+                payload['task_id'] = task_id
             for row in payload['records']:
                 current = db.execute('SELECT translation,locked,exceptions FROM records WHERE id=?', (row['id'],)).fetchone()
                 row.update(translation=current['translation'], locked=bool(current['locked']), exceptions=json.loads(current['exceptions']))
@@ -455,14 +500,20 @@ class QualityMixin:
             payload.pop('input_hash', None)
             input_hash = signature(payload)
             payload['input_hash'] = input_hash
-            db.execute('UPDATE tasks SET payload=?,input_hash=?,status="pending",lease_token=NULL,lease_until=NULL,ready_at=0,result=NULL WHERE id=?',
-                       (json.dumps(payload, ensure_ascii=False), input_hash, task_id))
+            if partial:
+                db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) VALUES (?,?,?,?,?,?,?,"pending",?)',
+                           (task_id, task['stage'], task['revision'], json.dumps([r['id'] for r in payload['records']]),
+                            json.dumps(payload, ensure_ascii=False), input_hash, task['backend'], prior_attempts))
+            else:
+                db.execute('UPDATE tasks SET payload=?,input_hash=?,status="pending",lease_token=NULL,lease_until=NULL,ready_at=0,result=NULL,attempt=? WHERE id=?',
+                           (json.dumps(payload, ensure_ascii=False), input_hash, prior_attempts, task_id))
             approvals = self.meta(db, 'quality_approvals', {})
             approvals.pop('final', None)
             if task['stage'] == 'pilot_review':
                 approvals.pop('pilot', None)
             self.put(db, 'quality_approvals', approvals)
-            self.event(db, 'reopen_body', {'task': task_id, 'reason': reason})
+            self.event(db, 'reopen_body', {'task': task_id, 'reason': reason, 'record_ids': sorted(ids)})
+            return {'task_id': task_id, 'repair_records': len(ids), 'preserved_records': len(original_ids - ids)}
 
     def write_game_check_template(self, export):
         from translation_workflow import write_json

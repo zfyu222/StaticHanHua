@@ -28,12 +28,12 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 
 按顺序 `prepare --stage <阶段>`；将该阶段所有任务执行并验收完成后才进入下一个阶段。
 
-执行自定义路线前同时读取 [质量门槛与审查协议](quality_workflow.md)。新运行默认 quality_version=2，pilot_records=30（不足时用全部记录），pilot_batch_count=1，pilot_call_limit=6；通常一个 Luna 翻译、另一个独立 Luna 审校，Sol 在结束后一次验收。试译跨场景合批，保留各条元数据，不把不同场景当作连续剧情。抽样兼顾类型、风险与长度，不追求覆盖全部分支；有明确问题再定向修订，不自动扩成 150 条。
+执行自定义路线前同时读取 [质量门槛与审查协议](quality_workflow.md)。新运行默认 quality_version=2，pilot_records=150（不足时用全部记录），pilot_batch_count=1，pilot_call_limit=12。程序按每批最多 40 条自动将 150 条分成 4 批；通常翻译和独立审校各 4 个 Luna 实例，Sol 在结束后一次验收。pilot_batch_count 是请求的最少批数，小样本仍可一批。试译跨场景合批，保留各条元数据，不把不同场景当作连续剧情。抽样兼顾类型、风险与长度，不追求覆盖全部分支；有明确问题再定向修订。
 
 1. `extract`：覆盖全部源文，收集候选，条目保留 evidence_rows（从 1 开始的 CSV 逻辑记录号），不能凭提示词示例生成专名。结果含 analysis={characters,terms,non_translate}，采用 AINiee analysis_v1 字段。
 2. `glossary_review`：程序汇总同一条目、运行共享 glossary_tool 的检查、按条目分批提供出处。任务只有分配条目，table:index 指向完整原快照。每项做语义核对，提交 reviewed_refs、review_summary、所有命中自动 finding 的处理与带依据的决定。跨批冲突由主代理汇总处理；不能把程序检查通过等同审校完成。
 3. `freeze-glossary`：汇总审校决定并调用共享 build；全部检查通过才冻结正式表。无术语仍要确认全文检查为空。失败时用 `reopen-review --task <相关审校任务> --reason <原因>` 重新领取、修正、提交，再冻结；已提交任务不能直接覆盖，不编辑 DB。轮次仍受 max_attempts 限制。
-4. `pilot_translate` → `pilot_review`：先 pilot-plan 检查批数与剩余预算，再执行试译及独立审校；两个阶段和重试合计最多 6 次领取，配置、分批、文体修改不刷新预算。审校采用一次六维批总结及逐条 pass，只有改动和疑难项输出详细证据。Sol 结束后一次审查，必要时用 reopen-body 给明确修订要求，不逐条往返调度；全部通过后 approve-quality --kind pilot。试译结果与文体总结保存在验收报告中，供全文任务参考。
+4. `pilot_translate` → `pilot_review`：先 pilot-plan 检查批数与剩余预算，再执行试译及独立审校；默认两个阶段和重试累计最多 12 次领取，配置、分批、文体修改不刷新已用次数。审校采用一次六维批总结及逐条 pass，只有改动和疑难项输出详细证据。Sol 结束后一次审查；有问题时先 checkpoint-quality 保存明确通过的检查，再用 reopen-body --ids 集中退回问题语句，不重审整份样本。全部通过后 approve-quality --kind pilot。试译结果与文体总结保存在验收报告中，供全文任务参考。
 5. `translate`：试译验收通过后，程序按 ID 分批，筛选相关术语、人物信息、保留原文要求。每个任务附术语版本与 input_hash。占位符在译前保护、提交时还原；不能手动绕开检查。
 6. `review`：由不同实例全量逐条对照原文、译文、术语及上下文，提交六维 checks、source_excerpt、修改前后及错误类型。疑难项写 issues；语境例外绑定命中术语和理由。
 7. 可选 `polish` → `final_review`：润色保留含义，改变时记录理由；复审实例必须与对应译文和润色产出实例不同。未启用 polish 时无需这两步。
@@ -50,7 +50,7 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 
 - agent_task_limit=1：同一实际实例最多领取一个不同任务；程序会拒绝超过工作量的领取。更改 worker 别名不能代替新上下文。
 - agent_attempt_limit=2：同一实例最多领取两次（包括同批恢复/重试），不是允许处理第二个不同任务。同一租约内至多一次局部格式或遗漏修复；需要再次修复时记录 fail --retry 并交新实例，仍受任务总 max_attempts 限制。
-- 默认正文翻译/润色最多 batch_records=80 条、batch_chars=12000 个原译文字符；正文审校/复审另限制 review_batch_records=40。条数是上限，长文本按字符预算提前拆批；场景变化不拆正文批次。术语提取另限制 extract_batch_records=60，术语审校另限制 glossary_review_batch_records=20，均不超过 batch_records。审校逐条六维证据不简化，报告更长，因此条数比翻译小；若输出截断或修复增多，应降低批量，不盲目增大。试译仍默认 30 条，单独 pilot_batch_count=1 合批，不受正文批量限制；输入总预算仍检查，超限可改为 2～3 批，但总领取/重试不得超过 6 次。
+- 默认正文翻译/润色最多 batch_records=80 条、batch_chars=12000 个原译文字符；正文审校/复审另限制 review_batch_records=40。条数是上限，长文本按字符预算提前拆批；场景变化不拆正文批次。术语提取另限制 extract_batch_records=60，术语审校另限制 glossary_review_batch_records=20，均不超过 batch_records。审校逐条六维证据不简化，报告更长，因此条数比翻译小；若输出截断或修复增多，应降低批量，不盲目增大。试译默认 150 条，每批最多 40 条，pilot_batch_count=1 表示在条数上限内尽量合批，不受正文批量限制；输入总预算仍检查，超限时缩小批次，但总领取/重试不得超过配置预算（默认 12 次）。
 - task_input_chars=48000：领取前计算完整提示词和任务 JSON 的字符数，包含背景、术语、本批文本、试译参考、占位符映射等。它是字符预算，不是模型 token 数；超限不消耗租约，暂停后缩小批次或整理经核实的背景，再准备新版本。不能截断正文或审校证据；单条超长记录需另设计保留对齐关系的切分方案。
 - 每个新实例只读取自己的任务与提示词，获得相同游戏背景、文体、冻结相关术语、已确认的角色/场景元数据、本批原文及待审译文和通过的试译样例。不附带 CSV 相邻记录，不加载已完成任务的完整聊天、全库或日志；不据提取顺序推断剧情关系。
 - 主代理领取时使用 claim --compact，只接收任务 ID、文件路径、租约和预算信息；完整任务包留在文件中，不反复进入 Sol 对话。子代理结束时仅报告任务 ID、结果文件路径、完成状态及简短疑难项，不粘贴整批译文或审校报告。Sol 按需读取落盘证据，继续承担调度和质量审查。
