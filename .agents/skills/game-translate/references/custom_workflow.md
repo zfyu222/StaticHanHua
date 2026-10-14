@@ -42,6 +42,21 @@ exclusions 使用 AINiee 禁翻表条目结构：markers、regex、info（可空
 
 ## Codex 子代理执行
 
+### 上下文生命周期
+
+默认不是三个实例各翻译三分之一全文，而是同时最多三个批次，每个批次使用一个新实例（fork_turns=none）。验收成功后该实例结束，下一批重新 spawn_agent；不能 followup_task 给完成的实例继续下一批。状态、译文、术语与审校证据由项目文件和数据库保存，聊天历史不作为进度或知识库。
+
+- agent_task_limit=1：同一实际实例最多领取一个不同任务；程序会拒绝超过工作量的领取。更改 worker 别名不能代替新上下文。
+- agent_attempt_limit=2：同一实例最多领取两次（包括同批恢复/重试），不是允许处理第二个不同任务。同一租约内至多一次局部格式或遗漏修复；需要再次修复时记录 fail --retry 并交新实例，仍受任务总 max_attempts 限制。
+- 默认正文/术语提取最多 batch_records=60 条、batch_chars=12000 个原译文字符；术语审校和正文复审另限制 review_batch_records=20（与 batch_records 取较小值），给逐项证据留出输出空间。
+- task_input_chars=48000：领取前计算完整提示词和任务 JSON 的字符数，包含背景、术语、邻近文本、试译参考、占位符映射等。它是字符预算，不是模型 token 数；超限不消耗租约，暂停后缩小批次/局部上下文或整理经核实的背景，再准备新版本。不能截断正文或审校证据；单条超长记录需另设计保留对齐关系的切分方案。
+- 每个新实例只读取自己的任务与提示词，获得相同游戏背景、文体、冻结相关术语、角色/场景元数据、附近原文及已有译文和通过的试译样例。相关上下文按实际分组与局部邻居筛选，不加载已完成任务的完整聊天、全库或日志。人物、称谓和伏笔通过已核实的背景及元数据保留，不能因为换上下文而丢弃。
+- 主代理领取时使用 claim --compact，只接收任务 ID、文件路径、租约和预算信息；完整任务包留在文件中，不反复进入 Sol 对话。子代理结束时仅报告任务 ID、结果文件路径、完成状态及简短疑难项，不粘贴整批译文或审校报告。Sol 按需读取落盘证据，继续承担调度和质量审查。
+
+默认每批换上下文适用于所有 Codex 内部阶段。仅当用户明确希望同一实例连续处理紧密相关的小批次时才提高 agent_task_limit，同时检查 agent_attempt_limit 和完整输入预算；独立审校约束始终有效。API 请求本身已逐次使用独立上下文。调整以上调度字段使用 pause/configure/resume，不重置已完成译文。
+
+既有运行沿用新上下文生命周期的默认限制，但已经生成的大任务不会自动改 ID 或拆分。需要重新分批时先暂停、结束/回收在途任务，再 configure 设置批次与输入预算并重新 prepare；保留已验收结果，不直接编辑任务文件或数据库。
+
 本工作流明确要求使用子代理执行独立批次。主代理按当前可用并发容量领取任务，按用户确认的项目 model 配置运行（默认 Luna `gpt-6-luna`，`fork_turns=none`），避免继承整段聊天。若用户指定不同模型则遵从。主对话使用 Sol 负责主流程和产出物审查，不承担术语提取或正文翻译。
 
 - 子代理负责 `extract`、`glossary_review`、`pilot_translate`、`pilot_review`、`translate`、`review`、可选 `polish` 和 `final_review` 的批次结果，以及退回后的术语与译文修订。全量逐条语义审校仍由子代理完成，主代理审查不替代该质量门槛。
@@ -52,17 +67,17 @@ exclusions 使用 AINiee 禁翻表条目结构：markers、regex、info（可空
 正文、审校和润色子代理只读取任务内筛选的相关术语；术语提取与术语审校子代理读取各自分配的源文或条目。
 
 ```powershell
-& $python $flow --project $project claim --stage translate --worker <spawn_agent返回的实际实例ID>
+& $python $flow --project $project claim --stage translate --worker <spawn_agent返回的实际实例ID> --compact
 & $python $flow --project $project prompt --task-file <领取返回的task_file>
 ```
 
-先创建只等待任务的子代理，取得 spawn_agent 的实际 agent ID，再以该 ID claim，生成 prompt 后通过 followup_task 发送任务。不能用别名、换 worker 字符串或新租约冒充新实例；程序记录并检查实例 ID，真实身份由主代理如实提供。提取与术语审校、翻译与审校、润色与复审分别使用不同实例；同一实例可处理同阶段多个批次。派发消息包含任务、提示词、独立结果文件绝对路径及 Python 路径，要求仅生成指定 JSON，不修改原文、术语表、DB 或最终 CSV。结果写在 TranslateFiles/results/ 内自己的目录。子代理完成后主代理执行：
+先创建只等待任务的新子代理（fork_turns=none），取得 spawn_agent 的实际 agent ID，再以该 ID claim，生成 prompt 后通过 followup_task 发送该批任务。不能用别名、换 worker 字符串或新租约冒充新实例；程序记录并检查实例 ID，真实身份由主代理如实提供。提取与术语审校、翻译与审校、润色与复审分别使用不同实例；默认一个实例只处理一个批次及有限同批修复。派发消息包含任务、提示词、独立结果文件绝对路径及 Python 路径，要求仅生成指定 JSON，不修改原文、术语表、DB 或最终 CSV。结果写在 TranslateFiles/results/ 内自己的目录。子代理完成后主代理执行：
 
 ```powershell
 & $python $flow --project $project submit --task <task_id> --token <lease_token> --result <结果JSON>
 ```
 
-验收失败可让同一子代理修正独立结果再提交；最多 max_attempts 轮，需轮次记账时使用 fail --retry 后重新领取任务。关键歧义、规则缺陷和持续失败升级主代理。`wait_agent` 或相应平台等待工具负责等待；任务不完整时不能结束当前工作并声称翻译完成。
+验收失败可让同一子代理做一次局部修复再提交；仍失败时使用 fail --retry 记账并由新实例领取，把当前结果及明确错误写入其独立任务说明，不转发整段旧聊天。最多 max_attempts 轮；关键歧义、规则缺陷和持续失败升级主代理。`wait_agent` 负责等待；任务不完整时不能结束当前工作并声称翻译完成。
 
 领取租约即将到期时 `heartbeat --task ... --token ...`。进程重启后查看 status；确认旧 worker 已停止才 `recover --task ... --worker-stopped`。租约过期不表示 worker 一定停止，不能盲目重发。
 

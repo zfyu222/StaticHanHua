@@ -34,6 +34,8 @@ DEFAULT = {
     'game_background': None,
     'quality_version': 2, 'pilot_records': 150, 'pilot_ordinals': [],
     'batch_records': 60, 'batch_chars': 12000, 'context_records': 2,
+    'agent_task_limit': 1, 'agent_attempt_limit': 2, 'task_input_chars': 48000,
+    'review_batch_records': 20,
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
     'polish': False, 'max_attempts': 3, 'lease_seconds': 3600,
     'exclusions': [], 'stage_backends': {}, 'placeholder_family_overrides': {},
@@ -158,7 +160,8 @@ def validate_config(config):
         raise ValueError('Unsupported workflow/backend')
     if config['game_background'] is not None and (not isinstance(config['game_background'], str) or len(config['game_background']) > 20000):
         raise ValueError('game_background must be null or a string of at most 20000 characters')
-    for key in ('batch_records', 'batch_chars', 'max_attempts', 'lease_seconds', 'pilot_records'):
+    for key in ('batch_records', 'batch_chars', 'max_attempts', 'lease_seconds', 'pilot_records',
+                'agent_task_limit', 'agent_attempt_limit', 'task_input_chars', 'review_batch_records'):
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError('Positive integer required: ' + key)
     if type(config['context_records']) is not int or config['context_records'] < 0:
@@ -445,12 +448,16 @@ class Workflow(QualityMixin):
                 covered = {record_id for task in existing for record_id in json.loads(task['ids'])}
                 eligible = [r for r in scope if (required is None or r['stage'] == required) and r['id'] not in covered]
             rules = self.rules(db, config)
+            batch_config = dict(config)
+            if stage in ('glossary_review', 'pilot_review', 'review', 'final_review'):
+                batch_config['batch_records'] = min(config['batch_records'], config.get('review_batch_records', 20))
             review_groups = None
             if stage == 'glossary_review':
                 entries = [{'ref': f'{table}:{i}', 'table': table, 'index': i, 'row': row}
                            for table in glossary_tool.TABLES for i, row in enumerate(original[table])]
                 audit_data = read_json(self.root / f'glossary/r{revision}/audit/glossary_audit.json')
-                review_groups = [entries[i:i + config['batch_records']] for i in range(0, len(entries), config['batch_records'])] or [[]]
+                batch_size = batch_config['batch_records']
+                review_groups = [entries[i:i + batch_size] for i in range(0, len(entries), batch_size)] or [[]]
                 related_groups = []
                 groups = []
                 for entries_batch in review_groups:
@@ -461,23 +468,20 @@ class Workflow(QualityMixin):
                     evidence_ids = {n for entry in entries_batch + related for n in entry['row'].get('evidence_rows', [])[:2]}
                     groups.append([r for r in records if r['ordinal'] in evidence_ids])
             else:
-                groups = list(self.batches(eligible, config))
+                groups = list(self.batches(eligible, batch_config))
             task_ids = [r['id'] for r in existing]
             for group_index, group in enumerate(groups):
                 if not group and stage != 'glossary_review':
                     continue
                 record_ids = [r['id'] for r in group]
-                lo, hi = (group[0]['ordinal'], group[-1]['ordinal']) if group else (0, 0)
-                if stage == 'glossary_review' or stage.startswith('pilot_'):
-                    # Evidence can span the entire corpus. Include local neighbours,
-                    # not every unrelated record between the first and last evidence.
-                    neighbours = {n for row in group for n in range(
-                        row['ordinal'] - config['context_records'],
-                        row['ordinal'] + config['context_records'] + 1)}
-                    context = [r for r in records if r['ordinal'] in neighbours and r['id'] not in record_ids]
-                else:
-                    context = [r for r in records if lo - config['context_records'] <= r['ordinal'] <= hi + config['context_records']
-                               and r['id'] not in record_ids]
+                # Repairs and pilot evidence can be far apart. Include local neighbours,
+                # never the entire corpus between the first and last eligible record.
+                neighbours = {n for row in group for n in range(
+                    row['ordinal'] - config['context_records'],
+                    row['ordinal'] + config['context_records'] + 1)}
+                group_names = {r['metadata'].get('group') for r in group}
+                context = [r for r in records if r['ordinal'] in neighbours and r['id'] not in record_ids
+                           and (stage == 'glossary_review' or r['metadata'].get('group') in group_names)]
                 payload = {'protocol': 1, 'stage': stage, 'revision': revision,
                            'source_hash': self.meta(db, 'source_hash'), 'config_hash': fingerprint(config),
                            'language': {'source': config['source_language'], 'target': config['target_language']},
@@ -574,6 +578,17 @@ class Workflow(QualityMixin):
                 raise ValueError('Independent reviewer instance required; this worker produced the assigned text')
             if not task:
                 return None
+            if backend == 'codex':
+                previous = db.execute('SELECT task_id, count(*) n FROM quality_attempts WHERE instance=? GROUP BY task_id', (worker,)).fetchall()
+                used_tasks = {r['task_id'] for r in previous}
+                if (task['id'] not in used_tasks and len(used_tasks) >= config.get('agent_task_limit', 1)) or sum(r['n'] for r in previous) >= config.get('agent_attempt_limit', 2):
+                    raise ValueError('Fresh agent context required: instance workload limit reached; spawn a new agent with fork_turns=none')
+            budget_payload = json.loads(task['payload'])
+            budget_payload.update(worker=worker, lease_token='0' * 32, attempt=task['attempt'] + 1)
+            system, user = prompt(budget_payload)
+            input_chars = len(system) + len(user)
+            if input_chars > config.get('task_input_chars', 48000):
+                raise ValueError(f'Task input exceeds context budget ({input_chars} characters); reduce batch/context size or background and prepare a new revision; do not truncate evidence')
             token = secrets.token_hex(16)
             db.execute('INSERT INTO quality_attempts VALUES (?,?,?)', (task['id'], token, worker))
             db.execute('UPDATE tasks SET status="running",attempt=attempt+1,lease_token=?,lease_until=? WHERE id=?',
@@ -583,7 +598,10 @@ class Workflow(QualityMixin):
             path = self.root / f'tasks/{task["id"]}/{token}.json'
             write_json(path, payload)
             self.event(db, 'claim', {'task': task['id'], 'worker': worker, 'attempt': payload['attempt']})
-            return {'task_id': task['id'], 'lease_token': token, 'task_file': str(path), 'payload': payload}
+            return {'task_id': task['id'], 'lease_token': token, 'task_file': str(path), 'payload': payload,
+                    'context_policy': {'input_chars': input_chars, 'input_limit_chars': config.get('task_input_chars', 48000),
+                                       'agent_task_limit': config.get('agent_task_limit', 1),
+                                       'fresh_context_default': config.get('agent_task_limit', 1) == 1}}
 
     def valid_task(self, db, task_id, token):
         task = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
@@ -876,6 +894,42 @@ class Workflow(QualityMixin):
             self.event(db, 'configure', {'revision': revision, 'reason': reason, 'semantic_reset': semantic})
             return {'revision': revision, 'semantic_reset': semantic}
 
+    def replace_context(self, contexts, reason):
+        """Correct extraction metadata before glossary/body preparation, with history."""
+        with self.db() as db:
+            self.config(db)
+            revision = self.meta(db, 'revision')
+            if not self.meta(db, 'paused') or not reason.strip():
+                raise ValueError('Pause and provide a context replacement reason first')
+            if db.execute('SELECT 1 FROM tasks WHERE status="running" OR '
+                          '(revision=? AND status IN ("pending","failed"))', (revision,)).fetchone():
+                raise ValueError('Finish outstanding tasks before replacing context')
+            if self.meta(db, 'glossary') or db.execute(
+                    'SELECT 1 FROM records WHERE stage!=? OR translation IS NOT NULL OR locked=1', ('source',)).fetchone():
+                raise ValueError('Context replacement is limited to preparation before glossary freezing or body work')
+            ordinals = {str(r[0]) for r in db.execute('SELECT ordinal FROM records')}
+            if (not isinstance(contexts, dict) or set(contexts) != ordinals
+                    or any(not isinstance(row, dict) or any(not isinstance(k, str) or not isinstance(v, str)
+                                                           for k, v in row.items()) for row in contexts.values())):
+                raise ValueError('Context must cover every ordinal exactly once with string metadata')
+            before = self.meta(db, 'contexts', {})
+            if before == contexts:
+                return {'status': 'unchanged', 'revision': revision}
+            revision += 1
+            write_json(self.root / f'history/context_r{revision}.json',
+                       {'before': before, 'after': contexts, 'reason': reason})
+            self.put(db, 'contexts', contexts)
+            self.put(db, 'revision', revision)
+            self.put(db, 'quality_approvals', {})
+            self.put(db, 'pilot_selection', None)
+            self.put(db, 'pilot_prior', None)
+            db.execute('UPDATE tasks SET revision=? WHERE stage="extract" AND status="done"', (revision,))
+            db.execute('UPDATE tasks SET status="obsolete" WHERE stage!="extract"')
+            write_json(self.root / 'source/context.json', contexts)
+            self.event(db, 'replace_context', {'revision': revision, 'reason': reason,
+                                              'before_hash': fingerprint(before), 'after_hash': fingerprint(contexts)})
+            return {'status': 'replaced', 'revision': revision, 'records': len(contexts)}
+
     def lock(self, record_id, locked, reason):
         with self.db() as db:
             self.config(db)
@@ -1079,6 +1133,7 @@ def main():
     p = sub.add_parser('prompt'); p.add_argument('--task-file', required=True)
     p = sub.add_parser('claim'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--worker', required=True)
     p.add_argument('--backend', choices=('codex', 'api'), default='codex')
+    p.add_argument('--compact', action='store_true', help='Return task paths/lease only; keep full payload in the task file')
     p = sub.add_parser('submit'); p.add_argument('--task', required=True); p.add_argument('--token', required=True); p.add_argument('--result', required=True)
     p = sub.add_parser('fail'); p.add_argument('--task', required=True); p.add_argument('--token', required=True); p.add_argument('--code', required=True)
     p.add_argument('--retry', action='store_true')
@@ -1091,6 +1146,7 @@ def main():
     p = sub.add_parser('record-game-check'); p.add_argument('--file', required=True)
     sub.add_parser('release-check')
     p = sub.add_parser('configure'); p.add_argument('--file', required=True); p.add_argument('--reason', required=True)
+    p = sub.add_parser('replace-context'); p.add_argument('--file', required=True); p.add_argument('--reason', required=True)
     p = sub.add_parser('revise-glossary'); p.add_argument('--snapshot', required=True); p.add_argument('--decisions', required=True); p.add_argument('--reason', required=True)
     for command in ('lock', 'unlock'):
         p = sub.add_parser(command); p.add_argument('--record', required=True); p.add_argument('--reason', required=True)
@@ -1104,7 +1160,10 @@ def main():
         elif args.command in ('pause', 'resume'): result = flow.pause(args.command == 'pause')
         elif args.command == 'prepare': result = flow.prepare(args.stage)
         elif args.command == 'prompt': result = flow.task_prompt(args.task_file)
-        elif args.command == 'claim': result = flow.claim(args.stage, args.worker, args.backend)
+        elif args.command == 'claim':
+            result = flow.claim(args.stage, args.worker, args.backend)
+            if args.compact and result:
+                result = {key: value for key, value in result.items() if key != 'payload'}
         elif args.command == 'submit': result = flow.submit(args.task, args.token, read_json(args.result))
         elif args.command == 'fail': result = flow.fail(args.task, args.token, args.code, args.retry)
         elif args.command == 'recover': result = flow.recover(args.task, args.worker_stopped)
@@ -1116,6 +1175,7 @@ def main():
         elif args.command == 'record-game-check': result = flow.record_game_check(read_json(args.file))
         elif args.command == 'release-check': result = flow.release_check()
         elif args.command == 'configure': result = flow.configure(read_json(args.file), args.reason)
+        elif args.command == 'replace-context': result = flow.replace_context(read_json(args.file), args.reason)
         elif args.command == 'freeze-glossary': result = flow.freeze_glossary()
         elif args.command == 'revise-glossary': result = flow.revise_glossary(args.snapshot, args.decisions, args.reason)
         elif args.command in ('lock', 'unlock'): result = flow.lock(args.record, args.command == 'lock', args.reason)

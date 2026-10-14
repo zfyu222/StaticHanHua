@@ -3,6 +3,7 @@ import csv
 import importlib.util
 from pathlib import Path
 import unittest
+import uuid
 
 import test_translation_workflow as fixtures
 import translation_workflow as workflow
@@ -52,7 +53,7 @@ class QualityTests(unittest.TestCase):
 
     def raw_review(self, stage):
         self.flow.prepare(stage)
-        while claim := self.flow.claim(stage, 'independent-review-instance'):
+        while claim := self.flow.claim(stage, stage + '-' + uuid.uuid4().hex):
             self.flow.submit(claim['task_id'], claim['lease_token'], self.review_result(claim))
 
     def test_full_translation_waits_for_pilot_acceptance(self):
@@ -71,15 +72,15 @@ class QualityTests(unittest.TestCase):
     def test_producer_cannot_review_own_pilot(self):
         self.fixture.translate('pilot_translate')
         self.flow.prepare('pilot_review')
-        with self.assertRaisesRegex(ValueError, 'Independent reviewer'):
-            self.flow.claim('pilot_review', 'translator')
+        with self.assertRaisesRegex(ValueError, 'Independent reviewer|Fresh agent context'):
+            self.flow.claim('pilot_review', self.fixture.worker_ids['pilot_translate'][0])
         self.assertIsNotNone(self.flow.claim('pilot_review', 'another-instance'))
 
     def test_producer_cannot_review_full_translation(self):
         self.fixture.pilot(); self.fixture.translate()
         self.flow.prepare('review')
-        with self.assertRaisesRegex(ValueError, 'Independent reviewer'):
-            self.flow.claim('review', 'translator')
+        with self.assertRaisesRegex(ValueError, 'Independent reviewer|Fresh agent context'):
+            self.flow.claim('review', self.fixture.worker_ids['translate'][0])
 
     def test_glossary_extractor_cannot_review_its_terms(self):
         # New run so extraction and glossary review have not already completed.
@@ -210,7 +211,7 @@ class QualityTests(unittest.TestCase):
         fixture.flow = workflow.Workflow(other); fixture.flow.init(source, {'batch_records': 1})
         fixture.freeze(); fixture.flow.prepare('translate')
         for translation in ('文本', '文字'):
-            claim = fixture.flow.claim('translate', 'translation-instance')
+            claim = fixture.flow.claim('translate', 'translation-instance-' + uuid.uuid4().hex)
             fixture.flow.submit(claim['task_id'], claim['lease_token'], {
                 **fixture.envelope(claim), 'records': [{'id': claim['payload']['records'][0]['id'], 'translation': translation}]})
         fixture.review()
@@ -265,14 +266,14 @@ class QualityTests(unittest.TestCase):
         fixture.flow = flow = workflow.Workflow(project)
         flow.init(source, {'polish': True, 'batch_records': 4, 'batch_chars': 35})
         fixture.freeze(); flow.prepare('translate')
-        while claim := flow.claim('translate', 'long-translation-instance'):
+        while claim := flow.claim('translate', 'long-translation-instance-' + uuid.uuid4().hex):
             flow.submit(claim['task_id'], claim['lease_token'], {**fixture.envelope(claim),
                 'records': [{'id': r['id'], 'translation': '测' * 20} for r in claim['payload']['records']]})
         fixture.review()
 
         def polish():
             flow.prepare('polish')
-            while claim := flow.claim('polish', 'short-polish-instance'):
+            while claim := flow.claim('polish', 'short-polish-instance-' + uuid.uuid4().hex):
                 flow.submit(claim['task_id'], claim['lease_token'], {**fixture.envelope(claim),
                     'records': [{'id': r['id'], 'translation': '文本', 'reason': 'Synthetic shortening'} for r in claim['payload']['records']]})
 
@@ -301,7 +302,7 @@ class QualityTests(unittest.TestCase):
 
     def test_blank_source_cannot_generate_new_content(self):
         self.fixture.pilot(); self.flow.prepare('translate')
-        while claim := self.flow.claim('translate', 'new-translator'):
+        while claim := self.flow.claim('translate', 'new-translator-' + uuid.uuid4().hex):
             rows = [{'id': r['id'], 'translation': r['source'], 'exceptions': [
                 {'source': term['src'], 'reason': 'Synthetic test context exception'} for term in claim['payload']['terms']
                 if term['src'] in r['source']]} for r in claim['payload']['records']]

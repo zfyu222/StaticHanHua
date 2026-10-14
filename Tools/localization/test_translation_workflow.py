@@ -11,6 +11,7 @@ import time
 import subprocess
 import sys
 import unittest
+import uuid
 from unittest.mock import patch
 
 import ainiee_bridge as bridge
@@ -28,18 +29,54 @@ class WorkflowTests(unittest.TestCase):
         with self.source.open('w', encoding='utf-8', newline='') as f:
             csv.writer(f).writerows([[s] for s in self.texts])
         self.flow = workflow.Workflow(self.project)
+        self.worker_ids = {}
         self.flow.init(self.source, {'batch_records': 2})
 
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_context_replacement_preserves_extraction_and_updates_new_tasks(self):
+        self.extract(True)
+        self.flow.pause(True)
+        contexts = {str(i): {'group': 'sample', 'speaker': 'Player' if i == 1 else '',
+                             'text_type': 'Choice' if i == 1 else 'Narrative'} for i in range(1, 5)}
+        self.assertEqual(self.flow.replace_context(contexts, 'Correct speaker ownership')['records'], 4)
+        status = self.flow.status()
+        self.assertEqual(status['revision'], 2)
+        self.assertEqual(sum(r['n'] for r in status['tasks'] if r['stage'] == 'extract' and r['status'] == 'done'), 2)
+        self.flow.pause(False)
+        self.flow.prepare('glossary_review')
+        claim = self.flow.claim('glossary_review', 'different-reviewer')
+        row = next(r for r in claim['payload']['records'] if r['ordinal'] == 1)
+        self.assertEqual(row['metadata']['speaker'], 'Player')
+        self.assertTrue((self.flow.root / 'history/context_r2.json').exists())
+
+    def test_context_replacement_rejects_live_tasks_and_invalid_coverage(self):
+        contexts = {str(i): {'group': 'sample'} for i in range(1, 5)}
+        with self.assertRaisesRegex(ValueError, 'Pause'):
+            self.flow.replace_context(contexts, 'correction')
+        self.flow.pause(True)
+        with self.assertRaisesRegex(ValueError, 'every ordinal'):
+            self.flow.replace_context({'1': {}}, 'correction')
+        self.flow.pause(False)
+        self.flow.prepare('extract')
+        self.flow.claim('extract', 'extractor')
+        self.flow.pause(True)
+        with self.assertRaisesRegex(ValueError, 'outstanding'):
+            self.flow.replace_context(contexts, 'correction')
+
     @staticmethod
     def envelope(claim):
         return {'task_id': claim['task_id'], 'input_hash': claim['payload']['input_hash']}
 
+    def fresh_worker(self, stage):
+        worker = stage + '-' + uuid.uuid4().hex
+        self.worker_ids.setdefault(stage, []).append(worker)
+        return worker
+
     def extract(self, analysis=False):
         self.flow.prepare('extract')
-        while claim := self.flow.claim('extract', 'extractor'):
+        while claim := self.flow.claim('extract', self.fresh_worker('extract')):
             payload = claim['payload']
             table = {'characters': [], 'terms': [], 'non_translate': []}
             if analysis and any('Alice' in r['source'] for r in payload['records']):
@@ -77,7 +114,7 @@ class WorkflowTests(unittest.TestCase):
     def freeze(self, analysis=False, pilot=True):
         self.extract(analysis)
         self.flow.prepare('glossary_review')
-        while claim := self.flow.claim('glossary_review', 'glossary-reviewer'):
+        while claim := self.flow.claim('glossary_review', self.fresh_worker('glossary_review')):
             payload = claim['payload']
             decisions = {'snapshot_sha256': payload['snapshot_sha256'], 'source_sha256': payload['source_hash'],
                          'review_complete': True, 'review_summary': '逐条核对来源和译名；无待确认项。',
@@ -92,7 +129,7 @@ class WorkflowTests(unittest.TestCase):
 
     def translate(self, stage='translate'):
         self.flow.prepare(stage)
-        while claim := self.flow.claim(stage, 'translator'):
+        while claim := self.flow.claim(stage, self.fresh_worker(stage)):
             records = []
             for row in claim['payload']['records']:
                 value = row['source'].replace('Alice sees a Wolf.', '爱丽丝看见一只狼。').replace(
@@ -105,7 +142,7 @@ class WorkflowTests(unittest.TestCase):
 
     def review(self, stage='review'):
         self.flow.prepare(stage)
-        while claim := self.flow.claim(stage, 'reviewer'):
+        while claim := self.flow.claim(stage, self.fresh_worker(stage)):
             rows = [{'id': r['id'], 'translation': r['translation'], 'reviewed': True,
                      'reason': '对照原文核对称谓、动作、变量及含义。', **self.review_evidence(r)} for r in claim['payload']['records']]
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'records': rows})
@@ -276,7 +313,7 @@ class WorkflowTests(unittest.TestCase):
         self.freeze(True); self.translate(); self.review()
         self.flow.pause(True); self.flow.configure({'polish': True}, '剧情润色'); self.flow.pause(False)
         self.flow.prepare('polish')
-        while claim := self.flow.claim('polish', 'w'):
+        while claim := self.flow.claim('polish', self.fresh_worker('polish')):
             result = {**self.envelope(claim), 'records': [{'id': r['id'], 'translation': r['translation']} for r in claim['payload']['records']]}
             self.flow.submit(claim['task_id'], claim['lease_token'], result)
         with self.assertRaises(ValueError): self.flow.export()
