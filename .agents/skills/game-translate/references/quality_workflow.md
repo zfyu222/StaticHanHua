@@ -6,7 +6,7 @@
 
 Codex 的 `claim --worker` 使用 spawn_agent 返回的实际 agent ID。每批新建 fork_turns=none 的实例，先创建等待任务的实例，再领取、生成提示词并发送任务；默认验收后结束，下一批换新实例，不把全文划成三个长期对话。不使用 luna-1 等别名，不通过改名或新租约规避独立审校或工作量限制。程序在 `quality_attempts` 和 `quality_authors` 记录身份，拒绝对应产出实例领取或提交审校。提取者不得审自己的术语；翻译者不得审自己的正文；复审者也不得是对应润色者。不同实例可以使用同一个 Luna 模型；不需要把全文语义审校转给 Sol。工作量、局部修复和完整输入预算见 [自定义流程](custom_workflow.md) 的上下文生命周期节。API 每次请求使用新的身份与独立上下文，不携带翻译者的推理或聊天历史。
 
-正文审校逐条返回六维 checks：accuracy（含义与主体）、completeness（漏译增译）、terminology、tone、logic（否定/条件/数字/关系）、placeholders。各项含 status=pass/corrected/not_applicable 和具体 evidence。非空文本的含义、完整性、逻辑不能标为不适用。source_excerpt 必须是该条原文的连续摘录；reason 解释核对依据。空原文可使用空摘录，并说明检查空译文。
+全文正文审校逐条返回六维 checks：accuracy（含义与主体）、completeness（漏译增译）、terminology、tone、logic（否定/条件/数字/关系）、placeholders。各项含 status=pass/corrected/not_applicable 和具体 evidence。试译的精简协议见下节。非空文本的含义、完整性、逻辑不能标为不适用。source_excerpt 必须是该条原文的连续摘录；reason 解释核对依据。空原文可使用空摘录，并说明检查空译文。
 
 修改译文时同时提供 changes：category（上述维度）、severity=minor/major/critical、source_excerpt、before（任务内完整原译文）、after（完整修订译文）、reason；checks 中须标出 corrected 项。未改时 changes=[]。不要机械复写“符合原意”；只在不涉及某维度时说明其不适用原因。关键疑难项为 blocking，不能伪造通过。
 
@@ -14,11 +14,18 @@ Codex 的 `claim --worker` 使用 spawn_agent 返回的实际 agent ID。每批�
 
 ## 代表性试译
 
-术语冻结后先执行 pilot_translate、pilot_review，不能直接 prepare translate。默认抽 150 条，不足时全部；按文本类型、说话人、场景、风险因素、长度及空文本分层抽取。可以在配置中用 pilot_ordinals 指定原文逻辑记录号；用 configure 改样本前必须暂停并结束/回收在途任务。
+术语冻结后先执行 pilot_translate、pilot_review，不能直接 prepare translate。默认抽 30 条，不足时全部；按类型、风险与长度兼顾覆盖，不追求全文或每个场景。试译是校准文体和规则，不复制一套昂贵的全文审校过程。pilot_batch_count=1，通常一次翻译加一次独立审校；不会按场景、角色或全文批次上限拆成几十批。输入确实过大时才改成 2～3 批。
+
+硬上限 pilot_call_limit=6：翻译、审校、恢复重领和重试合计最多 6 次执行领取。上限不因配置/文体变化或任务淘汰而刷新；旧运行的历史消费单独保留，从首次启用此政策开始计数。该计数是任务执行次数，不是底层模型消息数；一次执行内禁止轮询式聊天和长时间反复工具调用。派发前调用 pilot-plan，预算或输入检查不通过就停止创建实例；不要让额外 Sol 子代理调度或监视试译，程序负责等待和机械检查，主 Sol 只做最终验收及必要问题判断。
+
+pilot_review 优先使用精简 JSON：顶层 review_summary 一次说明六维核对，各项含 status、evidence。审校者仍逐条对照全部分配 ID，无问题记录仅返回 `{id, reviewed:true, verdict:pass}`，不重复输出译文、原文摘录和六段理由。修改或疑难记录返回 verdict:corrected、完整译文、reason、source_excerpt、六维 checks、changes、issues 和必要 exceptions；仍按原协议检查占位符、术语、锁定状态和 blocking。批总结不能替代逐条检查，缺失 ID 会拒绝提交。Sol 报告中同一批总结只出现一次。
+
+既有 150 条大试译先暂停并结束/回收在途任务，再执行 `reduce-pilot --records 30 --reason <降低校准成本>`：优先从本轮已译样本抽取，保留选中记录、来源和证据，仅淘汰未继续执行的试译任务；不清空术语或重做已完成译文。若足够样本已译好，可直接进入一次独立审校。不要在有在途实例时改样本。
 
 Sol 检查覆盖报告。缺少场景、角色元数据时记录缺失，必要时补提取上下文或人工选择样本；不要把“抽到了长短句”当作已覆盖全部剧情和口吻。
 
 ```powershell
+& $python $flow --project $project pilot-plan
 & $python $flow --project $project prepare --stage pilot_translate
 # 独立翻译实例执行并 submit 所有批次
 & $python $flow --project $project prepare --stage pilot_review
@@ -46,7 +53,7 @@ final_quality_review.json 含数字、否定、条件、人物关系、变量、
 
 跨批检查汇总同一原文的不同译文，以及按说话人分组的口吻样例（每组最多 12 条，含全部记录 ID）。Sol 判断差异是否由语境导致，核对称谓、语气、任务条件和相同 UI 提示的表达。缺少 speaker 元数据时不能声称完成角色口吻检查；需要更大范围时将所需上下文交给独立子代理复核，产出证据后由 Sol 验收。程序发现差异不自动统一，Sol 也不代写译文。
 
-发现问题时写明错误与验收要求，用 reopen-body 退回已完成的 pilot_review/review/final_review 批次，子代理修订并重新提交。程序保留重试上限和锁定译文，淘汰受影响的后续任务，清除旧验收。已经接受的试译需通过配置或术语修订进入新一轮。
+发现问题时写明错误与验收要求，用 reopen-body 退回已完成的 pilot_review/review/final_review 批次。试译修订优先使用明确的 revision_request 和完成后的文体总结，不为了小问题反复改全局配置、重译全部样本；预算仍计数，达到 6 次后停止自动执行并报告现有成果和未解决问题。程序保留锁定译文，淘汰受影响的后续任务并清除旧验收。
 
 ```powershell
 & $python $flow --project $project reopen-body --task <任务ID> --reason <具体问题>

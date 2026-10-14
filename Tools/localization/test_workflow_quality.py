@@ -76,6 +76,39 @@ class QualityTests(unittest.TestCase):
             self.flow.claim('pilot_review', self.fixture.worker_ids['pilot_translate'][0])
         self.assertIsNotNone(self.flow.claim('pilot_review', 'another-instance'))
 
+    def test_scheduling_revision_retains_partial_pilot_and_only_prepares_remaining(self):
+        self.flow.pause(True); self.flow.configure({'pilot_batch_count': 2}, 'Two toy batches'); self.flow.pause(False)
+        self.flow.prepare('pilot_translate')
+        claim = self.flow.claim('pilot_translate', 'pilot-before-scheduling')
+        result = {**self.fixture.envelope(claim), 'records': [
+            {'id': row['id'], 'translation': row['source'].replace('Alice sees a Wolf.', '爱丽丝看见一只狼。').replace('The Wolf has', '这只狼拥有').replace('gold.', '金币。')}
+            for row in claim['payload']['records']]}
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        before = self.flow.status()['records']
+        self.flow.pause(True)
+        revised = self.flow.configure({'batch_records': 1, 'context_records': 0}, 'No adjacent CSV context')
+        self.assertFalse(revised['semantic_reset'])
+        self.assertEqual(self.flow.status()['records'], before)
+        self.flow.pause(False)
+        self.flow.prepare('pilot_translate')
+        claimed = []
+        while next_claim := self.flow.claim('pilot_translate', 'new-' + uuid.uuid4().hex):
+            claimed.extend(r['id'] for r in next_claim['payload']['records'])
+        self.assertEqual(len(claimed), 2)
+        self.assertTrue(set(claimed).isdisjoint(r['id'] for r in claim['payload']['records']))
+
+    def test_semantic_revision_restores_pilot_baseline(self):
+        self.fixture.translate('pilot_translate')
+        self.flow.pause(True)
+        self.flow.configure({'style': 'Changed translation style'}, 'Semantic style revision')
+        self.assertEqual(self.flow.status()['records'], {'source': 4})
+
+    def test_pilot_scope_revision_restores_pilot_baseline(self):
+        self.fixture.translate('pilot_translate')
+        self.flow.pause(True)
+        self.flow.configure({'pilot_ordinals': [1]}, 'Change representative sample')
+        self.assertEqual(self.flow.status()['records'], {'source': 4})
+
     def test_producer_cannot_review_full_translation(self):
         self.fixture.pilot(); self.fixture.translate()
         self.flow.prepare('review')

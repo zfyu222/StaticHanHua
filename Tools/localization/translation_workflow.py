@@ -24,7 +24,7 @@ import uuid
 
 import ainiee_bridge as bridge
 import glossary_tool
-from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews
+from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews, validate_pilot_review
 
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
 DEFAULT = {
@@ -32,7 +32,8 @@ DEFAULT = {
     'source_language': 'auto', 'target_language': '简体中文',
     'style': '忠实原文、自然简洁；保留人物口吻，不补充原文没有的信息。',
     'game_background': None,
-    'quality_version': 2, 'pilot_records': 150, 'pilot_ordinals': [],
+    'quality_version': 2, 'pilot_records': 30, 'pilot_ordinals': [], 'pilot_batch_count': 1,
+    'pilot_call_limit': 6,
     'batch_records': 60, 'batch_chars': 12000, 'context_records': 0,
     'agent_task_limit': 1, 'agent_attempt_limit': 2, 'task_input_chars': 48000,
     'review_batch_records': 20,
@@ -161,11 +162,16 @@ def validate_config(config):
     if config['game_background'] is not None and (not isinstance(config['game_background'], str) or len(config['game_background']) > 20000):
         raise ValueError('game_background must be null or a string of at most 20000 characters')
     for key in ('batch_records', 'batch_chars', 'max_attempts', 'lease_seconds', 'pilot_records',
-                'agent_task_limit', 'agent_attempt_limit', 'task_input_chars', 'review_batch_records'):
+                'agent_task_limit', 'agent_attempt_limit', 'task_input_chars', 'review_batch_records', 'pilot_call_limit'):
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError('Positive integer required: ' + key)
     if type(config['context_records']) is not int or config['context_records'] < 0:
         raise ValueError('Invalid context_records')
+    if config.get('pilot_batch_count') is not None and (
+            type(config['pilot_batch_count']) is not int or not 1 <= config['pilot_batch_count'] <= 6):
+        raise ValueError('pilot_batch_count must be null or an integer between 1 and 6')
+    if config['pilot_call_limit'] > 6:
+        raise ValueError('Pilot execution limit cannot exceed 6')
     for key in ('case_sensitive', 'whole_word', 'polish'):
         if type(config[key]) is not bool:
             raise ValueError('Boolean required: ' + key)
@@ -376,6 +382,16 @@ class Workflow(QualityMixin):
         if batch:
             yield batch
 
+    @staticmethod
+    def fixed_pilot_batches(scope, eligible, count):
+        """Explicit pilot task count; retain per-record context and completed work."""
+        eligible_ids = {row['id'] for row in eligible}
+        count = min(count, len(scope))
+        if not count:
+            return []
+        return [[row for row in scope[i * len(scope) // count:(i + 1) * len(scope) // count]
+                 if row['id'] in eligible_ids] for i in range(count)]
+
     def prepare(self, stage):
         if stage not in STAGES:
             raise ValueError('Unknown stage')
@@ -447,6 +463,9 @@ class Workflow(QualityMixin):
                     raise ValueError('Complete the preceding stage for all records first')
                 covered = {record_id for task in existing for record_id in json.loads(task['ids'])}
                 eligible = [r for r in scope if (required is None or r['stage'] == required) and r['id'] not in covered]
+                if stage == 'pilot_translate':
+                    # Scheduling revisions retain accepted pilot work and its authorship.
+                    eligible = [r for r in eligible if r['stage'] not in ('pilot_translate', 'pilot_review')]
             rules = self.rules(db, config)
             batch_config = dict(config)
             if stage in ('glossary_review', 'pilot_review', 'review', 'final_review'):
@@ -467,8 +486,17 @@ class Workflow(QualityMixin):
                     related_groups.append(related)
                     evidence_ids = {n for entry in entries_batch + related for n in entry['row'].get('evidence_rows', [])[:2]}
                     groups.append([r for r in records if r['ordinal'] in evidence_ids])
+            elif stage.startswith('pilot_'):
+                # User-selected pilot cost limit overrides scene/record splitting only here.
+                # Actual task input budget remains enforced by claim; never truncate evidence.
+                groups = [g for g in self.fixed_pilot_batches(scope, eligible, config.get('pilot_batch_count') or 1) if g]
             else:
                 groups = list(self.batches(eligible, batch_config))
+            if stage.startswith('pilot_'):
+                remaining = config.get('pilot_call_limit', 6) - self.pilot_spent(db)
+                reserve = len(self.fixed_pilot_batches(scope, scope, config.get('pilot_batch_count') or 1)) if stage == 'pilot_translate' else 0
+                if len(groups) + reserve > remaining:
+                    raise ValueError('Pilot plan exceeds total 6-execution budget; consolidate batches or reuse a smaller completed sample; no tasks created')
             task_ids = [r['id'] for r in existing]
             for group_index, group in enumerate(groups):
                 if not group and stage != 'glossary_review':
@@ -573,6 +601,8 @@ class Workflow(QualityMixin):
                 raise ValueError('Independent reviewer instance required; this worker produced the assigned text')
             if not task:
                 return None
+            if stage.startswith('pilot_') and self.pilot_spent(db) + (1 if stage == 'pilot_translate' else 0) >= config.get('pilot_call_limit', 6):
+                raise ValueError('Pilot execution budget exhausted; stop spawning agents and let Sol inspect existing results')
             if json.loads(task['payload']).get('context'):
                 raise ValueError('Legacy task contains adjacent text; pause/configure context_records=0 and prepare a new revision before claiming')
             if backend == 'codex':
@@ -674,7 +704,8 @@ class Workflow(QualityMixin):
                 analysis = self.glossary(db)
                 for item in rows:
                     row = db.execute('SELECT * FROM records WHERE id=?', (item['id'],)).fetchone()
-                    translation = item.get('translation')
+                    compact_pilot = stage == 'pilot_review' and result.get('review_summary') is not None
+                    translation = item.get('translation', row['translation']) if compact_pilot else item.get('translation')
                     if not isinstance(translation, str):
                         raise ValueError('Translation must be text')
                     if stage in ('translate', 'pilot_translate'):
@@ -689,9 +720,11 @@ class Workflow(QualityMixin):
                         raise ValueError('Issues require severity and reason')
                     if any(i['severity'] == 'blocking' for i in issues):
                         raise ValueError('Unresolved blocking semantic issue')
-                    if stage in ('review', 'pilot_review', 'final_review') and (item.get('reviewed') is not True or not str(item.get('reason', '')).strip()):
+                    if compact_pilot:
+                        validate_pilot_review(item, row['source'], row['translation'], translation, result['review_summary'])
+                    elif stage in ('review', 'pilot_review', 'final_review') and (item.get('reviewed') is not True or not str(item.get('reason', '')).strip()):
                         raise ValueError('Every record requires explicit semantic review and evidence/reason')
-                    if stage in ('review', 'pilot_review', 'final_review'):
+                    if stage in ('review', 'pilot_review', 'final_review') and not compact_pilot:
                         validate_review(item, row['source'], row['translation'], translation)
                     if stage == 'polish' and translation != row['translation'] and not str(item.get('reason', '')).strip():
                         raise ValueError('Polishing changes require a reason')
@@ -846,6 +879,8 @@ class Workflow(QualityMixin):
             if not self.meta(db, 'paused') or db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone():
                 raise ValueError('Pause and finish/recover in-flight tasks before changing rules')
             old = self.meta(db, 'config')
+            if 'pilot_call_limit' not in old and self.meta(db, 'pilot_budget_start') is None:
+                self.put(db, 'pilot_budget_start', db.execute('SELECT coalesce(max(rowid),0) FROM quality_attempts').fetchone()[0])
             quality_upgrade = old.get('quality_version') != 2
             if digest(self.meta(db, 'source_path')) != self.meta(db, 'source_hash'):
                 raise ValueError('Source changed; cannot reconfigure this run')
@@ -859,7 +894,10 @@ class Workflow(QualityMixin):
             semantic = quality_upgrade or any(new[k] != old.get(k, DEFAULT.get(k, '')) for k in semantic_keys)
             if semantic and db.execute('SELECT 1 FROM records WHERE locked=1').fetchone():
                 raise ValueError('Unlock confirmed translations before changing semantic rules')
-            self.restore_pilot_baseline(db)
+            pilot_scope_change = (new['pilot_records'] != old.get('pilot_records') or
+                                  new['pilot_ordinals'] != old.get('pilot_ordinals'))
+            if semantic or pilot_scope_change:
+                self.restore_pilot_baseline(db)
             write_json(self.root / f'history/config_r{revision}.json', {'before': old, 'after': new, 'reason': reason})
             self.put(db, 'config', new)
             self.put(db, 'revision', revision)
@@ -1008,11 +1046,18 @@ def prompt(payload):
         'polish': '返回 records=[{id,translation,reason,issues:[],exceptions:[]}]。按原文与术语润色，必要才改，改变时记录理由。锁定译文不得改变。',
     }
     schemas['pilot_translate'] = '代表性试译；用于 Sol 验收文体和语义质量。' + schemas['translate']
-    schemas['pilot_review'] = '独立审校试译，不沿用原翻译者的判断。' + schemas['review']
+    schemas['pilot_review'] = '独立逐条审校试译，不沿用原翻译者的判断；返回顶层 records 和 review_summary，使用下述精简协议。'
     common += schemas[stage]
     if stage not in ('extract', 'glossary_review'):
         common += ' 正文沿用已冻结术语，不自行新增或修改术语表。'
-    if stage in ('pilot_review', 'review', 'final_review'):
+    if stage == 'pilot_review':
+        common += (' 试译优先采用精简协议：顶层 review_summary 为 accuracy/completeness/terminology/tone/logic/placeholders '
+                   '六项对象，各项含 status=pass/corrected/not_applicable 和具体 evidence；整批总结一次，不逐条重复六维说明。'
+                   '全部分配 ID 仍须逐条对照原文。无问题记录仅返回 {id,reviewed:true,verdict:pass}，不用复制原译文。'
+                   '有修改或疑难项返回 verdict:corrected、完整 translation、reason、source_excerpt、六维 checks、'
+                   'changes=[{category,severity:minor|major|critical,source_excerpt,before:完整原译文,after:完整新译文,reason}]、issues、exceptions。'
+                   '关键疑难项写 blocking；旧完整审校协议仍可接受，但优先精简。')
+    if stage in ('review', 'final_review'):
         common += (' 每条必须提供 source_excerpt（原文中的连续摘录；空原文用空串）、checks、changes。'
                    'checks 为对象，必须包含 accuracy/completeness/terminology/tone/logic/placeholders 六项；'
                    '各项为 {status:pass|corrected|not_applicable,evidence:具体核对依据}。'
@@ -1139,6 +1184,8 @@ def main():
     p = sub.add_parser('reopen-review'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True)
     p = sub.add_parser('reopen-body'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True)
     p = sub.add_parser('quality-report'); p.add_argument('--kind', choices=('pilot', 'final'), required=True)
+    sub.add_parser('pilot-plan')
+    p = sub.add_parser('reduce-pilot'); p.add_argument('--records', type=int, default=30); p.add_argument('--reason', required=True)
     p = sub.add_parser('approve-quality'); p.add_argument('--kind', choices=('pilot', 'final'), required=True); p.add_argument('--decisions', required=True)
     p = sub.add_parser('record-game-check'); p.add_argument('--file', required=True)
     sub.add_parser('release-check')
@@ -1168,6 +1215,8 @@ def main():
         elif args.command == 'reopen-review': result = flow.reopen_review(args.task, args.reason)
         elif args.command == 'reopen-body': result = flow.reopen_body(args.task, args.reason)
         elif args.command == 'quality-report': result = flow.quality_report(args.kind)
+        elif args.command == 'pilot-plan': result = flow.pilot_plan()
+        elif args.command == 'reduce-pilot': result = flow.reduce_pilot(args.records, args.reason)
         elif args.command == 'approve-quality': result = flow.approve_quality(args.kind, read_json(args.decisions))
         elif args.command == 'record-game-check': result = flow.record_game_check(read_json(args.file))
         elif args.command == 'release-check': result = flow.release_check()

@@ -153,6 +153,37 @@ class WorkflowTests(unittest.TestCase):
         elif stage == ('final_review' if config['polish'] else 'review'):
             self.approve('final')
 
+    def test_fixed_pilot_count_retains_context_and_partial_progress(self):
+        rows = [{'id': str(i), 'source': 'text', 'metadata': {'group': str(i)}} for i in range(150)]
+        groups = workflow.Workflow.fixed_pilot_batches(rows, rows, 5)
+        self.assertEqual([len(g) for g in groups], [30] * 5)
+        self.assertEqual([r for g in groups for r in g], rows)
+        partial = workflow.Workflow.fixed_pilot_batches(rows, rows[39:], 5)
+        self.assertEqual([len(g) for g in partial], [0, 21, 30, 30, 30])
+        self.assertEqual([r for g in partial for r in g], rows[39:])
+        self.assertEqual(workflow.Workflow.fixed_pilot_batches([], [], 5), [])
+
+    def test_pilot_rebatch_preserves_accepted_translation_and_authorship(self):
+        self.freeze(pilot=False)
+        self.flow.pause(True); self.flow.configure({'pilot_batch_count': 2}, 'Two toy batches'); self.flow.pause(False)
+        self.flow.prepare('pilot_translate')
+        claim = self.flow.claim('pilot_translate', self.fresh_worker('pilot_translate'))
+        result = {**self.envelope(claim), 'records': [
+            {'id': r['id'], 'translation': r['source']} for r in claim['payload']['records']]}
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        with self.flow.db() as db:
+            before = [tuple(r) for r in db.execute('SELECT * FROM quality_authors')]
+        self.flow.pause(True)
+        self.assertFalse(self.flow.configure({'pilot_batch_count': 2}, 'explicit pilot cost limit')['semantic_reset'])
+        self.flow.pause(False)
+        tasks = self.flow.prepare('pilot_translate')['tasks']
+        self.assertEqual(len(tasks), 1)
+        with self.flow.db() as db:
+            self.assertEqual(before, [tuple(r) for r in db.execute('SELECT * FROM quality_authors')])
+        self.assertEqual(self.flow.status()['records']['pilot_translate'], 2)
+        self.translate('pilot_translate')
+        self.assertEqual(len(self.flow.prepare('pilot_review')['tasks']), 2)
+
     def test_end_to_end_and_csv_alignment(self):
         self.freeze(True)
         self.translate()

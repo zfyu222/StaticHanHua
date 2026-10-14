@@ -96,10 +96,10 @@ class ContextTests(unittest.TestCase):
         other = fixture.project / 'Review'; other.mkdir()
         source = other / 'review_text.csv'; source.write_text('text\n' * 45, encoding='utf-8')
         fixture.flow = workflow.Workflow(other); fixture.flow.init(source, {'batch_records': 60})
-        fixture.freeze(pilot=False); fixture.translate('pilot_translate')
-        self.assertEqual(len(fixture.flow.prepare('pilot_review')['tasks']), 3)
+        fixture.freeze(); fixture.translate()
+        self.assertEqual(len(fixture.flow.prepare('review')['tasks']), 3)
         with fixture.flow.db() as db:
-            sizes = [len(workflow.json.loads(r['ids'])) for r in db.execute('SELECT ids FROM tasks WHERE stage="pilot_review"')]
+            sizes = [len(workflow.json.loads(r['ids'])) for r in db.execute('SELECT ids FROM tasks WHERE stage="review"')]
         self.assertEqual(sizes, [20, 20, 5])
 
     def test_adjacent_text_is_omitted_even_with_legacy_setting(self):

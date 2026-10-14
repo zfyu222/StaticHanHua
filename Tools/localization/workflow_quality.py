@@ -102,7 +102,101 @@ def evenly(rows, count):
     return [rows[i * (len(rows) - 1) // max(1, count - 1)] for i in range(count)]
 
 
+def validate_pilot_review(item, source, before, after, summary):
+    check_dimensions(summary, REVIEW_CHECKS)
+    if source.strip() and any(summary[k]['status'] == 'not_applicable' for k in ('accuracy', 'completeness', 'logic')):
+        raise ValueError('Pilot batch summary must cover meaning, completeness and logic')
+    if item.get('reviewed') is not True or item.get('verdict') not in ('pass', 'corrected'):
+        raise ValueError('Every pilot ID requires an explicit reviewed verdict')
+    if item['verdict'] == 'pass':
+        if before != after or item.get('changes') or item.get('issues') or item.get('exceptions'):
+            raise ValueError('Passing pilot records cannot hide corrections, warnings or exceptions')
+    else:
+        if not nonempty(item.get('reason')):
+            raise ValueError('Pilot corrections/concerns need explicit evidence')
+        validate_review(item, source, before, after)
+
+
 class QualityMixin:
+    def pilot_spent(self, db):
+        # Retries and obsolete revisions count. Scheduling/style changes do not refresh
+        # the calibration budget. Legacy runs start counting when this policy is enabled.
+        start = self.meta(db, 'pilot_budget_start')
+        if start is None:
+            legacy = 'pilot_call_limit' not in self.meta(db, 'config')
+            start = db.execute('SELECT coalesce(max(rowid),0) FROM quality_attempts').fetchone()[0] if legacy else 0
+            self.put(db, 'pilot_budget_start', start)
+        return db.execute('SELECT count(*) FROM quality_attempts a JOIN tasks t ON t.id=a.task_id '
+                          'WHERE a.rowid>? AND t.stage IN ("pilot_translate","pilot_review")', (start,)).fetchone()[0]
+
+    def pilot_plan(self):
+        from translation_workflow import prompt
+        with self.db() as db:
+            config = self.config(db)
+            rows = self.quality_rows(db)
+            selected = self.pilot_ids(db, rows, config)
+            scope = [r for r in rows if r['id'] in selected]
+            count = config.get('pilot_batch_count') or 1
+            untranslated = [r for r in scope if r['stage'] not in ('pilot_translate', 'pilot_review')]
+            unreviewed = [r for r in scope if r['stage'] != 'pilot_review']
+            translate = sum(bool(g) for g in self.fixed_pilot_batches(scope, untranslated, count))
+            review = sum(bool(g) for g in self.fixed_pilot_batches(scope, unreviewed, count))
+            pending = db.execute('SELECT stage,payload FROM tasks WHERE revision=? AND status IN ("pending","failed") '
+                                 'AND stage IN ("pilot_translate","pilot_review")', (self.meta(db, 'revision'),)).fetchall()
+            translate = max(translate, sum(t['stage'] == 'pilot_translate' for t in pending))
+            review = max(review, sum(t['stage'] == 'pilot_review' for t in pending))
+            maximum = max((sum(len(x) for x in prompt(json.loads(t['payload']))) for t in pending), default=0)
+            running = db.execute('SELECT count(*) FROM tasks WHERE status="running" AND stage IN ("pilot_translate","pilot_review")').fetchone()[0]
+            spent = self.pilot_spent(db); limit = config.get('pilot_call_limit', 6)
+            return {'sample_records': len(scope), 'translated_records': len(scope) - len(untranslated),
+                    'reviewed_records': len(scope) - len(unreviewed), 'translation_batches': translate,
+                    'review_batches': review, 'executions_used': spent, 'execution_limit': limit,
+                    'running_tasks': running, 'maximum_prepared_input_chars': maximum,
+                    'within_budget': spent + translate + review <= limit and maximum + (128 if maximum else 0) <= config.get('task_input_chars', 48000),
+                    'note': 'No agent spawned; all claims/retries after policy activation count across revisions.'}
+
+    def reduce_pilot(self, count, reason):
+        """Adopt a smaller calibration sample without discarding its accepted work."""
+        from translation_workflow import DEFAULT, merge_config, write_json
+        if type(count) is not int or not 1 <= count <= 30 or not nonempty(reason):
+            raise ValueError('Reduced pilot requires 1..30 records and a reason')
+        with self.db() as db:
+            config = self.config(db)
+            if not self.meta(db, 'paused') or db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone():
+                raise ValueError('Pause and finish/recover all in-flight tasks before reducing pilot')
+            if self.pilot_approved(db, config):
+                raise ValueError('Pilot already accepted; do not reopen it merely to reduce cost')
+            rows = self.quality_rows(db)
+            original = self.pilot_ids(db, rows, config)
+            pool = [r for r in rows if r['id'] in original]
+            if count > len(pool):
+                raise ValueError('reduce-pilot cannot expand the sample')
+            complete = [r for r in pool if r['stage'] in ('pilot_translate', 'pilot_review')]
+            candidates = complete if len(complete) >= count else pool
+            self.put(db, 'pilot_selection', None)
+            selected = self.pilot_ids(db, candidates, {'pilot_records': count, 'pilot_ordinals': []})
+            prior = self.meta(db, 'pilot_prior', []) or []
+            for row in prior:
+                if row['id'] not in selected:
+                    db.execute('UPDATE records SET stage=?,translation=?,exceptions=? WHERE id=?',
+                               (row['stage'], row['translation'], row['exceptions'], row['id']))
+            self.put(db, 'pilot_prior', [r for r in prior if r['id'] in selected] if prior else None)
+            new = merge_config({**DEFAULT, **config}, {'pilot_records': count,
+                               'pilot_ordinals': [r['ordinal'] for r in rows if r['id'] in selected],
+                               'pilot_batch_count': 1, 'pilot_call_limit': 6})
+            # Activate once for legacy work. Further scope/config changes preserve spent calls.
+            self.pilot_spent(db)
+            revision = self.meta(db, 'revision') + 1
+            write_json(self.root / f'history/config_r{revision}.json', {'before': config, 'after': new, 'reason': reason})
+            self.put(db, 'config', new); self.put(db, 'revision', revision)
+            self.put(db, 'quality_approvals', {})
+            db.execute('UPDATE tasks SET status="obsolete" WHERE stage IN ("pilot_translate","pilot_review") AND status!="done"')
+            write_json(self.root / 'config/workflow.json', new)
+            self.write_guide(new, Path(self.meta(db, 'source_path')).name)
+            reused = sum(r['id'] in selected for r in complete)
+            self.event(db, 'reduce_pilot', {'reason': reason, 'old_count': len(original), 'new_count': count, 'reused': reused})
+            return {'sample_records': count, 'reused_translations': reused, 'revision': revision,
+                    'executions_used': self.pilot_spent(db), 'execution_limit': 6}
     def restore_pilot_baseline(self, db):
         for row in self.meta(db, 'pilot_prior', []) or []:
             db.execute('UPDATE records SET stage=?,translation=?,exceptions=? WHERE id=?',
@@ -202,9 +296,12 @@ class QualityMixin:
             payload = json.loads(task['payload'])
             owner = db.execute('SELECT instance FROM quality_attempts WHERE task_id=? AND token=?', (task['id'], task['lease_token'])).fetchone()
             originals = {r['id']: r for r in payload['records']}
-            for item in json.loads(task['result'])['records']:
+            result = json.loads(task['result'])
+            for item in result['records']:
                 reviews[item['id']] = {'task_id': task['id'], 'instance': owner['instance'] if owner else None,
-                                      'stage': task['stage'], 'before': originals[item['id']]['translation'], **item}
+                                      'stage': task['stage'], 'before': originals[item['id']]['translation'],
+                                      'translation': item.get('translation', originals[item['id']]['translation']),
+                                      'batch_summary': result.get('review_summary'), **item}
         return reviews
 
     def build_quality_report(self, db, kind, config):
@@ -225,7 +322,10 @@ class QualityMixin:
             review = reviews.get(row['id'])
             if not review or not review['instance'] or review['translation'] != row['translation']:
                 raise ValueError('Missing current review provenance: ' + row['id'])
-            validate_review(review, row['source'], review['before'], row['translation'])
+            if kind == 'pilot' and review.get('batch_summary') is not None:
+                validate_pilot_review(review, row['source'], review['before'], row['translation'], review['batch_summary'])
+            else:
+                validate_review(review, row['source'], review['before'], row['translation'])
             reasons = risk_reasons(row)
             if review.get('changes'):
                 reasons.append('review_correction')
@@ -233,7 +333,7 @@ class QualityMixin:
                 reasons.append('review_warning')
             record = {'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
                       'translation': row['translation'], 'metadata': row['metadata'],
-                      'risk_reasons': reasons, 'review': review}
+                      'risk_reasons': reasons, 'review': {k: v for k, v in review.items() if k != 'batch_summary'}}
             (risks if reasons else ordinary).append(record)
         selected = risks + (ordinary if kind == 'pilot' else evenly(ordinary, 20))
         groups = defaultdict(list)
@@ -271,6 +371,8 @@ class QualityMixin:
                                'risk_records': len(risks), 'ordinary_sample': len(selected) - len(risks)},
                   'risk_detection': 'Heuristic candidates plus reviewer findings; absence of flags is not proof of correctness.',
                   'records_to_check': selected, 'consistency': consistency, 'glossary_checks': glossary_checks,
+                  'pilot_batch_summaries': {reviews[r['id']]['task_id']: reviews[r['id']]['batch_summary'] for r in rows
+                                           if kind == 'pilot' and reviews[r['id']].get('batch_summary') is not None},
                   'required_decisions': required}
         report['report_hash'] = signature(report)
         return report
