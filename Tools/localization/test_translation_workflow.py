@@ -461,7 +461,7 @@ class WorkflowTests(unittest.TestCase):
     def test_semantic_configuration_resets_to_source(self):
         self.freeze(True); self.translate(); self.review()
         self.flow.pause(True)
-        self.flow.configure({'style': '更简洁但保持原意'}, '改变文体')
+        self.flow.configure({'style': '更简洁但保持原意'}, '全文改变文体', impact='all')
         self.assertEqual(self.flow.status()['records'], {'source': 4})
 
     def test_background_change_invalidates_body_and_old_runs_can_upgrade(self):
@@ -473,7 +473,7 @@ class WorkflowTests(unittest.TestCase):
             self.flow.put(db, 'config', old)
         workflow.write_json(self.flow.root / 'config/workflow.json', old)
         self.flow.pause(True)
-        result = self.flow.configure({'game_background': '这是古典奇幻游戏，角色口吻克制。'}, '补充已核实背景')
+        result = self.flow.configure({'game_background': '这是古典奇幻游戏，角色口吻克制。'}, '改变全文背景要求', impact='all')
         self.assertTrue(result['semantic_reset'])
         self.assertEqual(self.flow.status()['records'], {'source': 4})
         self.flow.pause(False); self.pilot(); self.flow.prepare('translate')
@@ -526,10 +526,65 @@ class WorkflowTests(unittest.TestCase):
         changed = self.flow.revise_glossary(snapshot, decision_path, '角色译名调整')
         self.assertEqual(len(changed['affected_records']), 1)
         self.flow.pause(False)
-        self.pilot()
-        self.flow.prepare('translate')
-        claim = self.flow.claim('translate', 'w')
+        self.flow.prepare('pilot_review')
+        claim = self.flow.claim('pilot_review', self.fresh_worker('pilot_review'))
         self.assertEqual(len(claim['payload']['records']), 1)
+        row = claim['payload']['records'][0]
+        value = row['translation'].replace('爱丽丝', '艾丽丝')
+        evidence = self.review_evidence(row)
+        evidence['checks']['terminology']['status'] = 'corrected'
+        evidence['changes'] = [{'category': 'terminology', 'severity': 'minor', 'source_excerpt': row['source'],
+            'before': row['translation'], 'after': value, 'reason': 'Apply revised name'}]
+        self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'records': [
+            {'id': row['id'], 'translation': value, 'reviewed': True, 'reason': 'Apply revised name',
+             'issues': [], 'exceptions': [], **evidence}]})
+        report = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
+        self.assertEqual([r['id'] for r in report['records_to_check']], changed['affected_records'])
+        self.approve('pilot')
+        self.flow.prepare('review')
+        claim = self.flow.claim('review', self.fresh_worker('review'))
+        self.assertEqual([r['id'] for r in claim['payload']['records']], changed['affected_records'])
+
+    def test_minor_prompt_change_preserves_translation_and_acceptance(self):
+        self.freeze(True); self.translate(); self.review()
+        self.flow.pause(True)
+        with self.flow.db() as db:
+            before = [tuple(r) for r in db.execute('SELECT id,translation,stage FROM records ORDER BY ordinal')]
+        result = self.flow.configure({'style': '忠实原文，说明更简洁。'}, 'Minor wording clarification')
+        self.assertFalse(result['semantic_reset'])
+        with self.flow.db() as db:
+            self.assertEqual(before, [tuple(r) for r in db.execute('SELECT id,translation,stage FROM records ORDER BY ordinal')])
+            self.assertTrue(self.flow.pilot_approved(db, self.flow.config(db)))
+            self.flow.require_final_approval(db, self.flow.config(db))
+        self.assertEqual(self.flow.export()['status'], 'passed')
+
+    def test_scoped_prompt_change_only_rechecks_selected_record(self):
+        self.freeze(True); self.translate(); self.review()
+        self.flow.pause(True)
+        with self.flow.db() as db:
+            target = db.execute('SELECT id FROM records WHERE ordinal=1').fetchone()['id']
+        result = self.flow.configure({'style': '澄清这一处角色口吻'}, 'One sentence affected', impact='ids', record_ids=[target])
+        self.assertFalse(result['semantic_reset'])
+        self.assertEqual(self.flow.status()['records'], {'pilot_translate': 1, 'pilot_review': 3})
+        self.flow.pause(False); self.flow.prepare('pilot_review')
+        claim = self.flow.claim('pilot_review', self.fresh_worker('pilot_review'))
+        self.assertEqual([r['id'] for r in claim['payload']['records']], [target])
+
+    def test_minor_prompt_during_pilot_keeps_completed_work(self):
+        self.freeze(True, pilot=False); self.translate('pilot_translate')
+        self.flow.pause(True)
+        self.flow.configure({'style': '忠实自然，提示说明更清楚。'}, 'Clarification without changing prior meaning')
+        self.assertEqual(self.flow.status()['records'], {'pilot_translate': 4})
+        self.assertEqual(self.flow.pilot_plan()['executions_used'], 1)
+        self.flow.pause(False); self.review('pilot_review')
+        self.assertEqual(self.flow.status()['records'], {'source': 4})
+
+    def test_language_change_still_requires_full_scope(self):
+        self.freeze(True); self.translate(); self.review()
+        self.flow.pause(True)
+        result = self.flow.configure({'target_language': '繁体中文'}, 'Change delivery language', impact='none')
+        self.assertTrue(result['semantic_reset'])
+        self.assertEqual(self.flow.status()['records'], {'source': 4})
 
 
 class BackgroundTests(unittest.TestCase):
@@ -558,7 +613,7 @@ class BackgroundTests(unittest.TestCase):
             flow.pause(True); flow.recover(claim['task_id'], True)
             flow.configure({'api': {'max_requests': 101}}, '只改预算')
             self.assertEqual(workflow.read_json(flow.root / 'config/game_background.json')['source'], snapshot['source'])
-            updated = flow.configure({'game_background': None}, '重新载入已核实背景')
+            updated = flow.configure({'game_background': None}, '重新载入改变全文要求的背景', impact='all')
             self.assertTrue(updated['semantic_reset'])
             flow.pause(False); flow.prepare('extract')
             self.assertIn('已修订', flow.claim('extract', 'w2')['payload']['game_background'])

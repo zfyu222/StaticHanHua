@@ -817,8 +817,8 @@ class Workflow(QualityMixin):
             config = self.config(db)
             if not self.meta(db, 'paused') or db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone():
                 raise ValueError('Pause and finish/recover all in-flight tasks first')
-            self.restore_pilot_baseline(db)
             old = self.glossary(db)
+            self.put(db, 'quality_policy_key', self.meta(db, 'quality_policy_key', self.pilot_key(db, config)))
             decisions = read_json(decisions_path)
             proposed = read_json(snapshot)
             refs = {f'{table}:{i}' for table in glossary_tool.TABLES for i, _ in enumerate(proposed[table])}
@@ -844,18 +844,20 @@ class Workflow(QualityMixin):
             path = folder / 'built/glossary_reviewed.json'
             new = read_json(path)
             affected = []
+            contexts = self.meta(db, 'contexts', {})
             for row in db.execute('SELECT * FROM records ORDER BY ordinal').fetchall():
-                if bridge.matched_terms(old, [row['source']], config) != bridge.matched_terms(new, [row['source']], config):
+                texts = [row['source'], contexts.get(str(row['ordinal']), {}).get('speaker', '')]
+                if bridge.matched_terms(old, texts, config) != bridge.matched_terms(new, texts, config):
                     if row['locked']:
                         raise ValueError('Unlock affected confirmed translations before revising glossary')
                     affected.append(row['id'])
-                    db.execute('UPDATE records SET stage=?,exceptions=? WHERE id=?', ('source', '[]', row['id']))
+                    previous = 'pilot_translate' if row['stage'].startswith('pilot_') else ('source' if row['stage'] == 'source' else 'translate')
+                    db.execute('UPDATE records SET stage=?,exceptions=? WHERE id=?', (previous, '[]', row['id']))
             self.put(db, 'revision', revision)
             info = {'path': str(path.relative_to(self.root)), 'hash': digest(path), 'revision': revision}
             self.put(db, 'glossary', info)
             db.execute('UPDATE tasks SET status="obsolete" WHERE status!="done"')
-            self.put(db, 'quality_approvals', {})
-            self.put(db, 'pilot_prior', None)
+            self.preserve_quality_scope(db, config, config, affected)
             self.event(db, 'revise_glossary', {'reason': reason, 'affected': affected, 'glossary': info})
             return {'revision': revision, 'affected_records': affected}
 
@@ -881,7 +883,7 @@ class Workflow(QualityMixin):
             db.execute('UPDATE tasks SET status="pending",lease_token=NULL,lease_until=NULL,ready_at=0 WHERE id=?', (task_id,))
             self.event(db, 'recover', {'task': task_id})
 
-    def configure(self, patch, reason):
+    def configure(self, patch, reason, impact='auto', record_ids=None):
         if not reason.strip():
             raise ValueError('Configuration changes require reason')
         with self.db() as db:
@@ -901,21 +903,42 @@ class Workflow(QualityMixin):
             revision = self.meta(db, 'revision') + 1
             semantic_keys = ('source_language', 'target_language', 'style', 'game_background', 'case_sensitive', 'whole_word', 'protect_named_curly', 'exclusions', 'placeholder_family_overrides')
             semantic = quality_upgrade or any(new[k] != old.get(k, DEFAULT.get(k, '')) for k in semantic_keys)
-            if semantic and db.execute('SELECT 1 FROM records WHERE locked=1').fetchone():
+            if impact not in ('auto', 'none', 'ids', 'all'):
+                raise ValueError('Invalid configuration impact')
+            hard_change = quality_upgrade or any(new[k] != old.get(k, DEFAULT.get(k)) for k in semantic_keys if k not in ('style', 'game_background'))
+            full_reset = semantic and (hard_change or impact == 'all')
+            affected = set(record_ids or []) if impact == 'ids' else set()
+            if impact == 'ids' and (not affected or len(affected) != len(record_ids) or
+                    affected.difference(r['id'] for r in db.execute('SELECT id FROM records'))):
+                raise ValueError('Scoped configuration requires valid unique record IDs')
+            if record_ids and impact != 'ids':
+                raise ValueError('Record IDs require impact=ids')
+            if (full_reset and db.execute('SELECT 1 FROM records WHERE locked=1').fetchone()) or any(
+                    r['locked'] and r['id'] in affected for r in db.execute('SELECT id,locked FROM records')):
                 raise ValueError('Unlock confirmed translations before changing semantic rules')
             pilot_scope_change = (new['pilot_records'] != old.get('pilot_records') or
                                   new['pilot_ordinals'] != old.get('pilot_ordinals'))
-            if semantic or pilot_scope_change:
+            if full_reset or pilot_scope_change:
                 self.restore_pilot_baseline(db)
-            write_json(self.root / f'history/config_r{revision}.json', {'before': old, 'after': new, 'reason': reason})
+            if semantic and not full_reset and not pilot_scope_change:
+                self.put(db, 'quality_policy_key', self.meta(db, 'quality_policy_key', self.pilot_key(db, {**DEFAULT, **old})))
+            write_json(self.root / f'history/config_r{revision}.json', {'before': old, 'after': new, 'reason': reason,
+                                                                    'impact': impact, 'affected_records': sorted(affected)})
             self.put(db, 'config', new)
             self.put(db, 'revision', revision)
             db.execute('UPDATE tasks SET status="obsolete" WHERE status!="done"')
-            if semantic:
+            if full_reset:
                 db.execute('UPDATE records SET stage=?,exceptions=?', ('source', '[]'))
                 self.put(db, 'quality_approvals', {})
                 self.put(db, 'pilot_selection', None)
                 self.put(db, 'pilot_prior', None)
+                self.put(db, 'quality_policy_key', self.pilot_key(db, new))
+            elif semantic and not pilot_scope_change:
+                for row in db.execute('SELECT id,stage FROM records').fetchall():
+                    if row['id'] in affected:
+                        previous = 'pilot_translate' if row['stage'].startswith('pilot_') else ('source' if row['stage'] == 'source' else 'translate')
+                        db.execute('UPDATE records SET stage=?,exceptions="[]" WHERE id=?', (previous, row['id']))
+                self.preserve_quality_scope(db, {**DEFAULT, **old}, new, affected)
             if new['pilot_records'] != old.get('pilot_records') or new['pilot_ordinals'] != old.get('pilot_ordinals'):
                 self.put(db, 'quality_approvals', {})
                 self.put(db, 'pilot_selection', None)
@@ -935,8 +958,9 @@ class Workflow(QualityMixin):
             write_json(self.root / 'config/workflow.json', new)
             write_json(self.root / 'config/game_background.json', background)
             self.write_guide(new, Path(self.meta(db, 'source_path')).name)
-            self.event(db, 'configure', {'revision': revision, 'reason': reason, 'semantic_reset': semantic})
-            return {'revision': revision, 'semantic_reset': semantic}
+            self.event(db, 'configure', {'revision': revision, 'reason': reason, 'semantic_reset': full_reset,
+                                         'impact': impact, 'affected_records': sorted(affected)})
+            return {'revision': revision, 'semantic_reset': full_reset, 'affected_records': sorted(affected)}
 
     def replace_context(self, contexts, reason):
         """Correct extraction metadata before glossary/body preparation, with history."""
@@ -1201,6 +1225,7 @@ def main():
     p = sub.add_parser('record-game-check'); p.add_argument('--file', required=True)
     sub.add_parser('release-check')
     p = sub.add_parser('configure'); p.add_argument('--file', required=True); p.add_argument('--reason', required=True)
+    p.add_argument('--impact', choices=('auto', 'none', 'ids', 'all'), default='auto'); p.add_argument('--ids', nargs='+')
     p = sub.add_parser('replace-context'); p.add_argument('--file', required=True); p.add_argument('--reason', required=True)
     p = sub.add_parser('revise-glossary'); p.add_argument('--snapshot', required=True); p.add_argument('--decisions', required=True); p.add_argument('--reason', required=True)
     for command in ('lock', 'unlock'):
@@ -1232,7 +1257,7 @@ def main():
         elif args.command == 'checkpoint-quality': result = flow.checkpoint_quality(args.kind, read_json(args.decisions))
         elif args.command == 'record-game-check': result = flow.record_game_check(read_json(args.file))
         elif args.command == 'release-check': result = flow.release_check()
-        elif args.command == 'configure': result = flow.configure(read_json(args.file), args.reason)
+        elif args.command == 'configure': result = flow.configure(read_json(args.file), args.reason, args.impact, args.ids)
         elif args.command == 'replace-context': result = flow.replace_context(read_json(args.file), args.reason)
         elif args.command == 'freeze-glossary': result = flow.freeze_glossary()
         elif args.command == 'revise-glossary': result = flow.revise_glossary(args.snapshot, args.decisions, args.reason)

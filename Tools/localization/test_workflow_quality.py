@@ -100,7 +100,7 @@ class QualityTests(unittest.TestCase):
     def test_semantic_revision_restores_pilot_baseline(self):
         self.fixture.translate('pilot_translate')
         self.flow.pause(True)
-        self.flow.configure({'style': 'Changed translation style'}, 'Semantic style revision')
+        self.flow.configure({'style': 'Changed translation style'}, 'Semantic style revision', impact='all')
         self.assertEqual(self.flow.status()['records'], {'source': 4})
 
     def test_pilot_scope_revision_restores_pilot_baseline(self):

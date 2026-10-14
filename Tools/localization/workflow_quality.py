@@ -265,6 +265,75 @@ class QualityMixin:
         stored = report.pop('report_hash', None)
         return stored == receipt['report_hash'] == signature(report)
 
+    def preserve_quality_scope(self, db, old_config, config, affected):
+        """Carry unchanged checks; reopen only records affected by a rule revision."""
+        affected = set(affected)
+        self.put(db, 'quality_policy_key', self.meta(db, 'quality_policy_key', self.pilot_key(db, old_config)))
+        approvals = self.meta(db, 'quality_approvals', {})
+        checkpoints = self.meta(db, 'quality_checkpoints', {})
+        from translation_workflow import read_json, write_json
+        for kind, receipt in approvals.items():
+            archived = self.root / f'reports/accepted/{kind}_{receipt["report_hash"][:16]}/report.json'
+            if archived.is_file():
+                report = read_json(archived)
+                legacy_checks = {item['id']: signature({'policy': report['pilot_key'], 'item': item})
+                                 for item in report.get('records_to_check', []) + report.get('consistency', []) + report.get('glossary_checks', [])}
+                saved = checkpoints.setdefault(kind, {})
+                saved.update(report.get('reused_decisions', {}))
+                for entry in receipt.get('decisions', {}).get('decisions', []):
+                    check_hash = report.get('check_signatures', legacy_checks).get(entry['id'])
+                    if check_hash:
+                        saved[entry['id']] = {'signature': check_hash, 'report_hash': receipt['report_hash'], 'decision': entry}
+        related = set(affected)
+        rows = self.quality_rows(db)
+        for row in rows:
+            if row['id'] in affected:
+                related.add('C:' + signature(row['source'])[:16])
+                if row['metadata'].get('speaker'):
+                    related.add('S:' + signature(str(row['metadata']['speaker']))[:16])
+        for saved in checkpoints.values():
+            for record_id in related:
+                saved.pop(record_id, None)
+        self.put(db, 'quality_checkpoints', checkpoints)
+        prior = self.meta(db, 'pilot_prior')
+        if prior:
+            for row in prior:
+                if row['id'] in affected:
+                    row['stage'] = 'source' if row['stage'] == 'source' else 'translate'
+                    row['exceptions'] = '[]'
+            self.put(db, 'pilot_prior', prior)
+        pilot = approvals.get('pilot')
+        sample = self.pilot_ids(db, rows, config)
+        if pilot and sample.intersection(affected):
+            # An accepted pilot restored the production baseline. Recover its reviewed
+            # translations from provenance, keeping the baseline for later restoration.
+            reviews = self.latest_reviews(db, 'pilot')
+            if any(record_id not in reviews for record_id in sample):
+                raise ValueError('Cannot reuse accepted pilot without its per-record review provenance')
+            self.put(db, 'pilot_prior', [{k: row[k] for k in ('id', 'stage', 'translation', 'exceptions')}
+                                       for row in rows if row['id'] in sample])
+            for record_id in sample:
+                review = reviews[record_id]
+                db.execute('UPDATE records SET translation=?,stage=?,exceptions=? WHERE id=?',
+                           (review['translation'], 'pilot_translate' if record_id in affected else 'pilot_review',
+                            json.dumps([] if record_id in affected else review.get('exceptions', [])), record_id))
+            approvals.pop('pilot', None)
+        elif pilot:
+            pilot['carried_from_pilot_key'] = pilot['pilot_key']
+            pilot['pilot_key'] = self.pilot_key(db, config)
+        final = approvals.get('final')
+        if final and not affected:
+            report = self.build_quality_report(db, 'final', config)
+            final['carried_from_report_hash'] = final['report_hash']
+            final['report_hash'] = report['report_hash']
+            final['pilot_key'] = self.pilot_key(db, config)
+            folder = self.root / f'reports/accepted/final_{report["report_hash"][:16]}'
+            write_json(folder / 'report.json', report)
+            write_json(folder / 'sol_decisions.json', {**final['decisions'], 'carried_from_report_hash': final['carried_from_report_hash']})
+        else:
+            approvals.pop('final', None)
+        self.put(db, 'quality_approvals', approvals)
+
     def independent_worker(self, db, task, instance):
         stage = task['stage']
         preceding = {'glossary_review': ('extract',), 'pilot_review': ('pilot_translate',),
@@ -363,7 +432,7 @@ class QualityMixin:
                 glossary_checks.append({'id': 'G:review_changes', 'report': read_json(changes_path),
                                         'reviewed_glossary': glossary_info['path']})
         items = selected + consistency + glossary_checks
-        key = self.pilot_key(db, config)
+        key = self.meta(db, 'quality_policy_key', self.pilot_key(db, config))
         checkpoints = self.meta(db, 'quality_checkpoints', {}).get(kind, {})
         signatures = {item['id']: signature({'policy': key, 'item': item}) for item in items}
         reused = {item['id']: checkpoints[item['id']] for item in items

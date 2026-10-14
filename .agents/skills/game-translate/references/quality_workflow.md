@@ -24,7 +24,7 @@ pilot_review 优先使用精简 JSON：顶层 review_summary 一次说明六维�
 
 Sol 检查覆盖报告。缺少场景、角色元数据时记录缺失，必要时补提取上下文或人工选择样本；不要把“抽到了长短句”当作已覆盖全部剧情和口吻。
 
-Sol 发现局部问题时，先将已实际检查通过的项保存为 decisions 文件（report_hash、reviewer=sol、summary、decisions=[{id,disposition:pass/contextual,reason}]），调用 `checkpoint-quality --kind pilot --decisions <文件>`。允许只提交已通过项；这只保存检查进度，不批准整个阶段。再按 ID 退回问题语句，修复后重新 quality-report：原文、译文、审校证据、规则版本完全相同的检查复用结论，只列变化的语句及受影响的同源一致性/角色口吻组；未检查项仍保留待查。不能为未实际阅读的项生成通过记录。全局规则或术语版本变化会使相关规则绑定失效；最终仍通过 approve-quality 验收当前报告。
+Sol 发现局部问题时，先将已实际检查通过的项保存为 decisions 文件（report_hash、reviewer=sol、summary、decisions=[{id,disposition:pass/contextual,reason}]），调用 `checkpoint-quality --kind pilot --decisions <文件>`。允许只提交已通过项；这只保存检查进度，不批准整个阶段。再按 ID 退回问题语句，修复后重新 quality-report：原文、译文、审校证据未变且未被列为规则变更影响范围的检查复用结论，只列变化的语句及受影响的同源一致性/角色口吻组；未检查项仍保留待查。不能为未实际阅读的项生成通过记录。术语按命中差异限定范围，提示词微调默认保留旧结论，不因全局版本号变化强制重新检查无关语句；最终仍通过 approve-quality 验收当前报告。
 
 ```powershell
 & $python $flow --project $project pilot-plan
@@ -41,7 +41,7 @@ Sol 发现局部问题时，先将已实际检查通过的项保存为 decisions
 & $python $flow --project $project approve-quality --kind pilot --decisions <Sol实际审查决定JSON>
 ```
 
-试译验收后，记录恢复试译前的生产状态；正式正文重新翻译，带最多五条通过的试译样例及文体总结。试译和实际审查文件归档在 reports/accepted/。语义规则、样本配置或术语变化使试译验收失效，需要新一轮试译；已验收试译不直接覆盖。
+试译验收后，记录恢复试译前的生产状态；正式正文重新翻译，带最多五条通过的试译样例及文体总结。试译和实际审查文件归档在 reports/accepted/。术语只使命中变化的样本进入复查，其他试译结果及结论保留；若未影响样本，沿用试译验收。提示词、文体和背景微调默认不重新试译；局部影响用 configure --impact ids --ids 指定，实质改变全文要求才 --impact all。样本配置调整仍复核新样本，但复用已有结果。沿用验收会记录来源，不把旧结论伪装成新一轮人工检查。
 
 ## Sol 风险审查与跨批一致性
 
