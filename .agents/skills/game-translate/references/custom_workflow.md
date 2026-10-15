@@ -34,7 +34,7 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 2. `glossary_review`：程序汇总同一条目、运行共享 glossary_tool 的检查、按条目分批提供出处。任务只有分配条目，table:index 指向完整原快照。每项做语义核对，提交 reviewed_refs、review_summary、所有命中自动 finding 的处理与带依据的决定。跨批冲突由主代理汇总处理；不能把程序检查通过等同审校完成。
 3. `freeze-glossary`：汇总审校决定并调用共享 build；全部检查通过才冻结正式表。无术语仍要确认全文检查为空。失败时用 `reopen-review --task <相关审校任务> --reason <原因>` 重新领取、修正、提交，再冻结；已提交任务不能直接覆盖，不编辑 DB。轮次仍受 max_attempts 限制。
 4. `pilot_translate` → `pilot_review`：先 pilot-plan 检查批数与剩余预算，再执行试译及独立审校；默认两个阶段和重试累计最多 12 次领取，配置、分批、文体修改不刷新已用次数。审校采用一次六维批总结及逐条 pass，只有改动和疑难项输出详细证据。Sol 结束后一次审查；有问题时先 checkpoint-quality 保存明确通过的检查，再用 reopen-body --ids 集中退回问题语句，不重审整份样本。全部通过后 approve-quality --kind pilot。试译结果与文体总结保存在验收报告中，供全文任务参考。
-5. `translate`：试译验收通过后，程序按 ID 分批，筛选相关术语、人物信息、保留原文要求。翻译实例只翻译并写出 records=[{id,translation}]，不运行检查脚本、不生成审校报告、不自审或反复润色；完成后结束。每个任务附术语版本与 input_hash。主流程提交时由程序自动还原和校验占位符、ID、格式，不派额外自检任务；术语未命中不拒收初稿，统一交后续独立审校处理。
+5. `translate`：试译验收通过后，程序按 ID 分批，筛选相关术语、人物信息、保留原文要求。翻译实例只翻译并写出 records=[{id,translation}]，普通词义可附 exceptions，不运行检查脚本、不生成审校报告、不自审或反复润色；完成后结束。每个任务附术语版本与 input_hash。程序自动校验占位符、ID、格式、术语及例外，保留可验收条目，只集中修复失败 ID；不关闭术语检查或忽略遗漏。后续独立审校统一核对含义和例外。
 6. `review`：由不同实例全量逐条对照原文、译文、术语及上下文，提交六维 checks、source_excerpt、修改前后及错误类型。疑难项写 issues；语境例外绑定命中术语和理由。
 7. 可选 `polish` → `final_review`：润色保留含义，改变时记录理由；复审实例必须与对应译文和润色产出实例不同。未启用 polish 时无需这两步。
 8. Sol 最终审查：quality-report --kind final 汇总高风险文本、普通抽样、同源多译和角色口吻组。Sol 逐项核对原文、审校证据及跨批一致性，通过后 approve-quality --kind final；有错退回子代理修订并重新生成报告。不得自动批量填“通过”。
@@ -70,6 +70,8 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 
 正文、审校和润色子代理只读取任务内筛选的相关术语；术语提取与术语审校子代理读取各自分配的源文或条目。
 
+正文执行先读 [批次程序交接](batch_execution.md)，默认用 batch-open / batch-finish / batch-repair，代替下面保留的历史 claim/prompt/submit 多步操作。一次读取 input.md，结束通知后程序集中处理；不要使用旧 single_task.py 的 check 循环或短时轮询。历史 API 保留兼容，不是新正文调度方案。
+
 ```powershell
 & $python $flow --project $project claim --stage translate --worker <spawn_agent返回的实际实例ID> --compact
 & $python $flow --project $project prompt --task-file <领取返回的task_file>
@@ -81,7 +83,7 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 & $python $flow --project $project submit --task <task_id> --token <lease_token> --result <结果JSON>
 ```
 
-翻译阶段提交失败只针对程序指出的 JSON、ID、占位符等结构问题局部修复，不要求子代理重审整批语义；术语和表达问题留给后续独立审校集中处理。审校提交失败按其明确错误修复。可让同一子代理做一次局部修复再提交；仍失败时使用 fail --retry 记账并由新实例领取，把当前结果及明确错误写入其独立任务说明，不转发整段旧聊天。最多 max_attempts 轮；关键歧义、规则缺陷和持续失败升级主代理。`wait_agent` 负责等待；任务不完整时不能结束当前工作并声称翻译完成。
+新正文的提交与修复使用 batch-finish / batch-repair：结构、术语或例外问题只集中修复失败 ID，不要求翻译实例重审整批，已经通过的条目保留。一轮集中修复仍失败则 needs_attention，交主代理判断，不再整批重领。下面的 fail/recover 仅保留给历史任务或明确的进程/租约恢复；不能用它刷新已用修复次数或重新派发通过条目。等待以子代理结束通知或事件等待为准，不执行短间隔 sleep/status/日志轮询。任务不完整时不能结束当前工作并声称翻译完成。
 
 领取租约即将到期时 `heartbeat --task ... --token ...`。进程重启后查看 status；确认旧 worker 已停止才 `recover --task ... --worker-stopped`。租约过期不表示 worker 一定停止，不能盲目重发。
 

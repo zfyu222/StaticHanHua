@@ -55,8 +55,14 @@ def glossary_rows(analysis):
 def matched_terms(analysis, texts, options):
     h = helper()
     rows = glossary_rows(analysis)
-    # Reuse the patched matcher: literal brackets, term families, quotes, overlap priority.
-    matched = h.collect_matched_rows(rows, {str(i): t for i, t in enumerate(texts)},
+    # Reuse literal/quote/boundary/overlap matching, but frozen rows are authoritative.
+    # AINiee's automatic family unification can merge different meanings (Guards/Guard).
+    class FrozenMatcher(h):
+        @classmethod
+        def unify_term_family_translations(cls, rows, *args, **kwargs):
+            return [dict(row) for row in rows or []]
+
+    matched = FrozenMatcher.collect_matched_rows(rows, {str(i): t for i, t in enumerate(texts)},
                                     case_sensitive=options['case_sensitive'],
                                     whole_word=options['whole_word'])
     # Keep-original entries still convey useful instructions, but are not term-check errors.
@@ -126,6 +132,34 @@ def restore(text, mapping):
     if re.search(r'⟪SHH_[^⟫]*⟫', restored):
         raise ValueError('Unrestored or fabricated protected token')
     return restored
+
+
+def normalize_exception_sources(exceptions, terms, case_sensitive):
+    """Normalize syntax only; ordinary meaning remains the model's explicit claim."""
+    if isinstance(exceptions, dict):
+        exceptions = [exceptions]
+    if not isinstance(exceptions, list):
+        raise ValueError('Context exceptions must be a list or a single object')
+    known = {t['src'] for t in terms}
+    normalized = []
+    for item in exceptions:
+        if not isinstance(item, dict):
+            raise ValueError('Context exception must be an object')
+        entry = dict(item)
+        source = entry.get('source', entry.get('src'))
+        reason = entry.get('reason')
+        if not isinstance(source, str) or not source.strip() or not isinstance(reason, str) or not reason.strip():
+            raise ValueError('Context exceptions need source and reason')
+        source = source.strip()
+        entry['source'], entry['reason'] = source, reason.strip()
+        entry.pop('src', None)
+        if not case_sensitive and source not in known and source.isascii():
+            matches = [s for s in known if s.isascii() and s.casefold() == source.casefold()]
+            if len(matches) == 1:
+                entry['source'] = matches[0]
+        # Unknown/ambiguous keys stay unchanged so existing relatedness checks reject them.
+        normalized.append(entry)
+    return normalized
 
 
 def structural_issues(source, translation, rules):

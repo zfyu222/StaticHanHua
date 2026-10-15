@@ -146,6 +146,9 @@ class PilotCostTests(unittest.TestCase):
         helper = scripts / 'single_task.py'
         source = workflow.bridge.ROOT / 'Projects/expeditions-conquistador/TranslateFiles/scripts/single_task.py'
         shutil.copy2(source, helper)
+        dependency = source.with_name('diagnostic_restore.py')
+        if dependency.exists():
+            shutil.copy2(dependency, scripts / dependency.name)
         result_file = self.f.project / 'TranslateFiles/results/compact.json'
         workflow.write_json(result_file, result)
         assignment = scripts / 'assignment.json'

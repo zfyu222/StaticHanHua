@@ -24,6 +24,7 @@ import uuid
 
 import ainiee_bridge as bridge
 import glossary_tool
+from workflow_batches import BatchMixin
 from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews, validate_pilot_review
 
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
@@ -208,7 +209,7 @@ def validate_config(config):
             raise ValueError('Exclusion must not match empty text')
 
 
-class Workflow(QualityMixin):
+class Workflow(BatchMixin, QualityMixin):
     def __init__(self, project):
         requested = Path(project).absolute()
         if requested.name.casefold() == 'game' or requested.is_symlink() or (hasattr(requested, 'is_junction') and requested.is_junction()):
@@ -595,7 +596,7 @@ class Workflow(QualityMixin):
             db.execute('UPDATE tasks SET status="pending",lease_token=NULL,lease_until=NULL,ready_at=0 WHERE id=?', (task_id,))
             self.event(db, 'reopen_review', {'task': task_id, 'reason': reason})
 
-    def claim(self, stage, worker, backend='codex'):
+    def claim(self, stage, worker, backend='codex', compact_input=False):
         if not worker.strip():
             raise ValueError('Worker name required')
         with self.db() as db:
@@ -621,8 +622,13 @@ class Workflow(QualityMixin):
                     raise ValueError('Fresh agent context required: instance workload limit reached; spawn a new agent with fork_turns=none')
             budget_payload = json.loads(task['payload'])
             budget_payload.update(worker=worker, lease_token='0' * 32, attempt=task['attempt'] + 1)
-            system, user = prompt(budget_payload)
-            input_chars = len(system) + len(user)
+            if compact_input:
+                pack = self.render_batch_input(db, budget_payload, json.loads(task['ids']),
+                                               self.root / f'tasks/{task["id"]}/handoffs/{"0" * 32}/result.json', '0' * 32)
+                input_chars = len(pack)
+            else:
+                system, user = prompt(budget_payload)
+                input_chars = len(system) + len(user)
             if input_chars > config.get('task_input_chars', 48000):
                 raise ValueError(f'Task input exceeds context budget ({input_chars} characters); reduce batch/context size or background and prepare a new revision; do not truncate evidence')
             token = secrets.token_hex(16)
@@ -647,125 +653,137 @@ class Workflow(QualityMixin):
             raise ValueError('Lease expired; explicitly recover after checking worker status')
         return task
 
+    def validate_body_item(self, db, task, result, item, original, config, rules, analysis):
+        stage = task['stage']
+        row = db.execute('SELECT * FROM records WHERE id=?', (item['id'],)).fetchone()
+        summaries = result.get('review_summaries', {})
+        if not isinstance(summaries, dict):
+            raise ValueError('Review summaries must be keyed by record ID')
+        summary = summaries.get(item['id'], result.get('review_summary'))
+        compact_pilot = stage == 'pilot_review' and summary is not None
+        translation = item.get('translation', row['translation']) if compact_pilot else item.get('translation')
+        if not isinstance(translation, str):
+            raise ValueError('Translation must be text')
+        if stage in ('translate', 'pilot_translate'):
+            translation = bridge.restore(translation, original['protection'])
+        if not row['source'].strip() and translation.strip():
+            raise ValueError('Blank source must not produce invented translation')
+        if row['locked'] and translation != row['translation']:
+            raise ValueError('Cannot change locked translation')
+        issues = item.get('issues', [])
+        if not isinstance(issues, list) or any(not isinstance(i, dict) or i.get('severity') not in ('warning', 'blocking')
+                                              or not str(i.get('reason', '')).strip() for i in issues):
+            raise ValueError('Issues require severity and reason')
+        if any(i['severity'] == 'blocking' for i in issues):
+            raise ValueError('Unresolved blocking semantic issue')
+        if compact_pilot:
+            validate_pilot_review(item, row['source'], row['translation'], translation, summary)
+        elif stage in ('review', 'pilot_review', 'final_review') and (item.get('reviewed') is not True or not str(item.get('reason', '')).strip()):
+            raise ValueError('Every record requires explicit semantic review and evidence/reason')
+        if stage in ('review', 'pilot_review', 'final_review') and not compact_pilot:
+            validate_review(item, row['source'], row['translation'], translation)
+        if stage == 'polish' and translation != row['translation'] and not str(item.get('reason', '')).strip():
+            raise ValueError('Polishing changes require a reason')
+        terms = bridge.matched_terms(analysis, [row['source']], config)
+        exceptions = bridge.normalize_exception_sources(item.get('exceptions', json.loads(row['exceptions'])), terms, config['case_sensitive'])
+        if not isinstance(exceptions, list) or any(not isinstance(e, dict) or not e.get('source') or not str(e.get('reason', '')).strip()
+                                                  for e in exceptions):
+            raise ValueError('Context exceptions need source and reason')
+        failures = bridge.structural_issues(row['source'], translation, rules)
+        if failures:
+            raise ValueError(f'{item["id"]}: structural mismatch {failures}')
+        known_sources = {t['src'] for t in terms}
+        if any(e['source'] not in known_sources for e in exceptions):
+            raise ValueError('Context exception refers to an unrelated term')
+        signature = fingerprint([row['source'], translation, terms, exceptions,
+                                 config['case_sensitive'], config['whole_word']])
+        if not db.execute('SELECT 1 FROM checks WHERE signature=?', (signature,)).fetchone():
+            exempt = {e['source'] for e in exceptions}
+            missing = [t['src'] for t in terms if not bridge.helper().is_keep_original_translation(t['dst'])
+                       and t['src'] not in exempt and t['dst'] not in translation]
+            if missing:
+                raise ValueError(f'{item["id"]}: terminology mismatch {missing}')
+            db.execute('INSERT OR IGNORE INTO checks VALUES (?)', (signature,))
+        return translation, exceptions
+
     def submit(self, task_id, token, result):
+        with self.db() as db:
+            return self.submit_in_transaction(db, task_id, token, result)
+
+    def submit_in_transaction(self, db, task_id, token, result, record_instances=None):
         if not isinstance(result, dict):
             raise ValueError('Result must be a JSON object')
-        with self.db() as db:
-            config = self.config(db)
-            prior = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
-            if (prior and prior['status'] == 'done' and prior['lease_token'] == token
-                    and prior['result'] == encoded(result) and prior['revision'] == self.meta(db, 'revision')):
-                return {'status': 'already_submitted'}
-            task = self.valid_task(db, task_id, token)
-            if result.get('task_id') != task_id or result.get('input_hash') != task['input_hash']:
-                raise ValueError('Result task_id/input_hash mismatch')
-            payload = json.loads(task['payload'])
-            stage = task['stage']
-            owner = db.execute('SELECT instance FROM quality_attempts WHERE task_id=? AND token=?', (task_id, token)).fetchone()
-            if not owner or not self.independent_worker(db, task, owner['instance']):
-                raise ValueError('Independent worker provenance required')
-            if stage == 'extract':
-                glossary_tool.validate_shape(result.get('analysis'))
-                by_ordinal = {r['ordinal']: r['source'] for r in payload['records']}
-                for table in glossary_tool.TABLES:
-                    for entry in result['analysis'][table]:
-                        evidence = entry.get('evidence_rows', [])
-                        if not evidence or any(n not in by_ordinal for n in evidence):
-                            raise ValueError('Every term needs source evidence in its extraction batch')
-                        if not any(entry['source'].casefold() in by_ordinal[n].casefold() for n in evidence):
-                            raise ValueError('Term source does not occur in cited evidence')
-            elif stage == 'glossary_review':
-                folder = self.root / f'glossary/r{task["revision"]}'
-                decisions = result.get('decisions', {})
-                if not isinstance(decisions, dict):
-                    raise ValueError('Decisions must be an object')
-                refs = {entry['ref'] for entry in payload['entries']}
-                reviewed_refs = decisions.get('reviewed_refs', [])
-                if (not isinstance(reviewed_refs, list) or any(not isinstance(ref, str) for ref in reviewed_refs)
-                        or len(reviewed_refs) != len(refs) or set(reviewed_refs) != refs):
-                    raise ValueError('Semantic review must cover every assigned glossary entry exactly once')
-                if (decisions.get('snapshot_sha256') != payload['snapshot_sha256']
-                        or decisions.get('source_sha256') != payload['source_hash']):
-                    raise ValueError('Glossary snapshot mismatch')
-                if decisions.get('review_complete') is not True or not str(decisions.get('review_summary', '')).strip():
-                    raise ValueError('Semantic review summary required')
-                review_issues = decisions.get('issues', [])
-                if not isinstance(review_issues, list) or any(not isinstance(i, dict) for i in review_issues):
-                    raise ValueError('Glossary issues must be a list of objects')
-                if any(issue.get('severity') == 'blocking' for issue in review_issues):
-                    raise ValueError('Unresolved blocking glossary issue')
-                findings = {f['id'] for f in payload['audit']['findings']}
-                if not findings.issubset(decisions.get('acknowledged_findings', [])):
-                    raise ValueError('Review must address all assigned audit findings')
-                if any(f'{item["table"]}:{item["index"]}' not in refs for key in ('edits', 'quarantine') for item in decisions.get(key, [])):
-                    raise ValueError('Review action targets another task entry')
-                validate_glossary_reviews(decisions, payload)
-                decisions_path = folder / f'decisions_{token}.json'
-                write_json(decisions_path, decisions)
-            else:
-                rows = result.get('records')
-                ids = json.loads(task['ids'])
-                if (not isinstance(rows, list) or any(not isinstance(r, dict) or not isinstance(r.get('id'), str) for r in rows)
-                        or len(rows) != len(ids) or {r.get('id') for r in rows} != set(ids)):
-                    raise ValueError('Result must contain every assigned ID exactly once and no other IDs')
-                original = {r['id']: r for r in payload['records']}
-                rules = self.rules(db, config)
-                analysis = self.glossary(db)
-                for item in rows:
-                    row = db.execute('SELECT * FROM records WHERE id=?', (item['id'],)).fetchone()
-                    compact_pilot = stage == 'pilot_review' and result.get('review_summary') is not None
-                    translation = item.get('translation', row['translation']) if compact_pilot else item.get('translation')
-                    if not isinstance(translation, str):
-                        raise ValueError('Translation must be text')
-                    if stage in ('translate', 'pilot_translate'):
-                        translation = bridge.restore(translation, original[item['id']]['protection'])
-                    if not row['source'].strip() and translation.strip():
-                        raise ValueError('Blank source must not produce invented translation')
-                    if row['locked'] and translation != row['translation']:
-                        raise ValueError('Cannot change locked translation')
-                    issues = item.get('issues', [])
-                    if not isinstance(issues, list) or any(not isinstance(i, dict) or i.get('severity') not in ('warning', 'blocking')
-                                                          or not str(i.get('reason', '')).strip() for i in issues):
-                        raise ValueError('Issues require severity and reason')
-                    if any(i['severity'] == 'blocking' for i in issues):
-                        raise ValueError('Unresolved blocking semantic issue')
-                    if compact_pilot:
-                        validate_pilot_review(item, row['source'], row['translation'], translation, result['review_summary'])
-                    elif stage in ('review', 'pilot_review', 'final_review') and (item.get('reviewed') is not True or not str(item.get('reason', '')).strip()):
-                        raise ValueError('Every record requires explicit semantic review and evidence/reason')
-                    if stage in ('review', 'pilot_review', 'final_review') and not compact_pilot:
-                        validate_review(item, row['source'], row['translation'], translation)
-                    if stage == 'polish' and translation != row['translation'] and not str(item.get('reason', '')).strip():
-                        raise ValueError('Polishing changes require a reason')
-                    exceptions = item.get('exceptions', json.loads(row['exceptions']))
-                    if not isinstance(exceptions, list) or any(not isinstance(e, dict) or not e.get('source') or not str(e.get('reason', '')).strip()
-                                                              for e in exceptions):
-                        raise ValueError('Context exceptions need source and reason')
-                    failures = bridge.structural_issues(row['source'], translation, rules)
-                    if failures:
-                        raise ValueError(f'{item["id"]}: structural mismatch {failures}')
-                    terms = bridge.matched_terms(analysis, [row['source']], config)
-                    known_sources = {t['src'] for t in terms}
-                    if any(e['source'] not in known_sources for e in exceptions):
-                        raise ValueError('Context exception refers to an unrelated term')
-                    signature = fingerprint([row['source'], translation, terms, exceptions,
-                                             config['case_sensitive'], config['whole_word']])
-                    if stage not in ('translate', 'pilot_translate') and not db.execute('SELECT 1 FROM checks WHERE signature=?', (signature,)).fetchone():
-                        exempt = {e['source'] for e in exceptions}
-                        missing = [t['src'] for t in terms if not bridge.helper().is_keep_original_translation(t['dst'])
-                                   and t['src'] not in exempt and t['dst'] not in translation]
-                        if missing:
-                            raise ValueError(f'{item["id"]}: terminology mismatch {missing}')
-                        db.execute('INSERT OR IGNORE INTO checks VALUES (?)', (signature,))
-                    db.execute('UPDATE records SET translation=?,stage=?,exceptions=? WHERE id=?',
-                               (translation, stage, encoded(exceptions), item['id']))
-            path = self.root / f'results/{task_id}/{token}.json'
-            for record_id in json.loads(task['ids']):
-                db.execute('INSERT OR IGNORE INTO quality_authors VALUES (?,?,?,?)', (record_id, stage, owner['instance'], task_id))
-            write_json(path, result)
-            db.execute('UPDATE tasks SET status="done",result=? WHERE id=?', (encoded(result), task_id))
-            self.event(db, 'submit', {'task': task_id, 'stage': stage, 'result': str(path.relative_to(self.root))})
-            return {'status': 'accepted'}
+        config = self.config(db)
+        prior = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
+        if (prior and prior['status'] == 'done' and prior['lease_token'] == token
+                and prior['result'] == encoded(result) and prior['revision'] == self.meta(db, 'revision')):
+            return {'status': 'already_submitted'}
+        task = self.valid_task(db, task_id, token)
+        if result.get('task_id') != task_id or result.get('input_hash') != task['input_hash']:
+            raise ValueError('Result task_id/input_hash mismatch')
+        payload = json.loads(task['payload'])
+        stage = task['stage']
+        owner = db.execute('SELECT instance FROM quality_attempts WHERE task_id=? AND token=?', (task_id, token)).fetchone()
+        if not owner or not self.independent_worker(db, task, owner['instance']):
+            raise ValueError('Independent worker provenance required')
+        if stage == 'extract':
+            glossary_tool.validate_shape(result.get('analysis'))
+            by_ordinal = {r['ordinal']: r['source'] for r in payload['records']}
+            for table in glossary_tool.TABLES:
+                for entry in result['analysis'][table]:
+                    evidence = entry.get('evidence_rows', [])
+                    if not evidence or any(n not in by_ordinal for n in evidence):
+                        raise ValueError('Every term needs source evidence in its extraction batch')
+                    if not any(entry['source'].casefold() in by_ordinal[n].casefold() for n in evidence):
+                        raise ValueError('Term source does not occur in cited evidence')
+        elif stage == 'glossary_review':
+            folder = self.root / f'glossary/r{task["revision"]}'
+            decisions = result.get('decisions', {})
+            if not isinstance(decisions, dict):
+                raise ValueError('Decisions must be an object')
+            refs = {entry['ref'] for entry in payload['entries']}
+            reviewed_refs = decisions.get('reviewed_refs', [])
+            if (not isinstance(reviewed_refs, list) or any(not isinstance(ref, str) for ref in reviewed_refs)
+                    or len(reviewed_refs) != len(refs) or set(reviewed_refs) != refs):
+                raise ValueError('Semantic review must cover every assigned glossary entry exactly once')
+            if (decisions.get('snapshot_sha256') != payload['snapshot_sha256']
+                    or decisions.get('source_sha256') != payload['source_hash']):
+                raise ValueError('Glossary snapshot mismatch')
+            if decisions.get('review_complete') is not True or not str(decisions.get('review_summary', '')).strip():
+                raise ValueError('Semantic review summary required')
+            review_issues = decisions.get('issues', [])
+            if not isinstance(review_issues, list) or any(not isinstance(i, dict) for i in review_issues):
+                raise ValueError('Glossary issues must be a list of objects')
+            if any(issue.get('severity') == 'blocking' for issue in review_issues):
+                raise ValueError('Unresolved blocking glossary issue')
+            findings = {f['id'] for f in payload['audit']['findings']}
+            if not findings.issubset(decisions.get('acknowledged_findings', [])):
+                raise ValueError('Review must address all assigned audit findings')
+            if any(f'{item["table"]}:{item["index"]}' not in refs for key in ('edits', 'quarantine') for item in decisions.get(key, [])):
+                raise ValueError('Review action targets another task entry')
+            validate_glossary_reviews(decisions, payload)
+            decisions_path = folder / f'decisions_{token}.json'
+            write_json(decisions_path, decisions)
+        else:
+            rows = result.get('records')
+            ids = json.loads(task['ids'])
+            if (not isinstance(rows, list) or any(not isinstance(r, dict) or not isinstance(r.get('id'), str) for r in rows)
+                    or len(rows) != len(ids) or {r.get('id') for r in rows} != set(ids)):
+                raise ValueError('Result must contain every assigned ID exactly once and no other IDs')
+            original = {r['id']: r for r in payload['records']}
+            rules = self.rules(db, config)
+            analysis = self.glossary(db)
+            for item in rows:
+                translation, exceptions = self.validate_body_item(db, task, result, item, original[item['id']], config, rules, analysis)
+                db.execute('UPDATE records SET translation=?,stage=?,exceptions=? WHERE id=?',
+                           (translation, stage, encoded(exceptions), item['id']))
+        path = self.root / f'results/{task_id}/{token}.json'
+        for record_id in json.loads(task['ids']):
+            db.execute('INSERT OR IGNORE INTO quality_authors VALUES (?,?,?,?)', (record_id, stage, (record_instances or {}).get(record_id, owner['instance']), task_id))
+        write_json(path, result)
+        db.execute('UPDATE tasks SET status="done",result=? WHERE id=?', (encoded(result), task_id))
+        self.event(db, 'submit', {'task': task_id, 'stage': stage, 'result': str(path.relative_to(self.root))})
+        return {'status': 'accepted'}
 
     def freeze_glossary(self):
         with self.db() as db:
@@ -1076,7 +1094,8 @@ def prompt(payload):
                      'translation 是译文，不带编号。任务 terms 是程序已筛选的完整相关术语。'
                      '本实例只负责翻译并写出结果，不执行自审、二次润色、逐条检查或反复重写；'
                      '不运行检查脚本，不读取其他批次或审校报告，不生成审校证据。'
-                     '完成本批后结束，语义检查、术语例外及修订统一交给后续独立审校实例。',
+                     '本条确属普通词义时一次附上有原句依据的 exceptions，不修改冻结表；'
+                     '完成本批后结束，独立审校统一核对含义和例外，不进行翻译实例自审。',
         'review': '逐条对照原文、译文、上下文、术语检查误译/漏译/口吻；返回 records=[{id,translation,reviewed:true,reason,issues:[],exceptions:[]}]。'
                   'reason 写核对依据；有明确错误则修正，无错误则保留。锁定译文不得改变。',
         'final_review': '逐条对照原文复核润色结果是否改变含义；返回 records=[{id,translation,reviewed:true,reason,issues:[],exceptions:[]}]。锁定译文不得改变。',
@@ -1119,7 +1138,7 @@ def prompt(payload):
     if stage == 'translate':
         common += ' approved_pilot_examples 和 pilot_style_notes 是 Sol 已验收的文体参考，遵守其风格，但原文与冻结术语优先。'
     if stage in ('translate', 'pilot_translate'):
-        common += ' 无需生成 issues 或 exceptions；遇到歧义按原文作出最佳译文，确需传递的语境疑点可简记为 warning，留给独立审校判断。'
+        common += ' 无需生成审校报告；普通词义例外使用 exceptions=[{source:本条实际命中的术语src,reason:原句依据及普通词义说明}]，其他情况省略。确需传递的语境疑点可简记为 warning，留给独立审校判断。'
     else:
         common += (' issues 条目须有 severity=warning/blocking 与 reason。无法解决的关键歧义写 blocking。'
                    'exceptions 仅限源文确需语境例外，条目含 source（命中的术语 src）和 reason；没有则为空。')
@@ -1220,6 +1239,10 @@ def main():
         sub.add_parser(command)
     p = sub.add_parser('prepare'); p.add_argument('--stage', choices=STAGES, required=True)
     p = sub.add_parser('prompt'); p.add_argument('--task-file', required=True)
+    p = sub.add_parser('batch-open'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--workers', nargs='+', required=True)
+    p = sub.add_parser('batch-finish'); p.add_argument('--sessions', nargs='+', required=True); p.add_argument('--next-worker')
+    p = sub.add_parser('batch-repair'); p.add_argument('--session', required=True); p.add_argument('--worker', required=True); p.add_argument('--reason')
+    p = sub.add_parser('batch-save'); p.add_argument('--session', required=True); p.add_argument('--file', required=True)
     p = sub.add_parser('claim'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--worker', required=True)
     p.add_argument('--backend', choices=('codex', 'api'), default='codex')
     p.add_argument('--compact', action='store_true', help='Return task paths/lease only; keep full payload in the task file')
@@ -1253,6 +1276,13 @@ def main():
         elif args.command in ('pause', 'resume'): result = flow.pause(args.command == 'pause')
         elif args.command == 'prepare': result = flow.prepare(args.stage)
         elif args.command == 'prompt': result = flow.task_prompt(args.task_file)
+        elif args.command == 'batch-open': result = flow.batch_many('open', args.workers, stage=args.stage)
+        elif args.command == 'batch-finish':
+            if args.next_worker and len(args.sessions) != 1:
+                raise ValueError('next-worker requires exactly one completed session')
+            result = flow.batch_many('finish', args.sessions, next_worker=args.next_worker)
+        elif args.command == 'batch-repair': result = flow.batch_repair(args.session, args.worker, args.reason)
+        elif args.command == 'batch-save': result = flow.batch_save(args.session, args.file)
         elif args.command == 'claim':
             result = flow.claim(args.stage, args.worker, args.backend)
             if args.compact and result:

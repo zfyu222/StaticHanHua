@@ -360,6 +360,9 @@ class QualityMixin:
         tasks = sorted(db.execute('SELECT * FROM tasks WHERE status IN ("done","obsolete") AND result IS NOT NULL '
                                   'AND stage IN ("pilot_review","review","final_review")').fetchall(),
                        key=lambda t: submitted.get(t['id'], 0))
+        batch_sources = {}
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='batch_items'").fetchone():
+            batch_sources = {(r['task_id'], r['token'], r['record_id']): r['instance'] for r in db.execute('SELECT task_id,token,record_id,instance FROM batch_items WHERE valid=1')}
         for task in tasks:
             if (kind == 'pilot') != (task['stage'] == 'pilot_review'):
                 continue
@@ -368,10 +371,10 @@ class QualityMixin:
             originals = {r['id']: r for r in payload['records']}
             result = json.loads(task['result'])
             for item in result['records']:
-                reviews[item['id']] = {'task_id': task['id'], 'instance': owner['instance'] if owner else None,
+                reviews[item['id']] = {'task_id': task['id'], 'instance': batch_sources.get((task['id'], task['lease_token'], item['id']), owner['instance'] if owner else None),
                                       'stage': task['stage'], 'before': originals[item['id']]['translation'],
                                       'translation': item.get('translation', originals[item['id']]['translation']),
-                                      'batch_summary': result.get('review_summary'), **item}
+                                      'batch_summary': result.get('review_summaries', {}).get(item['id'], result.get('review_summary')), **item}
         return reviews
 
     def build_quality_report(self, db, kind, config):
@@ -449,7 +452,7 @@ class QualityMixin:
                   'records_to_check': [r for r in selected if r['id'] not in reused],
                   'consistency': [r for r in consistency if r['id'] not in reused],
                   'glossary_checks': [r for r in glossary_checks if r['id'] not in reused],
-                  'pilot_batch_summaries': {reviews[r['id']]['task_id']: reviews[r['id']]['batch_summary'] for r in rows
+                  'pilot_batch_summaries': {reviews[r['id']]['task_id'] + ':' + str(reviews[r['id']]['instance']) + ':' + signature(reviews[r['id']]['batch_summary'])[:12]: reviews[r['id']]['batch_summary'] for r in rows
                                            if kind == 'pilot' and r['id'] not in reused and reviews[r['id']].get('batch_summary') is not None},
                   'check_signatures': signatures, 'reused_decisions': reused,
                   'required_decisions': required}

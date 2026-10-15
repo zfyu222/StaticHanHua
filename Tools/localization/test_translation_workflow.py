@@ -319,14 +319,7 @@ class WorkflowTests(unittest.TestCase):
         claim = self.flow.claim('translate', 'w')
         rows = [{'id': r['id'], 'translation': r['source']} for r in claim['payload']['records']]
         result = {**self.envelope(claim), 'records': rows}
-        # Draft translation is accepted without a terminology/self-review loop.
-        self.flow.submit(claim['task_id'], claim['lease_token'], result)
-        self.translate()
-        self.flow.prepare('review')
-        claim = self.flow.claim('review', self.fresh_worker('review'))
-        rows = [{'id': r['id'], 'translation': r['translation'], 'reviewed': True,
-                 'reason': 'Independent terminology check', **self.review_evidence(r)} for r in claim['payload']['records']]
-        result = {**self.envelope(claim), 'records': rows}
+        # Omission is never ignored; batch handoffs preserve other valid IDs instead.
         with self.assertRaisesRegex(ValueError, 'terminology mismatch'):
             self.flow.submit(claim['task_id'], claim['lease_token'], result)
         for item, row in zip(rows, claim['payload']['records']):
