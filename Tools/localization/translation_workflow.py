@@ -402,6 +402,8 @@ class Workflow(DraftMixin, BatchMixin, QualityMixin):
     def prepare(self, stage):
         if stage not in STAGES:
             raise ValueError('Unknown stage')
+        if stage == 'review':
+            self.check_drafts_before_review()
         with self.db() as db:
             config = self.config(db)
             if config['workflow'] != 'custom':
