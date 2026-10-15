@@ -342,8 +342,9 @@ class QualityTests(unittest.TestCase):
             blank = next((r for r in rows if r['translation'] == ''), None)
             if blank:
                 blank['translation'] = 'invented'
-                with self.assertRaisesRegex(ValueError, 'Blank source'):
-                    self.flow.submit(claim['task_id'], claim['lease_token'], {**self.fixture.envelope(claim), 'records': rows})
+                self.flow.submit(claim['task_id'], claim['lease_token'], {**self.fixture.envelope(claim), 'records': rows})
+                report = workflow.read_json(self.flow.draft_scan()['report_file'])
+                self.assertTrue(any('Blank source' in str(r['diagnostics']) for r in report['failures']))
                 return
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.fixture.envelope(claim), 'records': rows})
         self.fail('No blank source record in fixture')

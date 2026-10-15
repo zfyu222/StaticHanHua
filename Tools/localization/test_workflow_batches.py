@@ -30,6 +30,20 @@ class BatchTests(unittest.TestCase):
     def write_result(self, session, result):
         workflow.write_json(session['result_file'], result)
 
+    def strict_session(self, worker):
+        # Real phase-boundary workflow: two bad draft IDs from a completed text,
+        # then a pooled strict repair job. No direct mutation of task/database state.
+        for n in range(2):
+            session = self.flow.batch_open('translate', 'seed-' + str(n + 1))
+            result = self.result(session)
+            if n == 0:
+                for item in result['records']:
+                    item['translation'] = ''
+            self.write_result(session, result)
+            self.assertEqual(self.flow.batch_finish(session['session_id'])['status'], 'submitted')
+        self.flow.draft_scan(prepare_repairs=True)
+        return self.flow.batch_open('translate', worker)
+
     def test_single_pack_and_finish_are_sufficient_and_idempotent(self):
         session = self.flow.batch_open('translate', 'producer-a')
         pack = Path(session['input_file']).read_text(encoding='utf-8')
@@ -44,7 +58,7 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(receipt, self.flow.batch_finish(session['session_id']))
 
     def test_only_failed_ids_repair_and_contributor_identity_survives(self):
-        session = self.flow.batch_open('translate', 'original-writer')
+        session = self.strict_session('original-writer')
         result = self.result(session); target = result['records'][0]['id']
         self.write_result(session, self.result(session, [target]))
         failed = self.flow.batch_finish(session['session_id'])
@@ -60,12 +74,12 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(actual[target], 'repair-writer')
             self.assertEqual(actual[result['records'][1]['id']], 'original-writer')
             authors = {r['instance'] for r in db.execute('SELECT instance FROM quality_authors WHERE record_id=? AND stage="translate"', (target,))}
-            self.assertEqual(authors, {'original-writer', 'repair-writer'})
+            self.assertEqual(authors, {'seed-1', 'original-writer', 'repair-writer'})
             for instance in authors:
                 self.assertFalse(self.flow.independent_worker(db, {'stage': 'review', 'ids': json.dumps([target])}, instance))
 
     def test_term_omission_is_not_ignored_and_exception_is_explicit(self):
-        session = self.flow.batch_open('translate', 'writer')
+        session = self.strict_session('writer')
         result = self.result(session)
         result['records'][0]['translation'] = result['records'][0]['translation'].replace('爱丽丝', '她')
         self.write_result(session, result)
@@ -82,7 +96,7 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(json.loads(row['exceptions'])[0]['source'], 'Alice')
 
     def test_parts_are_merged_by_id_without_rereading_or_replacing_good_part(self):
-        session = self.flow.batch_open('translate', 'part-writer')
+        session = self.strict_session('part-writer')
         result = self.result(session)
         for number, row in enumerate(reversed(result['records'])):
             file = Path(session['result_file']).with_name(f'part-{number}.json')
@@ -102,7 +116,7 @@ class BatchTests(unittest.TestCase):
         self.assertEqual([r['status'] for r in finished], ['submitted', 'needs_attention'])
 
     def test_unrelated_id_and_second_repair_are_rejected(self):
-        session = self.flow.batch_open('translate', 'writer')
+        session = self.strict_session('writer')
         result = self.result(session)
         wrong = {**result, 'records': [{'id': 'wrong', 'translation': '错'}]}
         self.write_result(session, wrong)
@@ -232,18 +246,24 @@ class LargeBatchTest(unittest.TestCase):
             {'id': i, 'translation': '' if i in ids[:2] else '文本'} for i in ids]}
         workflow.write_json(session['result_file'], result)
         receipt = f.flow.batch_finish(session['session_id'])
-        self.assertEqual(receipt['preserved_records'], 78)
-        self.assertEqual(receipt['failed_ids'], ids[:2])
-        repair = f.flow.batch_repair(session['session_id'], 'repair-2')
+        self.assertEqual(receipt['status'], 'submitted')
+        self.assertIn('draft_saved', receipt['quality'])
+        scan = f.flow.draft_scan(prepare_repairs=True)
+        self.assertEqual(scan['failed_records'], 2)
+        self.assertEqual(len(scan['repair_tasks']), 1)
+        repair = f.flow.batch_open('translate', 'repair-2')
         self.assertEqual(repair['records'], 2)
         with f.flow.db() as db:
-            self.assertEqual(db.execute('SELECT count(*) FROM batch_items WHERE valid=1').fetchone()[0], 78)
-            self.assertEqual(db.execute('SELECT count(*) FROM records WHERE stage=?', ('source',)).fetchone()[0], 80)
-        workflow.write_json(repair['result_file'], {**result, 'records': [{'id': i, 'translation': '文本'} for i in ids[:2]]})
+            self.assertEqual(db.execute('SELECT count(*) FROM records WHERE stage=?', ('translate',)).fetchone()[0], 80)
+            task = db.execute('SELECT * FROM tasks WHERE id=?', (repair['task_id'],)).fetchone()
+        workflow.write_json(repair['result_file'], {'task_id': task['id'], 'input_hash': task['input_hash'],
+                                                  'records': [{'id': i, 'translation': '文本'} for i in ids[:2]]})
         self.assertEqual(f.flow.batch_finish(repair['session_id'])['status'], 'submitted')
         with f.flow.db() as db:
-            owners = {r['instance']: r['n'] for r in db.execute('SELECT instance,count(*) n FROM batch_items GROUP BY instance')}
+            last = {r['record_id']: r['instance'] for r in db.execute('SELECT record_id,instance FROM record_lineage ORDER BY id')}
+            owners = {owner: list(last.values()).count(owner) for owner in set(last.values())}
         self.assertEqual(owners, {'original-80': 78, 'repair-2': 2})
+        self.assertTrue(f.flow.draft_scan()['clean'])
 
 
 class FrozenMatcherTests(unittest.TestCase):

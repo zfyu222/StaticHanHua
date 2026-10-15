@@ -310,8 +310,11 @@ class WorkflowTests(unittest.TestCase):
         result['records'][1]['id'] = result['records'][0]['id']
         with self.assertRaisesRegex(ValueError, 'assigned ID'): self.flow.submit(claim['task_id'], claim['lease_token'], result)
         result['records'][1]['id'] = claim['payload']['records'][1]['id']
-        with self.assertRaisesRegex(ValueError, 'Protected token'): self.flow.submit(claim['task_id'], claim['lease_token'], result)
-        self.assertEqual(self.flow.status()['records'], {'source': 4})
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        self.translate()
+        self.assertGreater(self.flow.draft_scan()['failed_records'], 0)
+        with self.assertRaisesRegex(ValueError, 'Full draft scan'):
+            self.flow.prepare('review')
 
     def test_missing_term_and_context_exception(self):
         self.freeze(True)
@@ -319,7 +322,13 @@ class WorkflowTests(unittest.TestCase):
         claim = self.flow.claim('translate', 'w')
         rows = [{'id': r['id'], 'translation': r['source']} for r in claim['payload']['records']]
         result = {**self.envelope(claim), 'records': rows}
-        # Omission is never ignored; batch handoffs preserve other valid IDs instead.
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        self.translate()
+        scan = self.flow.draft_scan(prepare_repairs=True)
+        self.assertEqual(scan['failed_records'], 2)
+        claim = self.flow.claim('translate', self.fresh_worker('draft-repair'))
+        rows = [{'id': r['id'], 'translation': r['source']} for r in claim['payload']['records']]
+        result = {**self.envelope(claim), 'records': rows}
         with self.assertRaisesRegex(ValueError, 'terminology mismatch'):
             self.flow.submit(claim['task_id'], claim['lease_token'], result)
         for item, row in zip(rows, claim['payload']['records']):
@@ -328,6 +337,7 @@ class WorkflowTests(unittest.TestCase):
                                                                'terms': [{'source': 'Wolf', 'recommended_translation': '狼'}], 'non_translate': []},
                                                                [self.texts[row['ordinal']-1]], workflow.DEFAULT)]
         self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        self.assertTrue(self.flow.draft_scan()['clean'])
 
     def test_review_requires_evidence_and_lock(self):
         self.freeze(True); self.translate()
@@ -543,6 +553,8 @@ class WorkflowTests(unittest.TestCase):
         report = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
         self.assertEqual([r['id'] for r in report['records_to_check']], changed['affected_records'])
         self.approve('pilot')
+        self.flow.draft_scan(prepare_repairs=True)
+        self.translate()
         self.flow.prepare('review')
         claim = self.flow.claim('review', self.fresh_worker('review'))
         self.assertEqual([r['id'] for r in claim['payload']['records']], changed['affected_records'])

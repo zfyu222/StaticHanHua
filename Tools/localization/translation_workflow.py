@@ -25,6 +25,7 @@ import uuid
 import ainiee_bridge as bridge
 import glossary_tool
 from workflow_batches import BatchMixin
+from workflow_drafts import DraftMixin
 from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews, validate_pilot_review
 
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
@@ -209,7 +210,7 @@ def validate_config(config):
             raise ValueError('Exclusion must not match empty text')
 
 
-class Workflow(BatchMixin, QualityMixin):
+class Workflow(DraftMixin, BatchMixin, QualityMixin):
     def __init__(self, project):
         requested = Path(project).absolute()
         if requested.name.casefold() == 'game' or requested.is_symlink() or (hasattr(requested, 'is_junction') and requested.is_junction()):
@@ -467,6 +468,8 @@ class Workflow(BatchMixin, QualityMixin):
                 allowed = set(STAGES[STAGES.index(required):]) if required not in ('source', None) else set(STAGES) | {'source'}
                 if any(r['stage'] not in allowed for r in scope):
                     raise ValueError('Complete the preceding stage for all records first')
+                if stage == 'review':
+                    self.ensure_draft_audit(db, config)
                 covered = {record_id for task in existing for record_id in json.loads(task['ids'])}
                 eligible = [r for r in scope if (required is None or r['stage'] == required) and r['id'] not in covered]
                 if stage == 'pilot_translate':
@@ -664,6 +667,16 @@ class Workflow(BatchMixin, QualityMixin):
         translation = item.get('translation', row['translation']) if compact_pilot else item.get('translation')
         if not isinstance(translation, str):
             raise ValueError('Translation must be text')
+        if self.is_draft_task(task):
+            translation = self.best_effort_restore(translation, original.get('protection', []))
+            if row['locked'] and translation != row['translation']:
+                raise ValueError('Cannot change locked translation')
+            try:
+                exceptions = bridge.normalize_exception_sources(item.get('exceptions', []),
+                                                                [], config['case_sensitive'])
+            except ValueError:
+                exceptions = []
+            return translation, exceptions
         if stage in ('translate', 'pilot_translate'):
             translation = bridge.restore(translation, original['protection'])
         if not row['source'].strip() and translation.strip():
@@ -777,6 +790,11 @@ class Workflow(BatchMixin, QualityMixin):
                 translation, exceptions = self.validate_body_item(db, task, result, item, original[item['id']], config, rules, analysis)
                 db.execute('UPDATE records SET translation=?,stage=?,exceptions=? WHERE id=?',
                            (translation, stage, encoded(exceptions), item['id']))
+                if stage == 'translate':
+                    self.remember_draft(db, task, item, original[item['id']], translation,
+                                        (record_instances or {}).get(item['id'], owner['instance']))
+            if stage == 'translate':
+                self.put(db, 'draft_generation', self.meta(db, 'draft_generation', 0) + 1)
         path = self.root / f'results/{task_id}/{token}.json'
         for record_id in json.loads(task['ids']):
             db.execute('INSERT OR IGNORE INTO quality_authors VALUES (?,?,?,?)', (record_id, stage, (record_instances or {}).get(record_id, owner['instance']), task_id))
@@ -1137,6 +1155,9 @@ def prompt(payload):
                    '程序检查、全表 summary 不能替代逐项语义检查证据。')
     if stage == 'translate':
         common += ' approved_pilot_examples 和 pilot_style_notes 是 Sol 已验收的文体参考，遵守其风格，但原文与冻结术语优先。'
+        common += (' 本批是全文扫描后的定向修复，只修复 diagnostic 指出的失败语句，提交后严格验收。'
+                   if payload.get('strict_translation') else
+                   ' 本批保存为正文草稿；术语、占位符等质量检查在全文草稿完成后集中执行，不当批自查返工。')
     if stage in ('translate', 'pilot_translate'):
         common += ' 无需生成审校报告；普通词义例外使用 exceptions=[{source:本条实际命中的术语src,reason:原句依据及普通词义说明}]，其他情况省略。确需传递的语境疑点可简记为 warning，留给独立审校判断。'
     else:
@@ -1243,6 +1264,7 @@ def main():
     p = sub.add_parser('batch-finish'); p.add_argument('--sessions', nargs='+', required=True); p.add_argument('--next-worker')
     p = sub.add_parser('batch-repair'); p.add_argument('--session', required=True); p.add_argument('--worker', required=True); p.add_argument('--reason')
     p = sub.add_parser('batch-save'); p.add_argument('--session', required=True); p.add_argument('--file', required=True)
+    p = sub.add_parser('draft-scan'); p.add_argument('--prepare-repairs', action='store_true')
     p = sub.add_parser('claim'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--worker', required=True)
     p.add_argument('--backend', choices=('codex', 'api'), default='codex')
     p.add_argument('--compact', action='store_true', help='Return task paths/lease only; keep full payload in the task file')
@@ -1283,6 +1305,7 @@ def main():
             result = flow.batch_many('finish', args.sessions, next_worker=args.next_worker)
         elif args.command == 'batch-repair': result = flow.batch_repair(args.session, args.worker, args.reason)
         elif args.command == 'batch-save': result = flow.batch_save(args.session, args.file)
+        elif args.command == 'draft-scan': result = flow.draft_scan(args.prepare_repairs)
         elif args.command == 'claim':
             result = flow.claim(args.stage, args.worker, args.backend)
             if args.compact and result:

@@ -39,11 +39,11 @@ class BatchMixin:
         from translation_workflow import prompt
         config = self.config(db)
         glossary = self.glossary(db)
-        header_fields = ('language', 'style', 'revision_request') if diagnostics else (
+        header_fields = ('language', 'style', 'revision_request') if diagnostics or payload.get('strict_translation') else (
             'language', 'style', 'game_background', 'approved_pilot_examples', 'pilot_style_notes', 'revision_request')
         lines = ['# 单批输入包', prompt(payload)[0],
                  '只读本文件即可开始，不读取指针、其他协议、全库或旧日志。不执行检查脚本。',
-                 '一次写出整批结果后报告 session_id 和完成状态，等待主流程自动验收；不轮询。',
+                 '一次写出整批结果后报告 session_id 和完成状态，由主流程接收保存；不轮询。',
                  '术语按本条 terms 使用。move、Charge、Poison 等可能也有普通词义；是否属于普通词义由你结合原句判断，不能按词形自动豁免。',
                  '若某个实际命中的术语在本句是普通词义，可在该条填写 exceptions=[{"source":"本条 src 的原样值","reason":"原句依据及为何是普通词义"}]。',
                  '例外不修改冻结表，不需要审阅其他条目；不得为漏译补造理由。没有例外就省略 exceptions。',
@@ -61,6 +61,9 @@ class BatchMixin:
                 continue
             raw = db.execute('SELECT source FROM records WHERE id=?', (original['id'],)).fetchone()['source']
             row = {k: original[k] for k in ('id', 'ordinal', 'source', 'translation', 'metadata', 'locked') if k in original}
+            for field in ('diagnostic', 'candidate'):
+                if field in original:
+                    row[field] = original[field]
             row['protection'] = original.get('protection', [])
             if raw != original['source']:
                 row['original_source'] = raw
@@ -109,7 +112,12 @@ class BatchMixin:
         self.prepare(stage)
         claim = self.claim(stage, worker, compact_input=True)
         if claim is None:
-            return {'status': 'idle'}
+            with self.db() as db:
+                summary = self.batch_summary(db)
+                complete = (stage == 'translate' and not summary['records'].get('source')
+                            and not any(summary['tasks'].get(s) for s in ('pending', 'running', 'failed')))
+                return {'status': 'drafts_complete' if complete else 'idle', 'summary': summary,
+                        'next_action': 'draft-scan --prepare-repairs' if complete else None}
         with self.db() as db:
             self.batch_tables(db)
             task = self.valid_task(db, claim['task_id'], claim['lease_token'])
@@ -160,7 +168,7 @@ class BatchMixin:
                        (task['id'], run['token'], item['id'], value, run['worker'], encoded(result.get('review_summary'))))
             db.execute('INSERT INTO record_lineage(task_id,token,record_id,stage,instance,action,item) VALUES (?,?,?,?,?,?,?)',
                        (task['id'], run['token'], item['id'], task['stage'], run['worker'],
-                        'repair' if run['round'] else 'produce', value))
+                        'repair' if run['round'] or json.loads(task['payload']).get('strict_translation') else 'produce', value))
             # Include every actual contributor, including the original producer of a
             # repaired sentence, in later independent-review exclusion checks.
             db.execute('INSERT OR IGNORE INTO quality_authors VALUES (?,?,?,?)',
@@ -224,6 +232,8 @@ class BatchMixin:
                 self.submit_in_transaction(db, task['id'], run['token'], merged, instances)
                 receipt = {'status': 'submitted', 'session_id': session_id, 'task_id': task['id'],
                            'records': len(cached), 'summary': self.batch_summary(db)}
+                if self.is_draft_task(task):
+                    receipt['quality'] = 'draft_saved; full checks deferred to draft-scan'
             db.execute('UPDATE batch_runs SET status=?,receipt=? WHERE id=?', (receipt['status'], encoded(receipt), session_id))
             stage = task['stage']
         if next_worker and receipt['status'] == 'submitted':
