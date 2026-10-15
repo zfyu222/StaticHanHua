@@ -49,31 +49,38 @@ Sol 发现局部问题时，先将已实际检查通过的项保存为 decisions
 
 翻译实例只翻译，不兼任自审、不运行检查脚本。全文翻译和独立审校默认均每批最多 80 条；试译仍每批最多 40 条并即时严格验收。正文翻译先仅校验版本、ID、字段类型及锁定约束，完整保存草稿。全部草稿完成后，draft-scan --prepare-repairs 做首次全量验收并将失败 ID 跨批合并修复；修复批次仅保存候选，不逐批质量验收或插入返修；本轮所有批次完成后统一复查全部本轮修复条目，再将剩余失败项合批为下一轮，保留未变化的通过结果，不每轮重扫全文或重译通过项。问题清零后自动最终全量验收；无问题的首次全量结果可直接复用。逐轮明确区分 full 全量与 issues 局部复查，记录范围、问题、修复状态和验收结果，最终 clean 才允许准备独立审校。例外语义仍由独立审校复核，导出仍严格检查全库，不忽略遗漏。正文执行用 batch-open / batch-finish 事件交接，记录与来源见 [批次程序交接](batch_execution.md)。
 
-首轮问题按明确 ID、原文依据、错误和验收要求集中整理；同一原任务内的问题合并为一个 --ids 修复任务，避免每发现一条就往返一次。不同原任务保留各自来源，不手工拼接任务或覆盖 DB。Sol 先用 checkpoint-quality --kind final 保存已经实际检查通过的项，再定向退回问题 ID。修复后的子代理只修复指定问题并确认修复未引入错误，不顺带重写无关措辞；重新生成的 Sol 报告只读取 records_to_check、consistency、glossary_checks 中仍待查的内容，不重新阅读全部译文、旧报告或全部 reused_decisions。
+独立审校改为整轮保存和验收：review/final_review 各批仍逐条语义核对并输出六维证据，batch-finish 只保存候选，不当批质量返修。全部批次完成后，运行 review-scan --stage review --prepare-repairs（润色复审用 final_review），统一严格检查证据和译文；通过项落库，失败 ID 跨原批次合并为下一轮。已通过项保留，下一轮也必须全部完成再复查。程序保存候选不代表语义验收通过，未清零不能进入 Sol 验收或导出。
 
-默认 max_attempts=3 是每个任务首轮加至多两次重新领取/修复，包含失败恢复，局部修复继承原任务的尝试次数；不能新建别名任务或改版本以刷新额度。达到上限仍未解决时由 Sol 判断真实语境、工具/规则缺陷及明确下一步，只继续必要范围，不能为了继续运行自动开新一轮全量审校。已通过项不反复退回；可选风格优化不作为交付阻塞项。全库机械检查安排在首次验收、问题清零后的最终验收和最终导出；中间修复轮仅复查变化条目，不要求模型重读全文。
-
-所有正文完成必要语义审校（包括启用润色时的 final_review）后：
+Sol 最终验收按固定范围整轮收集，详细协议和样例见 [独立审校与 Sol 整轮验收](review_rounds.md)：
 
 ```powershell
 & $python $flow --project $project quality-report --kind final
+# 按返回 inspection_manifest 分包实际阅读，并分次保存本轮结论
+& $python $flow --project $project sol-round-record --decisions <本次实际检查结论JSON>
+# 本轮全部检查齐备后，才集中派修或批准
+& $python $flow --project $project sol-round-finish
 ```
 
-final_quality_review.json 含数字、否定、条件、人物关系、变量、长句、关键交互、缺少上下文的短句，以及审校修改、warning 和术语例外的记录。检测是启发式候选，不保证覆盖所有语言或所有语义风险；同时抽取最多 20 条普通记录给 Sol 检查漏检。源文与逐条审校证据一并提供。
+报告含数字、否定、条件、人物关系、变量、长句、关键交互、缺少上下文的短句，以及审校改动、warning 和术语例外。风险检测是启发式候选，不能保证覆盖所有语义问题；另抽取最多 20 条普通文本检查漏检。源文和独立审校证据完整保留。Sol 只负责检查与问题判断，不代写译文，不创建额外 Sol 调度实例。
 
-跨批检查汇总同一原文的不同译文，以及按说话人分组的口吻样例（每组最多 12 条，含全部记录 ID）。Sol 判断差异是否由语境导致，核对称谓、语气、任务条件和相同 UI 提示的表达。缺少 speaker 元数据时不能声称完成角色口吻检查；需要更大范围时将所需上下文交给独立子代理复核，产出证据后由 Sol 验收。程序发现差异不自动统一，Sol 也不代写译文。
+跨批一致性包括同一原文的不同译法、说话人口吻样例及相关记录 ID。Sol 判断差异是否有语境依据，核对称谓、语气、任务条件和相同 UI 提示；缺少 speaker 时不能声称已完成角色口吻检查。疑难语境可交独立子代理复核，但不能因此在本轮检查中逐条插入译文修复。
 
-发现问题时写明错误与验收要求，用 reopen-body --ids 退回已完成的 pilot_review/review/final_review 中有问题的语句。程序创建只含这些 ID 的修复任务，保留原任务及未受影响语句的审校证据；不传 --ids 才是整批退回。对修复任务继续退回时使用返回的新 task_id，修复继承原任务的尝试次数，不刷新预算。试译修订优先使用明确的 revision_request 和完成后的文体总结，不为了局部措辞问题改全局配置、重译全部样本；默认累计上限 12 次（首轮通常 8 次，余下用于定向修复），旧项目沿用保存的上限，耗尽后停止自动执行。程序保留锁定译文，淘汰受影响的后续任务并清除旧验收。术语修改按命中语句扩大复查范围；语言、文体或全局提示词等语义规则修改时，仍需检查其影响范围，不能直接沿用全部旧证据。
+Sol 用 pass/contextual 记录通过，repair 写明原文依据、错误、验收要求及确切受影响语句 ID。每个本轮检查 ID 都要有结论；有任何未检查项时程序拒绝关闭或派修。检查期间 checkpoint-quality --kind final 也仅保存进度，reopen-body 不得用于逐条抢先返修。本轮范围与 hash 固定，重复 quality-report 只提供剩余待查内容；完整证据和分包归档于 reports/sol_rounds/。
+
+本轮结束后，Sol 问题统一合批为子代理审校修复任务；全部批次完成再 review-scan。通过结论按内容签名复用，下一轮 Sol 只核对变化条目和受影响的一致性项；不重新读取全文或无关已通过记录。不因同义措辞、个人偏好或可选润色返工。全部结论通过时 sol-round-finish 才批准最终验收；完整通过文件的 approve-quality 仍兼容，不能绕过未解决问题。
+
+新任务继承实际尝试预算，默认首轮加至多两次重领/修复，不通过改 ID、别名或版本刷新。仍未解决的 ID 交 Sol 判断，不自动重启全量审校。试译仍使用原预算和定向 reopen-body/checkpoint-quality 协议；已接受试译不因正文流程升级重跑。
 
 ```powershell
-& $python $flow --project $project reopen-body --task <任务ID> --ids <语句ID1> <语句ID2> --reason <具体问题>
-# 领取、修订、提交，并完成受影响的后续阶段
+# 若上一轮派发了修复，完成全部 review/final_review 批次后：
+& $python $flow --project $project review-scan --stage review --prepare-repairs
+# 存在剩余问题继续整轮修复；clean 后重新开始 Sol 剩余检查轮
 & $python $flow --project $project quality-report --kind final
-& $python $flow --project $project approve-quality --kind final --decisions <Sol实际审查决定JSON>
+# 记录本轮全部实际结论并 sol-round-finish 通过后：
 & $python $flow --project $project export
 ```
 
-报告和决定绑定当前原文、术语、译文、审校证据和文体。译文或审校结果变化后旧报告不能再次验收，旧验收不能用于导出。导出报告明确记录 in_game_check=pending_repack，不将文本验收误称为实机通过。
+报告及结论绑定当前原文、术语、译文、审校证据与规则。过期或范围外的结论拒绝接收；已批准且数据未变化时不重复开启检查轮。导出仍完整校验，并记录 in_game_check=pending_repack；实机检查在回填后完成。
 
 ## 回填后的游戏内检查
 

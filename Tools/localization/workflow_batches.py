@@ -39,7 +39,7 @@ class BatchMixin:
         from translation_workflow import prompt
         config = self.config(db)
         glossary = self.glossary(db)
-        header_fields = ('language', 'style', 'revision_request') if diagnostics or payload.get('strict_translation') else (
+        header_fields = ('language', 'style', 'revision_request') if diagnostics or payload.get('strict_translation') or payload.get('review_repair_origin') else (
             'language', 'style', 'game_background', 'approved_pilot_examples', 'pilot_style_notes', 'revision_request')
         lines = ['# 单批输入包', prompt(payload)[0],
                  '只读本文件即可开始，不读取指针、其他协议、全库或旧日志。不执行检查脚本。',
@@ -114,6 +114,9 @@ class BatchMixin:
         if claim is None:
             with self.db() as db:
                 summary = self.batch_summary(db)
+                if stage in ('review', 'final_review') and not self.unfinished_reviews(db, stage):
+                    return {'status': 'review_round_ready_for_check', 'summary': summary,
+                            'next_action': f'review-scan --stage {stage} --prepare-repairs'}
                 complete = (stage == 'translate' and not summary['records'].get('source')
                             and not any(summary['tasks'].get(s) for s in ('pending', 'running', 'failed')))
                 return {'status': 'drafts_complete' if complete else 'idle', 'summary': summary,
@@ -182,7 +185,7 @@ class BatchMixin:
                 previous = db.execute('SELECT * FROM tasks WHERE id=?', (run['task_id'],)).fetchone()
                 later = db.execute('SELECT 1 FROM batch_runs WHERE task_id=? AND token=? AND round>?',
                                    (run['task_id'], run['token'], run['round'])).fetchone()
-                if (previous and self.is_round_repair(previous) and previous['status'] == 'running'
+                if (previous and (self.is_round_repair(previous) or self.is_deferred_review(previous)) and previous['status'] == 'running'
                         and run['status'] in ('repair_required', 'needs_attention') and not later):
                     # Reuse the latest old rejected candidate under round-based
                     # persistence. Do not replace a later or in-flight handoff.
@@ -248,6 +251,11 @@ class BatchMixin:
                     receipt['remaining_round_batches'] = len(self.unfinished_draft_repairs(db))
                     receipt['next_action'] = ('finish_current_round' if receipt['remaining_round_batches']
                                               else 'draft-scan --prepare-repairs')
+                if self.is_deferred_review(task):
+                    receipt.update(quality='review_saved; wait for the whole round before review-scan',
+                                   remaining_round_batches=len(self.unfinished_reviews(db, task['stage'])))
+                    receipt['next_action'] = ('finish_current_round' if receipt['remaining_round_batches']
+                                              else f'review-scan --stage {task["stage"]} --prepare-repairs')
             db.execute('UPDATE batch_runs SET status=?,receipt=? WHERE id=?', (receipt['status'], encoded(receipt), session_id))
             stage = task['stage']
         if next_worker and receipt['status'] == 'submitted':

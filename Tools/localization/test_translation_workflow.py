@@ -146,6 +146,8 @@ class WorkflowTests(unittest.TestCase):
             rows = [{'id': r['id'], 'translation': r['translation'], 'reviewed': True,
                      'reason': '对照原文核对称谓、动作、变量及含义。', **self.review_evidence(r)} for r in claim['payload']['records']]
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'records': rows})
+        if stage in ('review', 'final_review'):
+            self.assertTrue(self.flow.review_scan(stage)['clean'])
         with self.flow.db() as db:
             config = self.flow.config(db)
         if stage == 'pilot_review':
@@ -350,10 +352,17 @@ class WorkflowTests(unittest.TestCase):
         self.flow.lock(row['id'], True, '已确认')
         result = {**self.envelope(claim), 'records': [
             {'id': r['id'], 'translation': r['translation']} for r in claim['payload']['records']]}
-        with self.assertRaisesRegex(ValueError, 'semantic review'): self.flow.submit(claim['task_id'], claim['lease_token'], result)
-        for item in result['records']: item.update(reviewed=True, reason='逐条核对')
         result['records'][0]['translation'] += '改'
         with self.assertRaisesRegex(ValueError, 'locked'): self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        result['records'][0]['translation'] = row['translation']
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        while other := self.flow.claim('review', self.fresh_worker('review')):
+            self.flow.submit(other['task_id'], other['lease_token'], {**self.envelope(other), 'records': [
+                {'id': r['id'], 'translation': r['translation'], 'reviewed': True, 'reason': '核对依据', **self.review_evidence(r)}
+                for r in other['payload']['records']]})
+        scan = self.flow.review_scan()
+        self.assertEqual(scan['failed_records'], 2)
+        self.assertIn('semantic review', str(workflow.read_json(scan['report_file'])['problems']))
 
     def test_polish_requires_final_semantic_review(self):
         self.freeze(True); self.translate(); self.review()

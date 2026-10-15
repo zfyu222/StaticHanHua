@@ -55,6 +55,8 @@ class QualityTests(unittest.TestCase):
         self.flow.prepare(stage)
         while claim := self.flow.claim(stage, stage + '-' + uuid.uuid4().hex):
             self.flow.submit(claim['task_id'], claim['lease_token'], self.review_result(claim))
+        if stage in ('review', 'final_review'):
+            self.assertTrue(self.flow.review_scan(stage)['clean'])
 
     def test_full_translation_waits_for_pilot_acceptance(self):
         with self.assertRaisesRegex(ValueError, 'pilot approval'):
@@ -180,6 +182,7 @@ class QualityTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.flow.export()
         claim = self.flow.claim('review', 'new-independent-instance')
         self.flow.submit(claim['task_id'], claim['lease_token'], self.review_result(claim))
+        self.assertTrue(self.flow.review_scan()['clean'])
         with self.assertRaisesRegex(ValueError, 'current report'):
             self.flow.approve_quality('final', old)
         self.flow.approve_quality('final', self.decisions('final')); self.flow.export()
@@ -290,6 +293,7 @@ class QualityTests(unittest.TestCase):
         self.flow.reopen_body(task, '重新核对润色后的条件。')
         claim = self.flow.claim('final_review', 'fresh-final-review')
         self.flow.submit(claim['task_id'], claim['lease_token'], self.review_result(claim))
+        self.assertTrue(self.flow.review_scan('final_review')['clean'])
         self.flow.approve_quality('final', self.decisions('final')); self.flow.export()
 
     def test_repair_keeps_unaffected_evidence_from_obsolete_larger_batch(self):

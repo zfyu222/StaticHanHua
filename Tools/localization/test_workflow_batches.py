@@ -153,10 +153,18 @@ class BatchTests(unittest.TestCase):
         records[0]['reason'] = ''
         self.write_result(session, result)
         self.flow.batch_finish(session['session_id'])
-        repair = self.flow.batch_repair(session['session_id'], 'review-repair')
+        while other := self.flow.claim('review', self.f.fresh_worker('review')):
+            self.flow.submit(other['task_id'], other['lease_token'], {**self.f.envelope(other), 'records': [
+                {'id': r['id'], 'translation': r['translation'], 'reviewed': True, 'reason': 'Independent checks', **self.f.review_evidence(r)}
+                for r in other['payload']['records']]})
+        self.flow.review_scan(prepare_repairs=True)
+        repair = self.flow.batch_open('review', 'review-repair')
         fixed = dict(records[0]); fixed['reason'] = 'Rechecked the assigned sentence'
-        self.write_result(repair, {**result, 'records': [fixed]})
+        with self.flow.db() as db:
+            repair_task = db.execute('SELECT * FROM tasks WHERE id=?', (repair['task_id'],)).fetchone()
+        self.write_result(repair, {'task_id': repair_task['id'], 'input_hash': repair_task['input_hash'], 'records': [fixed]})
         self.assertEqual(self.flow.batch_finish(repair['session_id'])['status'], 'submitted')
+        self.assertTrue(self.flow.review_scan()['clean'])
         with self.flow.db() as db:
             reviews = self.flow.latest_reviews(db, 'final')
         self.assertEqual(reviews[records[0]['id']]['instance'], 'review-repair')

@@ -302,6 +302,9 @@ class DraftPhaseTests(unittest.TestCase):
         round_receipt = check()
         self.assertEqual(round_receipt['failures'], 0)
         self.assertEqual(round_receipt['quality'], 'deferred_to_round_check')
+        payload['stage'] = 'review'; payload.pop('draft_scan_key')
+        workflow.write_json(task_file, payload)
+        self.assertEqual(check()['quality'], 'deferred_to_round_check')
         result['records'][0]['id'] = 'wrong-id'
         workflow.write_json(session['result_file'], result)
         self.assertGreater(check()['failures'], 0)

@@ -26,6 +26,8 @@ import ainiee_bridge as bridge
 import glossary_tool
 from workflow_batches import BatchMixin
 from workflow_drafts import DraftMixin
+from workflow_review_rounds import ReviewRoundMixin
+from workflow_sol_rounds import SolRoundMixin
 from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews, validate_pilot_review
 
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
@@ -210,7 +212,7 @@ def validate_config(config):
             raise ValueError('Exclusion must not match empty text')
 
 
-class Workflow(DraftMixin, BatchMixin, QualityMixin):
+class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin):
     def __init__(self, project):
         requested = Path(project).absolute()
         if requested.name.casefold() == 'game' or requested.is_symlink() or (hasattr(requested, 'is_junction') and requested.is_junction()):
@@ -472,6 +474,8 @@ class Workflow(DraftMixin, BatchMixin, QualityMixin):
                     raise ValueError('Complete the preceding stage for all records first')
                 if stage == 'review':
                     self.ensure_draft_audit(db, config)
+                if stage in ('polish', 'final_review'):
+                    self.require_review_round_complete(db, 'review')
                 covered = {record_id for task in existing for record_id in json.loads(task['ids'])}
                 eligible = [r for r in scope if (required is None or r['stage'] == required) and r['id'] not in covered]
                 if stage == 'pilot_translate':
@@ -669,6 +673,13 @@ class Workflow(DraftMixin, BatchMixin, QualityMixin):
         translation = item.get('translation', row['translation']) if compact_pilot else item.get('translation')
         if not isinstance(translation, str):
             raise ValueError('Translation must be text')
+        if self.is_deferred_review(task):
+            if row['locked'] and translation != row['translation']:
+                raise ValueError('Cannot change locked translation')
+            return translation, []  # Candidate/evidence validation belongs to the round boundary.
+        if stage in ('review', 'final_review') and json.loads(task['payload']).get('strict_review'):
+            row = dict(row)
+            row['translation'] = original['translation']
         if self.is_draft_task(task):
             translation = self.best_effort_restore(translation, original.get('protection', []))
             if row['locked'] and translation != row['translation']:
@@ -790,6 +801,10 @@ class Workflow(DraftMixin, BatchMixin, QualityMixin):
             analysis = self.glossary(db)
             for item in rows:
                 translation, exceptions = self.validate_body_item(db, task, result, item, original[item['id']], config, rules, analysis)
+                if self.is_deferred_review(task):
+                    self.save_review_candidate(db, task, item, original[item['id']],
+                                               (record_instances or {}).get(item['id'], owner['instance']))
+                    continue
                 db.execute('UPDATE records SET translation=?,stage=?,exceptions=? WHERE id=?',
                            (translation, stage, encoded(exceptions), item['id']))
                 if stage == 'translate':
@@ -1141,6 +1156,8 @@ def prompt(payload):
                    'changes=[{category,severity:minor|major|critical,source_excerpt,before:完整原译文,after:完整新译文,reason}]、issues、exceptions。'
                    '关键疑难项写 blocking；旧完整审校协议仍可接受，但优先精简。')
     if stage in ('review', 'final_review'):
+        common += (' 本实例仍须逐条独立语义审校并留下真实证据；结果先保存为候选。'
+                   '本轮所有批次完成后程序统一验收，再将未通过项合批为下一轮；不运行检查脚本、不逐批返修。')
         common += (' 每条必须提供 source_excerpt（原文中的连续摘录；空原文用空串）、checks、changes。'
                    'checks 为对象，必须包含 accuracy/completeness/terminology/tone/logic/placeholders 六项；'
                    '各项为 {status:pass|corrected|not_applicable,evidence:具体核对依据}。'
@@ -1269,6 +1286,9 @@ def main():
     p = sub.add_parser('batch-repair'); p.add_argument('--session', required=True); p.add_argument('--worker', required=True); p.add_argument('--reason')
     p = sub.add_parser('batch-save'); p.add_argument('--session', required=True); p.add_argument('--file', required=True)
     p = sub.add_parser('draft-scan'); p.add_argument('--prepare-repairs', action='store_true')
+    p = sub.add_parser('review-scan'); p.add_argument('--stage', choices=('review', 'final_review'), default='review'); p.add_argument('--prepare-repairs', action='store_true')
+    p = sub.add_parser('sol-round-record'); p.add_argument('--decisions', required=True)
+    sub.add_parser('sol-round-finish')
     p = sub.add_parser('claim'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--worker', required=True)
     p.add_argument('--backend', choices=('codex', 'api'), default='codex')
     p.add_argument('--compact', action='store_true', help='Return task paths/lease only; keep full payload in the task file')
@@ -1310,6 +1330,9 @@ def main():
         elif args.command == 'batch-repair': result = flow.batch_repair(args.session, args.worker, args.reason)
         elif args.command == 'batch-save': result = flow.batch_save(args.session, args.file)
         elif args.command == 'draft-scan': result = flow.draft_scan(args.prepare_repairs)
+        elif args.command == 'review-scan': result = flow.review_scan(args.stage, args.prepare_repairs)
+        elif args.command == 'sol-round-record': result = flow.record_sol_round(read_json(args.decisions))
+        elif args.command == 'sol-round-finish': result = flow.finish_sol_round()
         elif args.command == 'claim':
             result = flow.claim(args.stage, args.worker, args.backend)
             if args.compact and result:

@@ -35,9 +35,9 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 3. `freeze-glossary`：汇总审校决定并调用共享 build；全部检查通过才冻结正式表。无术语仍要确认全文检查为空。失败时用 `reopen-review --task <相关审校任务> --reason <原因>` 重新领取、修正、提交，再冻结；已提交任务不能直接覆盖，不编辑 DB。轮次仍受 max_attempts 限制。
 4. `pilot_translate` → `pilot_review`：先 pilot-plan 检查批数与剩余预算，再执行试译及独立审校；默认两个阶段和重试累计最多 12 次领取，配置、分批、文体修改不刷新已用次数。审校采用一次六维批总结及逐条 pass，只有改动和疑难项输出详细证据。Sol 结束后一次审查；有问题时先 checkpoint-quality 保存明确通过的检查，再用 reopen-body --ids 集中退回问题语句，不重审整份样本。全部通过后 approve-quality --kind pilot。试译结果与文体总结保存在验收报告中，供全文任务参考。
 5. `translate`：试译验收通过后，程序按 ID 分批，筛选相关术语、人物信息、保留原文要求。翻译实例只翻译并写出 records=[{id,translation}]，普通词义可附 exceptions，不运行检查脚本、不生成审校报告、不自审或反复润色；完成后结束。每个任务附术语版本与 input_hash。批次只检查版本、ID、字段类型与锁定约束并保存草稿，不因术语、占位符或空译文当批返工。原始候选及保护映射留存，供全文程序检查使用。
-6. 全文草稿完成、在途任务结束后执行 `draft-scan --prepare-repairs`：首次全量验收占位符、结构、空译文、术语及例外；仅将失败 ID 跨原批次合并为同一轮 translate 修复任务，每批沿用正文条数与字符上限。通过 batch-open --stage translate 领取修复任务，输入仅含失败句、当前译文、诊断和相关术语，按 ID 合并。修复批次只保存候选，不立即质量验收或返修；本轮全部批次完成后才调用 draft-scan，统一复查本轮全部修复条目及其他变化条目，未变化的通过项不再检查或翻译，仍失败项继续修复；问题清零后自动最终全量验收，不能每轮重扫全文。首次全量无问题时直接复用该结果。最新汇总为 reports/full_draft_scan.json，逐轮范围、问题、修复状态与结果见 reports/draft_checks/，具体分流见 [批次程序交接](batch_execution.md)。旧工具有效的全量报告可核对版本后复用，没有有效检查记录时才首次全量，无需重置译文。clean 后才 `prepare --stage review`，由不同实例全量逐条对照原文、译文、术语及上下文，提交六维 checks、source_excerpt、修改前后及错误类型。疑难项写 issues；语境例外绑定命中术语和理由。程序通过不代表语义审校完成。
+6. 全文草稿完成、在途任务结束后执行 `draft-scan --prepare-repairs`：首次全量验收占位符、结构、空译文、术语及例外；仅将失败 ID 跨原批次合并为同一轮 translate 修复任务，每批沿用正文条数与字符上限。通过 batch-open --stage translate 领取修复任务，输入仅含失败句、当前译文、诊断和相关术语，按 ID 合并。修复批次只保存候选，不立即质量验收或返修；本轮全部批次完成后才调用 draft-scan，统一复查本轮全部修复条目及其他变化条目，未变化的通过项不再检查或翻译，仍失败项继续修复；问题清零后自动最终全量验收，不能每轮重扫全文。首次全量无问题时直接复用该结果。最新汇总为 reports/full_draft_scan.json，逐轮范围、问题、修复状态与结果见 reports/draft_checks/，具体分流见 [批次程序交接](batch_execution.md)。旧工具有效的全量报告可核对版本后复用，没有有效检查记录时才首次全量，无需重置译文。clean 后才 `prepare --stage review`，由不同实例全量逐条对照原文、译文、术语及上下文，提交六维 checks、source_excerpt、修改前后及错误类型。疑难项写 issues；语境例外绑定命中术语和理由。程序通过不代表语义审校完成。review/final_review 的批次只保存候选与证据，整轮全部完成后执行 review-scan --stage <阶段> --prepare-repairs，再将失败 ID 跨批合成下一轮，通过项不重审。
 7. 可选 `polish` → `final_review`：润色保留含义，改变时记录理由；复审实例必须与对应译文和润色产出实例不同。未启用 polish 时无需这两步。
-8. Sol 最终审查：quality-report --kind final 汇总高风险文本、普通抽样、同源多译和角色口吻组。Sol 逐项核对原文、审校证据及跨批一致性，通过后 approve-quality --kind final；有错退回子代理修订并重新生成报告。不得自动批量填“通过”。
+8. Sol 最终审查：quality-report --kind final 汇总高风险文本、普通抽样、同源多译和角色口吻组。Sol 按返回 inspection_manifest 分包核对并用 sol-round-record 保存 pass/contextual/repair；本轮全部检查结束后 sol-round-finish 才集中合批派修或批准，不逐条插入返修。修复轮结束并 review-scan 通过后，仅检查变化项及受影响的一致性项。完整协议见 [审校与 Sol 整轮验收](review_rounds.md)，不得自动批量填“通过”。
 9. `export`：程序检查全部记录及当前 Sol 验收，才导出根目录单列 CSV 和 final_validation.json；实机状态记为 pending_repack。交接回填后按质量参考完成字体、排版、UI、对白及任务检查，record-game-check 保存版本、载荷与证据；release-check 通过后才发布。
 
 任务协议、完整字段及提示词由程序 `prompt` 命令生成。不要使用 AINiee 的 textarea 输出协议处理自定义任务，也不要根据回复顺序推测 ID。
@@ -83,7 +83,7 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 & $python $flow --project $project submit --task <task_id> --token <lease_token> --result <结果JSON>
 ```
 
-新正文用 batch-finish 保存草稿；结构、术语或例外问题在全文 draft-scan 后跨批合并失败 ID，正常译文不重派。试译/审校阶段或保存可靠性问题可用 batch-repair；整轮修复的质量问题只能等全部批次完成后统一复查，再合批生成下一轮，一轮集中修复仍失败则 needs_attention，交主代理判断。下面的 fail/recover 仅保留给历史任务或明确的进程/租约恢复；不能用它刷新已用修复次数或重新派发通过条目。等待以子代理结束通知或事件等待为准，不执行短间隔 sleep/status/日志轮询。草稿保存不代表语义验收，不能据此声称翻译交付完成。
+新正文用 batch-finish 保存草稿；结构、术语或例外问题在全文 draft-scan 后跨批合并失败 ID，正常译文不重派。试译或保存可靠性问题可用 batch-repair；整轮修复的质量问题只能等全部批次完成后统一复查，再合批生成下一轮，一轮集中修复仍失败则 needs_attention，交主代理判断。下面的 fail/recover 仅保留给历史任务或明确的进程/租约恢复；不能用它刷新已用修复次数或重新派发通过条目。等待以子代理结束通知或事件等待为准，不执行短间隔 sleep/status/日志轮询。草稿保存不代表语义验收，不能据此声称翻译交付完成。
 
 领取租约即将到期时 `heartbeat --task ... --token ...`。进程重启后查看 status；确认旧 worker 已停止才 `recover --task ... --worker-stopped`。租约过期不表示 worker 一定停止，不能盲目重发。
 

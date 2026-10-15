@@ -385,6 +385,8 @@ class QualityMixin:
         pilot = self.pilot_ids(db, all_rows, config)
         rows = [r for r in all_rows if r['id'] in pilot] if kind == 'pilot' else all_rows
         required_stage = 'pilot_review' if kind == 'pilot' else ('final_review' if config['polish'] else 'review')
+        if kind == 'final':
+            self.require_review_round_complete(db, required_stage)
         if any(r['stage'] != required_stage for r in rows):
             raise ValueError('Complete the required semantic review before quality report: ' + required_stage)
         if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status IN ("running","pending","failed")', (self.meta(db, 'revision'),)).fetchone():
@@ -397,6 +399,11 @@ class QualityMixin:
                 raise ValueError('Missing current review provenance: ' + row['id'])
             if kind == 'pilot' and review.get('batch_summary') is not None:
                 validate_pilot_review(review, row['source'], review['before'], row['translation'], review['batch_summary'])
+            elif kind == 'final':
+                proof = self.review_proof_key(review, row['source'], review['before'], row['translation'])
+                if not db.execute('SELECT 1 FROM review_proof_checks WHERE signature=?', (proof,)).fetchone():
+                    validate_review(review, row['source'], review['before'], row['translation'])
+                    db.execute('INSERT OR IGNORE INTO review_proof_checks VALUES (?)', (proof,))
             else:
                 validate_review(review, row['source'], review['before'], row['translation'])
             reasons = risk_reasons(row)
@@ -462,6 +469,10 @@ class QualityMixin:
     def checkpoint_quality(self, kind, decisions):
         """Record Sol's passed checks before repair without approving the whole stage."""
         with self.db() as db:
+            if kind == 'final':
+                self.sol_tables(db)
+                if db.execute('SELECT 1 FROM sol_review_rounds WHERE status="open"').fetchone():
+                    return self.record_sol_checks(db, decisions)
             report = self.build_quality_report(db, kind, self.config(db))
             entries = decisions.get('decisions', [])
             if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'sol'
@@ -481,22 +492,60 @@ class QualityMixin:
             return {'status': 'checks_saved', 'saved_checks': len(entries), 'stage_approved': False}
 
     def quality_report(self, kind):
-        from translation_workflow import write_json
+        from translation_workflow import read_json, write_json
         with self.db() as db:
             config = self.config(db)
-            report = self.build_quality_report(db, kind, config)
+            if kind == 'final':
+                report, round_id = self.open_sol_round(db, config)
+            else:
+                report, round_id = self.build_quality_report(db, kind, config), None
+            saved = {}
+            next_input = None
+            if round_id is not None:
+                saved = json.loads(db.execute('SELECT decisions FROM sol_review_rounds WHERE id=?', (round_id,)).fetchone()[0])
+                # A compact view of the fixed round scope; its canonical complete
+                # report and hash remain archived until the whole round closes.
+                report = {**report, 'round_scope': report['required_decisions'],
+                          'required_decisions': [i for i in report['required_decisions'] if i not in saved]}
+                for key in ('records_to_check', 'consistency', 'glossary_checks'):
+                    report[key] = [i for i in report[key] if i['id'] not in saved]
+                manifest = read_json(self.root / f'reports/sol_rounds/round_{round_id:05d}.inputs.json')
+                for batch in manifest:
+                    todo = set(batch['check_ids']) - set(saved)
+                    if todo:
+                        packet = read_json(batch['file'])
+                        packet['checks'] = [i for i in packet['checks'] if i['id'] in todo]
+                        next_input = self.root / f'reports/sol_rounds/round_{round_id:05d}.next.json'
+                        write_json(next_input, packet)
+                        break
             path = self.root / f'reports/{kind}_quality_review.json'
             write_json(path, report)
             write_json(self.root / f'reports/{kind}_sol_decisions.template.json', {
                 'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': '',
                 'decisions': [{'id': record_id, 'disposition': 'pending', 'reason': ''} for record_id in report['required_decisions']]})
-            return {'report_file': str(path), 'report_hash': report['report_hash'], 'coverage': report['coverage']}
+            return {'report_file': str(path), 'report_hash': report['report_hash'], 'coverage': report['coverage'], 'sol_round': round_id,
+                    'status': 'already_approved' if kind == 'final' and round_id is None else 'inspection_open',
+                    'remaining_checks': 0 if kind == 'final' and round_id is None else len(report['required_decisions']),
+                    'next_input_file': str(next_input) if next_input else None,
+                    'inspection_manifest': str(self.root / f'reports/sol_rounds/round_{round_id:05d}.inputs.json') if round_id is not None else None}
 
     def approve_quality(self, kind, decisions):
         from translation_workflow import write_json
         with self.db() as db:
             config = self.config(db)
             report = self.build_quality_report(db, kind, config)
+            if kind == 'final':
+                self.sol_tables(db)
+                active = db.execute('SELECT watch,report,decisions FROM sol_review_rounds WHERE status="open" ORDER BY id DESC LIMIT 1').fetchone()
+                if active:
+                    if active['watch'] != self.sol_watch(db) or json.loads(active['report'])['report_hash'] != report['report_hash']:
+                        raise ValueError('Stale Sol round; request the current quality-report before approval')
+                    combined = json.loads(active['decisions'])
+                    supplied = decisions.get('decisions', [])
+                    if isinstance(supplied, list) and all(isinstance(e, dict) and isinstance(e.get('id'), str) for e in supplied):
+                        combined.update({e['id']: e for e in supplied})
+                        if len({e['id'] for e in supplied}) == len(supplied):
+                            decisions = {**decisions, 'decisions': list(combined.values())}
             entries = decisions.get('decisions', [])
             if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'sol'
                     or not nonempty(decisions.get('summary')) or not isinstance(entries, list)
@@ -506,19 +555,28 @@ class QualityMixin:
                 raise ValueError('Sol decisions must bind the current report and cover every requested check exactly once')
             if any(e.get('disposition') not in ('pass', 'contextual') or not nonempty(e.get('reason')) for e in entries):
                 raise ValueError('Unresolved Sol checks; return defective tasks for revision before approval')
-            receipt = {'report_hash': report['report_hash'], 'snapshot_hash': report['snapshot_hash'],
-                       'pilot_key': report['pilot_key'], 'reviewer': 'sol', 'decisions': decisions}
-            approvals = self.meta(db, 'quality_approvals', {})
-            approvals[kind] = receipt
-            self.put(db, 'quality_approvals', approvals)
-            folder = self.root / f'reports/accepted/{kind}_{report["report_hash"][:16]}'
-            write_json(folder / 'report.json', report)
-            write_json(folder / 'sol_decisions.json', decisions)
-            if kind == 'pilot':
-                # Pilot never replaces the production baseline, including unaffected revisions.
-                self.restore_pilot_baseline(db)
-            self.event(db, 'approve_quality', {'kind': kind, 'report_hash': report['report_hash']})
-            return {'status': 'approved', 'kind': kind, 'report_hash': report['report_hash']}
+            if kind == 'final':
+                self.sol_tables(db)
+                for active in db.execute('SELECT decisions FROM sol_review_rounds WHERE status="open"'):
+                    if any(e['disposition'] == 'repair' for e in json.loads(active['decisions']).values()):
+                        raise ValueError('Unresolved Sol round findings; complete sol-round-finish before approval')
+            result = self.accept_quality_in_transaction(db, kind, report, decisions)
+            if kind == 'final':
+                db.execute('UPDATE sol_review_rounds SET status="finished",result=? WHERE status="open"', (json.dumps(result),))
+            return result
+
+    def accept_quality_in_transaction(self, db, kind, report, decisions):
+        from translation_workflow import write_json
+        receipt = {'report_hash': report['report_hash'], 'snapshot_hash': report['snapshot_hash'],
+                   'pilot_key': report['pilot_key'], 'reviewer': 'sol', 'decisions': decisions}
+        approvals = self.meta(db, 'quality_approvals', {}); approvals[kind] = receipt
+        self.put(db, 'quality_approvals', approvals)
+        folder = self.root / f'reports/accepted/{kind}_{report["report_hash"][:16]}'
+        write_json(folder / 'report.json', report); write_json(folder / 'sol_decisions.json', decisions)
+        if kind == 'pilot':
+            self.restore_pilot_baseline(db)
+        self.event(db, 'approve_quality', {'kind': kind, 'report_hash': report['report_hash']})
+        return {'status': 'approved', 'kind': kind, 'report_hash': report['report_hash']}
 
     def require_final_approval(self, db, config):
         if not self.pilot_approved(db, config):
@@ -536,6 +594,9 @@ class QualityMixin:
             task = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
             if not nonempty(reason) or not task or task['status'] != 'done' or task['stage'] not in ('pilot_review', 'review', 'final_review') or task['revision'] != self.meta(db, 'revision'):
                 raise ValueError('Only completed current body review tasks can be reopened with reason')
+            if task['stage'] != 'pilot_review':
+                self.require_review_round_complete(db, task['stage'])
+                self.guard_sol_dispatch(db)
             if db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone():
                 raise ValueError('Finish/recover in-flight tasks before reopening a review')
             if task['stage'] == 'pilot_review' and self.pilot_approved(db, config):
