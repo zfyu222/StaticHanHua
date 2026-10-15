@@ -1,6 +1,7 @@
 """Synthetic batch lifecycle checks; no game-state edits or external model calls."""
 import json
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 import test_translation_workflow as fixtures
@@ -31,8 +32,8 @@ class BatchTests(unittest.TestCase):
         workflow.write_json(session['result_file'], result)
 
     def strict_session(self, worker):
-        # Real phase-boundary workflow: two bad draft IDs from a completed text,
-        # then a pooled strict repair job. No direct mutation of task/database state.
+        # Exercise strict validation/partial repair mechanics separately from the
+        # round scheduler (whose deferred acceptance is covered in test_workflow_drafts).
         for n in range(2):
             session = self.flow.batch_open('translate', 'seed-' + str(n + 1))
             result = self.result(session)
@@ -42,6 +43,9 @@ class BatchTests(unittest.TestCase):
             self.write_result(session, result)
             self.assertEqual(self.flow.batch_finish(session['session_id'])['status'], 'submitted')
         self.flow.draft_scan(prepare_repairs=True)
+        normal = self.flow.is_draft_task
+        strict = patch.object(self.flow, 'is_draft_task', side_effect=lambda t: False if json.loads(t['payload']).get('strict_translation') else normal(t))
+        strict.start(); self.addCleanup(strict.stop)
         return self.flow.batch_open('translate', worker)
 
     def test_single_pack_and_finish_are_sufficient_and_idempotent(self):

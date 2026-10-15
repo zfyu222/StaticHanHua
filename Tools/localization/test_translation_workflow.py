@@ -329,8 +329,11 @@ class WorkflowTests(unittest.TestCase):
         claim = self.flow.claim('translate', self.fresh_worker('draft-repair'))
         rows = [{'id': r['id'], 'translation': r['source']} for r in claim['payload']['records']]
         result = {**self.envelope(claim), 'records': rows}
-        with self.assertRaisesRegex(ValueError, 'terminology mismatch'):
-            self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        self.assertEqual(self.flow.draft_scan(prepare_repairs=True)['failed_records'], 2)
+        claim = self.flow.claim('translate', self.fresh_worker('draft-repair-next-round'))
+        rows = [{'id': r['id'], 'translation': r['source']} for r in claim['payload']['records']]
+        result = {**self.envelope(claim), 'records': rows}
         for item, row in zip(rows, claim['payload']['records']):
             item['exceptions'] = [{'source': t['src'], 'reason': '测试：专名保留英文的局部例外。'}
                                   for t in bridge.matched_terms({'characters': [{'source': 'Alice', 'recommended_translation': '爱丽丝'}],

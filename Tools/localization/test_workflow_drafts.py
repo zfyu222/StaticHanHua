@@ -48,7 +48,7 @@ class DraftPhaseTests(unittest.TestCase):
         self.assertEqual(self.flow.draft_scan(prepare_repairs=True)['repair_tasks'], plan['repair_tasks'])
         report = workflow.read_json(plan['report_file'])
         self.assertGreaterEqual(len(next(r for r in report['failures'] if r['id'] == bad_one)['diagnostics']), 2)
-        with self.assertRaisesRegex(ValueError, 'Full draft scan'):
+        with self.assertRaisesRegex(ValueError, 'repair round'):
             self.flow.prepare('review')
         repair = self.flow.batch_open('translate', 'pooled-fixer')
         self.assertEqual(repair['records'], 2)
@@ -120,36 +120,47 @@ class DraftPhaseTests(unittest.TestCase):
         self.assertEqual(len(initial['repair_tasks']), 2)
         first = self.flow.batch_open('translate', 'fix-first')
         fixed_id = self.result(first)['records'][0]['id']
-        self.assertEqual(self.save(first, self.result(first))['status'], 'submitted')
+        unfinished_fix = self.result(first)
+        unfinished_fix['records'][0]['translation'] = ''  # Same failed text must still be rechecked at round end.
+        self.assertEqual(self.save(first, unfinished_fix)['status'], 'submitted')
         # Reopen the Workflow object to prove receipts survive context/process changes.
         self.flow = workflow.Workflow(self.f.project)
         with patch.object(self.flow, 'collect_draft_issues', wraps=self.flow.collect_draft_issues) as validator:
             partial = self.flow.draft_scan(prepare_repairs=True)
-            self.assertEqual(validator.call_count, 1)
-            self.assertEqual(validator.call_args.args[2], [fixed_id])
-            self.assertEqual(partial['phase'], 'issue_recheck')
-            self.assertEqual(partial['checked_records'], 1)
-            self.assertEqual(partial['failed_records'], 1)
-            validator.reset_mock()
+            validator.assert_not_called()
+            self.assertEqual(partial['phase'], 'awaiting_round')
+            self.assertEqual(partial['checked_records'], 0)
+            self.assertEqual(len(partial['repair_tasks']), 1)
             again = self.flow.draft_scan(prepare_repairs=True)
             validator.assert_not_called()
-            self.assertEqual((again['phase'], again['checked_records']), ('cached', 0))
-            with self.assertRaisesRegex(ValueError, 'Full draft scan'):
+            self.assertEqual((again['phase'], again['checked_records']), ('awaiting_round', 0))
+            with self.assertRaisesRegex(ValueError, 'repair round'):
                 self.flow.prepare('review')
             validator.assert_not_called()
         second = self.flow.batch_open('translate', 'fix-second')
+        waiting = self.flow.draft_scan(prepare_repairs=True)
+        self.assertEqual(waiting['unfinished_batches']['running'], 1)
+        self.assertEqual(waiting['checked_records'], 0)
         last_id = self.result(second)['records'][0]['id']
         self.assertNotEqual(fixed_id, last_id)
         self.assertEqual(self.save(second, self.result(second))['status'], 'submitted')
         with patch.object(self.flow, 'collect_draft_issues', wraps=self.flow.collect_draft_issues) as validator:
+            next_round = self.flow.draft_scan(prepare_repairs=True)
+            self.assertEqual([c.args[2] for c in validator.call_args_list], [bad])
+            self.assertEqual(next_round['failed_records'], 1)
+            self.assertEqual(len(next_round['repair_tasks']), 1)
+        third = self.flow.batch_open('translate', 'fix-next-round')
+        self.assertEqual(third['records'], 1)
+        self.assertEqual(self.save(third, self.result(third))['status'], 'submitted')
+        with patch.object(self.flow, 'collect_draft_issues', wraps=self.flow.collect_draft_issues) as validator:
             final = self.flow.draft_scan()
-            self.assertEqual([c.args[2] for c in validator.call_args_list], [[last_id], None])
+            self.assertEqual([c.args[2] for c in validator.call_args_list], [[fixed_id], None])
             self.assertTrue(final['clean'])
             self.assertEqual(final['phase'], 'final_full')
             history = [workflow.read_json(p) for p in final['round_reports']]
             self.assertEqual([r['scope'] for r in history], ['issues', 'full'])
             self.assertEqual([r['checked_records'] for r in history], [1, 4])
-            self.assertEqual(history[0]['checked_ids'], [last_id])
+            self.assertEqual(history[0]['checked_ids'], [fixed_id])
             self.assertEqual(history[0]['result'], 'passed')
             self.assertTrue(all(t['status'] == 'done' for t in history[-1]['repair_status']))
             validator.reset_mock()
@@ -184,7 +195,7 @@ class DraftPhaseTests(unittest.TestCase):
         self.assertFalse(final['clean'])
         self.assertEqual(final['failed_records'], 1)
         self.assertEqual(len(final['repair_tasks']), 1)
-        with self.assertRaisesRegex(ValueError, 'Full draft scan'):
+        with self.assertRaisesRegex(ValueError, 'repair round'):
             self.flow.prepare('review')
 
     def test_failed_review_gate_persists_checks_instead_of_rescanning(self):
@@ -226,6 +237,43 @@ class DraftPhaseTests(unittest.TestCase):
             self.assertEqual(baseline['failed_records'], 2)
             self.assertEqual(len(baseline['checked_ids']), 4)
 
+    def test_round_attempt_budget_survives_new_tasks_and_identical_failed_text(self):
+        session = self.flow.batch_open('translate', 'draft-first')
+        result = self.result(session)
+        target = result['records'][0]['id']; result['records'][0]['translation'] = ''
+        self.save(session, result); self.f.translate()
+        self.flow.draft_scan(prepare_repairs=True)
+        for n in range(3):
+            repair = self.flow.batch_open('translate', f'round-fixer-{n}')
+            bad = self.result(repair); bad['records'][0]['translation'] = ''
+            receipt = self.save(repair, bad)
+            self.assertEqual(receipt['status'], 'submitted')
+            self.assertIn('repair_saved', receipt['quality'])
+            self.assertEqual(receipt['remaining_round_batches'], 0)
+            scan = self.flow.draft_scan(prepare_repairs=True)
+            self.assertEqual(scan['checked_records'], 1)
+            self.assertEqual(scan['failed_records'], 1)
+            if n < 2:
+                self.assertEqual(len(scan['repair_tasks']), 1)
+        self.assertEqual(scan['needs_attention_ids'], [target])
+        self.assertEqual(scan['repair_tasks'], [])
+        self.assertFalse(scan['clean'])
+
+    def test_latest_legacy_rejected_round_candidate_can_be_saved_without_rewriting(self):
+        session = self.flow.batch_open('translate', 'draft-first')
+        result = self.result(session); result['records'][0]['translation'] = ''
+        self.save(session, result); self.f.translate()
+        self.flow.draft_scan(prepare_repairs=True)
+        repair = self.flow.batch_open('translate', 'old-round-worker')
+        bad = self.result(repair); bad['records'][0]['translation'] = ''
+        workflow.write_json(repair['result_file'], bad)
+        # Simulate the old immediate strict branch, preserving its real handoff,
+        # candidate, lease and author instead of manufacturing a new task.
+        with patch.object(self.flow, 'is_draft_task', return_value=False):
+            self.assertEqual(self.flow.batch_finish(repair['session_id'])['status'], 'repair_required')
+        self.assertEqual(self.flow.batch_finish(repair['session_id'])['status'], 'submitted')
+        self.assertEqual(self.flow.draft_scan()['failed_records'], 1)
+
     def test_legacy_helper_defers_quality_but_still_rejects_wrong_ids(self):
         session = self.flow.batch_open('translate', 'draft-writer')
         result = self.result(session)
@@ -249,6 +297,11 @@ class DraftPhaseTests(unittest.TestCase):
         receipt = check()
         self.assertEqual(receipt['failures'], 0)
         self.assertEqual(receipt['quality'], 'deferred_to_full_draft_scan')
+        payload.update(strict_translation=True, draft_scan_key='synthetic-round-key')
+        workflow.write_json(task_file, payload)
+        round_receipt = check()
+        self.assertEqual(round_receipt['failures'], 0)
+        self.assertEqual(round_receipt['quality'], 'deferred_to_round_check')
         result['records'][0]['id'] = 'wrong-id'
         workflow.write_json(session['result_file'], result)
         self.assertGreater(check()['failures'], 0)

@@ -1157,7 +1157,9 @@ def prompt(payload):
                    '程序检查、全表 summary 不能替代逐项语义检查证据。')
     if stage == 'translate':
         common += ' approved_pilot_examples 和 pilot_style_notes 是 Sol 已验收的文体参考，遵守其风格，但原文与冻结术语优先。'
-        common += (' 本批是全文扫描后的定向修复，只修复 diagnostic 指出的失败语句，提交后严格验收。'
+        common += (' 本批是整轮定向修复中的一个批次，只修复 diagnostic 指出的语句；提交后保存修复稿，等本轮所有批次完成再统一复查，不当批验收或返修。'
+                   if payload.get('draft_scan_key') else
+                   ' 本批是定向修复，只修复 diagnostic 指出的失败语句，提交后严格验收。'
                    if payload.get('strict_translation') else
                    ' 本批保存为正文草稿；术语、占位符等质量检查在全文草稿完成后集中执行，不当批自查返工。')
     if stage in ('translate', 'pilot_translate'):

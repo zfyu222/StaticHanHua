@@ -179,7 +179,16 @@ class BatchMixin:
         with self.db() as db:
             run = self._batch_run(db, session_id)
             if run['status'] != 'waiting':
-                return json.loads(run['receipt'])
+                previous = db.execute('SELECT * FROM tasks WHERE id=?', (run['task_id'],)).fetchone()
+                later = db.execute('SELECT 1 FROM batch_runs WHERE task_id=? AND token=? AND round>?',
+                                   (run['task_id'], run['token'], run['round'])).fetchone()
+                if (previous and self.is_round_repair(previous) and previous['status'] == 'running'
+                        and run['status'] in ('repair_required', 'needs_attention') and not later):
+                    # Reuse the latest old rejected candidate under round-based
+                    # persistence. Do not replace a later or in-flight handoff.
+                    db.execute('UPDATE batch_runs SET status="waiting" WHERE id=?', (session_id,))
+                else:
+                    return json.loads(run['receipt'])
             task = self.valid_task(db, run['task_id'], run['token'])
             result_file = Path(run['result_file'])
             if result_file.exists():
@@ -233,7 +242,12 @@ class BatchMixin:
                 receipt = {'status': 'submitted', 'session_id': session_id, 'task_id': task['id'],
                            'records': len(cached), 'summary': self.batch_summary(db)}
                 if self.is_draft_task(task):
-                    receipt['quality'] = 'draft_saved; full checks deferred to draft-scan'
+                    receipt['quality'] = ('repair_saved; wait for every batch in this round, then draft-scan'
+                                          if self.is_round_repair(task) else 'draft_saved; full checks deferred to draft-scan')
+                if self.is_round_repair(task):
+                    receipt['remaining_round_batches'] = len(self.unfinished_draft_repairs(db))
+                    receipt['next_action'] = ('finish_current_round' if receipt['remaining_round_batches']
+                                              else 'draft-scan --prepare-repairs')
             db.execute('UPDATE batch_runs SET status=?,receipt=? WHERE id=?', (receipt['status'], encoded(receipt), session_id))
             stage = task['stage']
         if next_worker and receipt['status'] == 'submitted':
