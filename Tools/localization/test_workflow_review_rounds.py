@@ -33,6 +33,26 @@ class ReviewRoundTests(unittest.TestCase):
             self.assertEqual(self.save(session, self.result(session))['status'], 'submitted')
         self.assertTrue(self.flow.review_scan()['clean'])
 
+    def test_six_review_repair_rounds_then_automatic_sol(self):
+        first = self.flow.batch_open('review', 'initial-a')
+        result = self.result(first); target = result['records'][0]['id']
+        result['records'][0].pop('checks'); self.save(first, result)
+        second = self.flow.batch_open('review', 'initial-b'); self.save(second, self.result(second))
+        self.flow.review_scan(prepare_repairs=True)
+        for n in range(6):
+            repair = self.flow.batch_open('review', f'repair-{n}')
+            self.assertEqual(repair['repair_tier'], 'standard')
+            self.assertEqual(repair['repair_counts'], {target: n + 1})
+            self.save(repair, self.result(repair, [target]))
+            report = self.flow.review_scan(prepare_repairs=True)
+            self.assertEqual(report['checked_records'], 1)
+            self.assertEqual(report['needs_attention_ids'], [])
+        sol = self.flow.batch_open('review', 'sol-review-fix', worker_model='gpt-6-sol')
+        self.assertEqual(sol['required_model'], 'gpt-6-sol')
+        self.assertTrue(sol['automatic_escalation'])
+        self.save(sol, self.result(sol))
+        self.assertTrue(self.flow.review_scan()['clean'])
+
     def test_no_partial_acceptance_or_early_repairs_and_cross_batch_regrouping(self):
         first = self.flow.batch_open('review', 'review-a'); one = self.result(first)
         bad_a = one['records'][0]['id']; good_a = one['records'][1]['id']

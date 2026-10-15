@@ -601,7 +601,7 @@ class QualityMixin:
                 raise ValueError('Finish/recover in-flight tasks before reopening a review')
             if task['stage'] == 'pilot_review' and self.pilot_approved(db, config):
                 raise ValueError('Accepted pilot is immutable; revise configuration/glossary and run a new pilot')
-            if task['attempt'] >= config['max_attempts']:
+            if task['stage'] == 'pilot_review' and task['attempt'] >= config['max_attempts']:
                 raise ValueError('Attempt limit reached')
             original_ids = set(json.loads(task['ids']))
             ids = original_ids if record_ids is None else set(record_ids)
@@ -609,13 +609,18 @@ class QualityMixin:
                 raise ValueError('Repair IDs must be a nonempty unique subset of the assigned records')
             prior_attempts = max((t['attempt'] for t in db.execute('SELECT attempt,ids FROM tasks WHERE stage=? AND revision=?',
                                   (task['stage'], task['revision'])) if ids.intersection(json.loads(t['ids']))), default=task['attempt'])
-            if prior_attempts >= config['max_attempts']:
+            if task['stage'] == 'pilot_review' and prior_attempts >= config['max_attempts']:
                 raise ValueError('Attempt limit reached for selected repair records')
             # Later stage tasks touching these records must not override the repair.
             order = {'pilot_review': 0, 'review': 1, 'polish': 2, 'final_review': 3}
             for other in db.execute('SELECT * FROM tasks WHERE revision=?', (task['revision'],)).fetchall():
                 if other['id'] != task_id and order.get(other['stage'], -1) > order[task['stage']] and ids.intersection(json.loads(other['ids'])):
                     db.execute('UPDATE tasks SET status="obsolete" WHERE id=?', (other['id'],))
+            if task['stage'] != 'pilot_review':
+                tasks, blocked = self.plan_review_repairs(db, config, task['stage'], {i: reason for i in ids}, 'reopen-body')
+                self.event(db, 'reopen_body', {'repair_tasks': tasks, 'record_ids': sorted(ids), 'reason': reason})
+                return {'task_id': tasks[0] if tasks else None, 'repair_tasks': tasks, 'needs_attention_ids': blocked,
+                        'repair_records': len(ids) - len(blocked), 'preserved_records': len(original_ids - ids)}
             payload = json.loads(task['payload'])
             partial = ids != original_ids
             if partial:

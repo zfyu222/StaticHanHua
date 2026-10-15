@@ -15,14 +15,14 @@ BODY_STAGES = ('translate', 'pilot_translate', 'review', 'pilot_review', 'polish
 
 
 class BatchMixin:
-    def batch_many(self, action, values, stage=None, next_worker=None):
+    def batch_many(self, action, values, stage=None, next_worker=None, worker_model=None):
         """Return each durable receipt even when another independent handoff fails."""
         if action not in ('open', 'finish'):
             raise ValueError('Unsupported batch action')
         results = []
         for value in values:
             try:
-                results.append(self.batch_open(stage, value) if action == 'open' else self.batch_finish(value, next_worker))
+                results.append(self.batch_open(stage, value, worker_model=worker_model) if action == 'open' else self.batch_finish(value, next_worker))
             except (ValueError, OSError, sqlite3.Error) as exc:
                 results.append({'status': 'needs_attention', 'worker' if action == 'open' else 'session_id': value, 'error': str(exc)})
         return results
@@ -39,7 +39,7 @@ class BatchMixin:
         from translation_workflow import prompt
         config = self.config(db)
         glossary = self.glossary(db)
-        header_fields = ('language', 'style', 'revision_request') if diagnostics or payload.get('strict_translation') or payload.get('review_repair_origin') else (
+        header_fields = ('language', 'style', 'revision_request', 'repair_tier', 'required_model', 'repair_counts') if diagnostics or payload.get('strict_translation') or payload.get('review_repair_origin') else (
             'language', 'style', 'game_background', 'approved_pilot_examples', 'pilot_style_notes', 'revision_request')
         lines = ['# 单批输入包', prompt(payload)[0],
                  '只读本文件即可开始，不读取指针、其他协议、全库或旧日志。不执行检查脚本。',
@@ -104,13 +104,14 @@ class BatchMixin:
                    (session_id, task['id'], token, worker, json.dumps(scope), round_number,
                     str(input_file), str(result_file), 'waiting'))
         return {'status': 'ready', 'session_id': session_id, 'task_id': task['id'], 'records': len(scope),
-                'input_file': str(input_file), 'input_chars': len(pack), 'result_file': str(result_file)}
+                'input_file': str(input_file), 'input_chars': len(pack), 'result_file': str(result_file),
+                **{k: payload[k] for k in ('repair_tier', 'required_model', 'repair_counts', 'automatic_escalation') if k in payload}}
 
-    def batch_open(self, stage, worker):
+    def batch_open(self, stage, worker, worker_model=None):
         if stage not in BODY_STAGES:
             raise ValueError('Batch handoffs support body stages; use the glossary protocol for terminology extraction/review')
         self.prepare(stage)
-        claim = self.claim(stage, worker, compact_input=True)
+        claim = self.claim(stage, worker, compact_input=True, worker_model=worker_model)
         if claim is None:
             with self.db() as db:
                 summary = self.batch_summary(db)

@@ -39,7 +39,8 @@ class DraftMixin:
             pending.add(item['id'])
             self.put(db, 'draft_repair_pending_check', sorted(pending))
             attempts = self.meta(db, 'draft_repair_attempts', {})
-            attempts[item['id']] = max(attempts.get(item['id'], 0), task['attempt'])
+            attempts[item['id']] = max(attempts.get(item['id'], 0),
+                                        json.loads(task['payload']).get('repair_counts', {}).get(item['id'], task['attempt']))
             self.put(db, 'draft_repair_attempts', attempts)
 
     def draft_audit_key(self, db, config, generation=None):
@@ -276,8 +277,9 @@ class DraftMixin:
         existing = [r for r in db.execute('SELECT * FROM tasks WHERE revision=? AND status IN ("pending","failed")', (self.meta(db, 'revision'),))
                     if json.loads(r['payload']).get('strict_translation')]
         tasks = [r['id'] for r in existing]
-        attempts = self.meta(db, 'draft_repair_attempts', {})
-        blocked_ids = [r['id'] for r in failures if attempts.get(r['id'], 0) >= config['max_attempts']]
+        blocked_ids = []
+        history_routes = self.repair_routes(db, config, 'translate')
+        routes = {r['id']: history_routes.get(r['id'], (0, 'standard')) for r in failures}
         if prepare_repairs and failures and not existing:
             failed_by_id = {r['id']: r for r in failures}
             contexts = self.meta(db, 'contexts', {})
@@ -295,13 +297,15 @@ class DraftMixin:
             history = [json.loads(t['payload']) for t in db.execute('SELECT payload FROM tasks WHERE revision=?', (self.meta(db, 'revision'),))
                        if json.loads(t['payload']).get('draft_scan_key')]
             round_number = 1 + max((t.get('draft_repair_round', 1) for t in history), default=0)
-            groups = [group for used in sorted({attempts.get(r['id'], 0) for r in eligible})
-                      for group in self.batches([r for r in eligible if attempts.get(r['id'], 0) == used], config, respect_groups=False)]
+            groups = [group for used in sorted({routes[r['id']][0] for r in eligible})
+                      for group in self.batches([r for r in eligible if routes[r['id']][0] == used], config, respect_groups=False)]
             for group in groups:
                 task_id = 'draft-repair-' + uuid.uuid4().hex[:20]
                 payload = {'task_id': task_id, 'stage': 'translate', 'revision': self.meta(db, 'revision'),
                            'source_hash': self.meta(db, 'source_hash'), 'strict_translation': True, 'draft_scan_key': key,
                            'draft_repair_round': round_number,
+                           **self.repair_routing(config, routes[group[0]['id']][1]),
+                           'repair_counts': {r['id']: routes[r['id']][0] + 1 for r in group},
                            'language': {'source': config['source_language'], 'target': config['target_language']},
                            'style': config['style'], 'game_background': '', 'context': [], 'records': [],
                            'glossary_version': self.meta(db, 'glossary'),
@@ -317,7 +321,7 @@ class DraftMixin:
                 signature = fingerprint(payload); payload['input_hash'] = signature
                 db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,attempt,status) VALUES (?,?,?,?,?,?,?,?,"pending")',
                            (task_id, 'translate', self.meta(db, 'revision'), encoded([r['id'] for r in group]), encoded(payload),
-                            signature, config['stage_backends'].get('translate', config['backend']), attempts.get(group[0]['id'], 0)))
+                            signature, 'codex' if payload['repair_tier'] == 'sol' else config['stage_backends'].get('translate', config['backend']), 0))
                 tasks.append(task_id)
         clean = not failures and not tasks
         report_file = self.root / 'reports/full_draft_scan.json'
@@ -339,6 +343,7 @@ class DraftMixin:
             round_files.append(str(path))
         summary = {'key': key, 'records': len(rows), 'failed_records': len(failures),
                    'clean': clean, 'failures': failures, 'repair_tasks': tasks,
+                   'repair_dispatch': self.repair_dispatch(db, tasks),
                    'phase': rounds[-1]['phase'] if rounds else 'cached',
                    'checked_records': sum(r['checked_records'] for r in rounds),
                    'checked_rounds': [{k: r[k] for k in ('round', 'phase', 'scope', 'checked_records', 'result')} for r in rounds],

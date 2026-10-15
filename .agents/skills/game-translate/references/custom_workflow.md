@@ -116,3 +116,7 @@ run-api 只执行一个子阶段，主代理在阶段间及运行过程中调用
 `lock/unlock --record <ID> --reason <原因>` 保护已确认译文；解锁有记录，影响锁定译文的语义调整会被拒绝。正文草稿中的 blocking 随原始结果留存并在全文扫描时拦截；严格阶段有 unresolved blocking 问题时不能验收为完成。
 
 适合提交：配置、TranslateDoc、原术语表、审校决定、审校版、检查/修改清单、manifest、最终验证报告和必要变更记录。state、tasks、results、source 快照、cache、backups、logs 默认忽略；不提交凭据和完整缓存。
+
+### 正文后修复预算
+
+正文后修复轮次采用 body_repair_round_limit（默认且最多 6），与 max_attempts（单任务执行重试）分开。超过常规轮次自动派发 Sol 子代理，按任务 required_model 执行，不要求用户追加授权；详见 [整轮验收](review_rounds.md#正文后自动升级)。试译及术语原预算不变。

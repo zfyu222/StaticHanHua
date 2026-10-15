@@ -42,7 +42,7 @@ DEFAULT = {
     'agent_task_limit': 1, 'agent_attempt_limit': 2, 'task_input_chars': 48000,
     'review_batch_records': 80, 'extract_batch_records': 60, 'glossary_review_batch_records': 20,
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
-    'polish': False, 'max_attempts': 3, 'lease_seconds': 3600,
+    'polish': False, 'max_attempts': 3, 'body_repair_round_limit': 6, 'sol_repair_model': 'gpt-6-sol', 'lease_seconds': 3600,
     'exclusions': [], 'stage_backends': {}, 'placeholder_family_overrides': {},
     'api': {'api_format': 'OpenAI', 'target_platform': 'custom_platform_shh',
             'api_url': '', 'model_name': '', 'api_key_env': 'SHH_TRANSLATION_API_KEY',
@@ -170,6 +170,10 @@ def validate_config(config):
                 'extract_batch_records', 'glossary_review_batch_records', 'pilot_call_limit'):
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError('Positive integer required: ' + key)
+    if type(config.get('body_repair_round_limit', 6)) is not int or not 1 <= config.get('body_repair_round_limit', 6) <= 6:
+        raise ValueError('body_repair_round_limit must be between 1 and 6')
+    if config.get('sol_repair_model', 'gpt-6-sol') not in ('gpt-6-sol', 'gpt-6.1-sol'):
+        raise ValueError('sol_repair_model must select a Sol model')
     if type(config['context_records']) is not int or config['context_records'] < 0:
         raise ValueError('Invalid context_records')
     if config.get('pilot_batch_count') is not None and (
@@ -605,7 +609,7 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             db.execute('UPDATE tasks SET status="pending",lease_token=NULL,lease_until=NULL,ready_at=0 WHERE id=?', (task_id,))
             self.event(db, 'reopen_review', {'task': task_id, 'reason': reason})
 
-    def claim(self, stage, worker, backend='codex', compact_input=False):
+    def claim(self, stage, worker, backend='codex', compact_input=False, worker_model=None):
         if not worker.strip():
             raise ValueError('Worker name required')
         with self.db() as db:
@@ -1281,7 +1285,7 @@ def main():
         sub.add_parser(command)
     p = sub.add_parser('prepare'); p.add_argument('--stage', choices=STAGES, required=True)
     p = sub.add_parser('prompt'); p.add_argument('--task-file', required=True)
-    p = sub.add_parser('batch-open'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--workers', nargs='+', required=True)
+    p = sub.add_parser('batch-open'); p.add_argument('--worker-model'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--workers', nargs='+', required=True)
     p = sub.add_parser('batch-finish'); p.add_argument('--sessions', nargs='+', required=True); p.add_argument('--next-worker')
     p = sub.add_parser('batch-repair'); p.add_argument('--session', required=True); p.add_argument('--worker', required=True); p.add_argument('--reason')
     p = sub.add_parser('batch-save'); p.add_argument('--session', required=True); p.add_argument('--file', required=True)
@@ -1322,7 +1326,7 @@ def main():
         elif args.command in ('pause', 'resume'): result = flow.pause(args.command == 'pause')
         elif args.command == 'prepare': result = flow.prepare(args.stage)
         elif args.command == 'prompt': result = flow.task_prompt(args.task_file)
-        elif args.command == 'batch-open': result = flow.batch_many('open', args.workers, stage=args.stage)
+        elif args.command == 'batch-open': result = flow.batch_many('open', args.workers, stage=args.stage, worker_model=args.worker_model)
         elif args.command == 'batch-finish':
             if args.next_worker and len(args.sessions) != 1:
                 raise ValueError('next-worker requires exactly one completed session')

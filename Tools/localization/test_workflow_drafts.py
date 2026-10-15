@@ -243,7 +243,7 @@ class DraftPhaseTests(unittest.TestCase):
         target = result['records'][0]['id']; result['records'][0]['translation'] = ''
         self.save(session, result); self.f.translate()
         self.flow.draft_scan(prepare_repairs=True)
-        for n in range(3):
+        for n in range(6):
             repair = self.flow.batch_open('translate', f'round-fixer-{n}')
             bad = self.result(repair); bad['records'][0]['translation'] = ''
             receipt = self.save(repair, bad)
@@ -253,10 +253,17 @@ class DraftPhaseTests(unittest.TestCase):
             scan = self.flow.draft_scan(prepare_repairs=True)
             self.assertEqual(scan['checked_records'], 1)
             self.assertEqual(scan['failed_records'], 1)
-            if n < 2:
-                self.assertEqual(len(scan['repair_tasks']), 1)
-        self.assertEqual(scan['needs_attention_ids'], [target])
-        self.assertEqual(scan['repair_tasks'], [])
+            self.assertEqual(repair['repair_tier'], 'standard')
+            self.assertEqual(repair['repair_counts'], {target: n + 1})
+            self.assertEqual(len(scan['repair_tasks']), 1)
+        self.assertEqual(scan['needs_attention_ids'], [])
+        escalated = self.flow.batch_open('translate', 'sol-fixer', worker_model='gpt-6-sol')
+        self.assertEqual(escalated['repair_tier'], 'sol')
+        self.assertEqual(escalated['required_model'], 'gpt-6-sol')
+        self.assertTrue(escalated['automatic_escalation'])
+        self.assertEqual(escalated['repair_counts'], {target: 7})
+        self.save(escalated, self.result(escalated))
+        self.assertTrue(self.flow.draft_scan()['clean'])
         self.assertFalse(scan['clean'])
 
     def test_latest_legacy_rejected_round_candidate_can_be_saved_without_rewriting(self):

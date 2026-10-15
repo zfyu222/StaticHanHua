@@ -6,6 +6,46 @@ import ainiee_bridge as bridge
 
 
 class ReviewRoundMixin:
+    def repair_routes(self, db, config, stage, prior=None):
+        """Index completed per-ID rounds once; request retries are separate.
+
+        Preserve legacy counters conservatively, excluding the initial review.
+        """
+        prior = prior if prior is not None else db.execute(
+            'SELECT * FROM tasks WHERE stage=? AND revision=?', (stage, self.meta(db, 'revision')))
+        counts, used = {}, {}
+        for task in prior:
+            if task['status'] != 'done':
+                continue
+            payload = json.loads(task['payload'])
+            if not (payload.get('draft_scan_key') or payload.get('review_repair_origin')):
+                continue
+            for record_id in json.loads(task['ids']):
+                counts[record_id] = counts.get(record_id, 0) + 1
+                legacy = max(0, task['attempt'] - (stage != 'translate'))
+                used[record_id] = max(used.get(record_id, 0), counts[record_id],
+                                      payload.get('repair_counts', {}).get(record_id, legacy))
+        if stage == 'translate':
+            for record_id, count in self.meta(db, 'draft_repair_attempts', {}).items():
+                used[record_id] = max(used.get(record_id, 0), count)
+        return {i: (n, 'sol' if n >= config.get('body_repair_round_limit', 6) else 'standard') for i, n in used.items()}
+
+    @staticmethod
+    def repair_dispatch(db, task_ids):
+        dispatch = []
+        for task_id in task_ids:
+            task = db.execute('SELECT payload,backend FROM tasks WHERE id=?', (task_id,)).fetchone()
+            payload = json.loads(task['payload'])
+            dispatch.append({'task_id': task_id, 'backend': task['backend'],
+                             **{k: payload[k] for k in ('repair_tier', 'required_model', 'repair_counts', 'automatic_escalation') if k in payload}})
+        return dispatch
+
+    @staticmethod
+    def repair_routing(config, tier):
+        return {'repair_tier': tier, 'required_model': config.get('sol_repair_model', 'gpt-6-sol') if tier == 'sol' else None,
+                'repair_round_limit': config.get('body_repair_round_limit', 6),
+                'automatic_escalation': tier == 'sol'}
+
     @staticmethod
     def is_deferred_review(task):
         return task['stage'] in ('review', 'final_review') and not json.loads(task['payload']).get('strict_review')
@@ -46,13 +86,14 @@ class ReviewRoundMixin:
         prior = [dict(t) for t in db.execute('SELECT * FROM tasks WHERE stage=? AND revision=?',
                                             (stage, self.meta(db, 'revision')))]
         round_number = 1 + max((json.loads(t['payload']).get('review_round', 1) for t in prior), default=0)
+        routes = self.repair_routes(db, config, stage, prior)
         rows, blocked = [], []
         for record_id, diagnostic in problems.items():
             row = dict(db.execute('SELECT * FROM records WHERE id=?', (record_id,)).fetchone())
-            used = max((t['attempt'] for t in prior if record_id in json.loads(t['ids'])), default=0)
-            if row['locked'] or used >= config['max_attempts']:
+            used, tier = routes.get(record_id, (0, 'standard'))
+            if row['locked']:
                 blocked.append(record_id); continue
-            row.update(used=used, diagnostic=diagnostic, metadata=contexts.get(str(row['ordinal']), {}))
+            row.update(used=used, tier=tier, diagnostic=diagnostic, metadata=contexts.get(str(row['ordinal']), {}))
             rows.append(row)
         tasks = []
         for used in sorted({r['used'] for r in rows}):
@@ -61,7 +102,9 @@ class ReviewRoundMixin:
                 task_id = stage + '-round-' + uuid.uuid4().hex[:16]
                 payload = {'task_id': task_id, 'stage': stage, 'revision': self.meta(db, 'revision'),
                            'source_hash': self.meta(db, 'source_hash'), 'review_round': round_number,
-                           'review_repair_origin': origin, 'language': {'source': config['source_language'], 'target': config['target_language']},
+                           'review_repair_origin': origin,
+                           **self.repair_routing(config, group[0]['tier']),
+                           'repair_counts': {r['id']: r['used'] + 1 for r in group}, 'language': {'source': config['source_language'], 'target': config['target_language']},
                            'style': config['style'], 'context': [], 'game_background': '',
                            'glossary_version': self.meta(db, 'glossary'), 'records': [],
                            'terms': bridge.matched_terms(glossary, [r['source'] for r in group], config),
@@ -77,7 +120,7 @@ class ReviewRoundMixin:
                 value = fingerprint(payload); payload['input_hash'] = value
                 db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) VALUES (?,?,?,?,?,?,?,"pending",?)',
                            (task_id, stage, self.meta(db, 'revision'), encoded([r['id'] for r in group]), encoded(payload), value,
-                            config['stage_backends'].get(stage, config['backend']), used))
+                            'codex' if group[0]['tier'] == 'sol' else config['stage_backends'].get(stage, config['backend']), 0))
                 tasks.append(task_id)
         approvals = self.meta(db, 'quality_approvals', {}); approvals.pop('final', None)
         self.put(db, 'quality_approvals', approvals)
@@ -132,6 +175,7 @@ class ReviewRoundMixin:
                       'scope': 'review_round', 'checked_records': len(checked), 'checks': checked,
                       'passed_ids': passed,
                       'failed_records': len(problems), 'problems': problems, 'repair_tasks': tasks,
+                      'repair_dispatch': self.repair_dispatch(db, tasks),
                       'needs_attention_ids': blocked, 'clean': complete and not problems and not tasks}
             if checked:
                 cursor = db.execute('INSERT INTO review_round_checks(report) VALUES (?)', (encoded(report),))

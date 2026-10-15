@@ -128,7 +128,7 @@ class SolRoundMixin:
                 self.put(db, 'quality_checkpoints', checkpoints)
                 tasks, blocked = self.plan_review_repairs(db, config, 'final_review' if config['polish'] else 'review',
                                                        problems, f'sol-round-{row["id"]}')
-                result = {'status': 'repair_round_prepared', 'round': row['id'], 'repair_tasks': tasks,
+                result = {'status': 'repair_round_prepared', 'round': row['id'], 'repair_tasks': tasks, 'repair_dispatch': self.repair_dispatch(db, tasks),
                           'repair_records': len(problems), 'needs_attention_ids': blocked, 'stage_approved': False}
             else:
                 supplied = {'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': 'Completed Sol inspection round; explicit per-item decisions archived.',

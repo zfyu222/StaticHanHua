@@ -62,7 +62,7 @@ reports/draft_checks/round_XXXXX.json 与数据库 draft_check_rounds 保存各�
 
 Sol 已判断出具体原因、给出明确处理依据后，可对 needs_attention 的 session 再调用 batch-repair --reason <Sol判断与定向验收要求>。这是有记录的人工主流程判断，不能用于机械循环；仍只携带未解决 ID，保留全部通过项，并消耗原任务剩余尝试次数（默认总共 3 次）及试译预算。无明确原因不允许自动再派。
 
-整轮修复跨轮保留每条未解决问题已经消耗的尝试数，新一轮任务不得刷新预算；达到 max_attempts 仍失败的 ID 写入 needs_attention_ids，交 Sol 判断。已通过问题结束该修复链，后续不同问题按实际影响范围处理。
+正文后的程序验收、独立审校及 Sol 最终验收所产生的修复链，按条目累计最多 6 轮常规修复（body_repair_round_limit 默认 6，最多 6）；首次翻译/首次审校不计入，任务格式或传输重试仍受 max_attempts=3 单任务限制。第 6 轮统一复查后仍失败，程序自动生成 repair_tier=sol、required_model=sol_repair_model（默认 gpt-6-sol）、automatic_escalation=true 的失败项任务；直接创建对应模型的新 Sol 子代理（fork_turns=none）执行，不请求用户批准追加轮次。batch-open 回执和输入包携带模型要求，必须按 required_model 派发，不能继续交给 Luna。Sol 修复继续整轮保存、整轮复查及失败 ID 定向处理；相同诊断持续失败时由 Sol 排查原文、术语例外或校验规则根因，不机械重复同一修改，也不借此放宽验收。主对话只调度与检查，不代写译文。Sol 任务使用 codex 后端，API 路线也转交 Sol 子代理，不用原 API 模型冒充升级。既有已完成修复轮及历史计数保留，不重置译文/审校证据，不修改在途任务。锁定冲突及执行故障仍须明确处理，但不得把常规修复超限当作向用户申请追加轮次的理由。
 
 batch_runs 保存交接，batch_items 保存每条有效结果与实际实例，record_lineage 保存原产出/修复历史；quality_authors 记录每个真实贡献者，独立审校不得由原产出者或修订者承担。最终审校证据按条目保存真实审校实例，不把整批归到最后修复者。旧任务的身份记录继续沿用，不虚构历史作者。
 
@@ -89,3 +89,5 @@ source 必须指向本条实际命中的 src；reason 要解释原句依据及�
 保存操作只按 ID 落盘，不触发模型审查。全部片段保存后直接通知完成，无需再写一份重复的完整结果；主流程 batch-finish 合并并一次检查。重复 ID、批次外 ID、版本不符会拒绝，不按输出顺序对齐。原文不能截断；输入预算不足时明确缩小尚未派发的批次，不动已有草稿。
 
 原 claim/prompt/submit 保留给历史脚本和术语阶段兼容。新正文执行默认使用上述入口，不能混用旧 single_task.py 的 check 循环。
+
+派发前读取扫描/sol-round-finish 回执的 repair_dispatch，先按 required_model 创建真实的新实例，再用 batch-open --stage <对应阶段> --worker-model <该模型> --workers <真实实例ID> 领取匹配模型的任务。标准任务使用 gpt-6-luna，Sol 任务使用回执中的精确模型；混合任务池必须传 --worker-model，防止模型领错批次。程序不自行创建代理。
