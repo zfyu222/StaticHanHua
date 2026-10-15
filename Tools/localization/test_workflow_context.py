@@ -92,16 +92,16 @@ class ContextTests(unittest.TestCase):
             self.assertEqual(db.execute('SELECT sum(attempt) FROM tasks').fetchone()[0], 0)
             self.assertEqual(db.execute('SELECT count(*) FROM tasks WHERE status="pending"').fetchone()[0], 2)
 
-    def test_review_batches_are_smaller_than_translation_batches(self):
+    def test_review_batches_allow_eighty_records(self):
         fixture = fixtures.WorkflowTests(); fixture.setUp(); self.addCleanup(fixture.tearDown)
         other = fixture.project / 'Review'; other.mkdir()
-        source = other / 'review_text.csv'; source.write_text('text\n' * 45, encoding='utf-8')
-        fixture.flow = workflow.Workflow(other); fixture.flow.init(source, {'batch_records': 60})
+        source = other / 'review_text.csv'; source.write_text('text\n' * 85, encoding='utf-8')
+        fixture.flow = workflow.Workflow(other); fixture.flow.init(source)
         fixture.freeze(); fixture.translate()
         self.assertEqual(len(fixture.flow.prepare('review')['tasks']), 2)
         with fixture.flow.db() as db:
             sizes = [len(workflow.json.loads(r['ids'])) for r in db.execute('SELECT ids FROM tasks WHERE stage="review"')]
-        self.assertEqual(sizes, [40, 5])
+        self.assertEqual(sizes, [80, 5])
 
     def test_body_batches_cross_groups_but_keep_size_and_character_limits(self):
         records = [{'id': str(i), 'source': 'text', 'translation': None,

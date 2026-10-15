@@ -319,7 +319,16 @@ class WorkflowTests(unittest.TestCase):
         claim = self.flow.claim('translate', 'w')
         rows = [{'id': r['id'], 'translation': r['source']} for r in claim['payload']['records']]
         result = {**self.envelope(claim), 'records': rows}
-        with self.assertRaisesRegex(ValueError, 'terminology mismatch'): self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        # Draft translation is accepted without a terminology/self-review loop.
+        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        self.translate()
+        self.flow.prepare('review')
+        claim = self.flow.claim('review', self.fresh_worker('review'))
+        rows = [{'id': r['id'], 'translation': r['translation'], 'reviewed': True,
+                 'reason': 'Independent terminology check', **self.review_evidence(r)} for r in claim['payload']['records']]
+        result = {**self.envelope(claim), 'records': rows}
+        with self.assertRaisesRegex(ValueError, 'terminology mismatch'):
+            self.flow.submit(claim['task_id'], claim['lease_token'], result)
         for item, row in zip(rows, claim['payload']['records']):
             item['exceptions'] = [{'source': t['src'], 'reason': '测试：专名保留英文的局部例外。'}
                                   for t in bridge.matched_terms({'characters': [{'source': 'Alice', 'recommended_translation': '爱丽丝'}],

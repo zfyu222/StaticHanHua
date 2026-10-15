@@ -36,7 +36,7 @@ DEFAULT = {
     'pilot_call_limit': 12,
     'batch_records': 80, 'batch_chars': 12000, 'context_records': 0,
     'agent_task_limit': 1, 'agent_attempt_limit': 2, 'task_input_chars': 48000,
-    'review_batch_records': 40, 'extract_batch_records': 60, 'glossary_review_batch_records': 20,
+    'review_batch_records': 80, 'extract_batch_records': 60, 'glossary_review_batch_records': 20,
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
     'polish': False, 'max_attempts': 3, 'lease_seconds': 3600,
     'exclusions': [], 'stage_backends': {}, 'placeholder_family_overrides': {},
@@ -750,7 +750,7 @@ class Workflow(QualityMixin):
                         raise ValueError('Context exception refers to an unrelated term')
                     signature = fingerprint([row['source'], translation, terms, exceptions,
                                              config['case_sensitive'], config['whole_word']])
-                    if not db.execute('SELECT 1 FROM checks WHERE signature=?', (signature,)).fetchone():
+                    if stage not in ('translate', 'pilot_translate') and not db.execute('SELECT 1 FROM checks WHERE signature=?', (signature,)).fetchone():
                         exempt = {e['source'] for e in exceptions}
                         missing = [t['src'] for t in terms if not bridge.helper().is_keep_original_translation(t['dst'])
                                    and t['src'] not in exempt and t['dst'] not in translation]
@@ -1072,8 +1072,11 @@ def prompt(payload):
                            'edits=[{table,index,patch,reason,evidence_rows}]、quarantine=[{table,index,reason,evidence_rows}]、'
                            'additions=[{table,row,reason,evidence_rows}]、allow_no_match=[{source,reason}]。'
                            '不把检查通过当语义审校；条目不充分时隔离并解释。',
-        'translate': '返回 records=[{id,translation,issues:[],exceptions:[]}]。source 内的 ⟪SHH_…⟫ 必须逐个原样保留；'
-                     'translation 是译文，不带编号。任务 terms 是程序已筛选的完整相关术语。',
+        'translate': '返回 records=[{id,translation}]。source 内的 ⟪SHH_…⟫ 必须逐个原样保留；'
+                     'translation 是译文，不带编号。任务 terms 是程序已筛选的完整相关术语。'
+                     '本实例只负责翻译并写出结果，不执行自审、二次润色、逐条检查或反复重写；'
+                     '不运行检查脚本，不读取其他批次或审校报告，不生成审校证据。'
+                     '完成本批后结束，语义检查、术语例外及修订统一交给后续独立审校实例。',
         'review': '逐条对照原文、译文、上下文、术语检查误译/漏译/口吻；返回 records=[{id,translation,reviewed:true,reason,issues:[],exceptions:[]}]。'
                   'reason 写核对依据；有明确错误则修正，无错误则保留。锁定译文不得改变。',
         'final_review': '逐条对照原文复核润色结果是否改变含义；返回 records=[{id,translation,reviewed:true,reason,issues:[],exceptions:[]}]。锁定译文不得改变。',
@@ -1115,8 +1118,11 @@ def prompt(payload):
                    '程序检查、全表 summary 不能替代逐项语义检查证据。')
     if stage == 'translate':
         common += ' approved_pilot_examples 和 pilot_style_notes 是 Sol 已验收的文体参考，遵守其风格，但原文与冻结术语优先。'
-    common += (' issues 条目须有 severity=warning/blocking 与 reason。无法解决的关键歧义写 blocking。'
-               'exceptions 仅限源文确需语境例外，条目含 source（命中的术语 src）和 reason；没有则为空。')
+    if stage in ('translate', 'pilot_translate'):
+        common += ' 无需生成 issues 或 exceptions；遇到歧义按原文作出最佳译文，确需传递的语境疑点可简记为 warning，留给独立审校判断。'
+    else:
+        common += (' issues 条目须有 severity=warning/blocking 与 reason。无法解决的关键歧义写 blocking。'
+                   'exceptions 仅限源文确需语境例外，条目含 source（命中的术语 src）和 reason；没有则为空。')
     # The legacy textarea prompt is limited to the legacy AINiee protocol. Custom tasks use ID-based JSON.
     return common, json.dumps(payload, ensure_ascii=False)
 
