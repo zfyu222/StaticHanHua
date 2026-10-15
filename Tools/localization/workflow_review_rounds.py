@@ -6,6 +6,67 @@ import ainiee_bridge as bridge
 
 
 class ReviewRoundMixin:
+    @staticmethod
+    def inherit_exceptions(item, original):
+        """Omission/empty output must not silently erase a context decision."""
+        inherited = original.get('exceptions', [])
+        incoming = item.get('exceptions', [])
+        if isinstance(incoming, dict):
+            incoming = [incoming]
+        try:
+            incoming = bridge.normalize_exception_sources(incoming, [], True)
+        except ValueError:
+            return dict(item)
+        if not isinstance(inherited, list) or not isinstance(incoming, list):
+            return dict(item)  # Preserve malformed evidence for boundary validation.
+        removed = set()
+        changes = item.get('exception_changes', [])
+        if not isinstance(changes, list):
+            raise ValueError('exception_changes must be a list')
+        for change in changes:
+            if (not isinstance(change, dict) or change.get('action') != 'remove'
+                    or not isinstance(change.get('source'), str) or not str(change.get('reason', '')).strip()):
+                raise ValueError('Removing a context exception requires source, action=remove and reason')
+            removed.add(change['source'].casefold())
+        merged = {e['source'].casefold(): e for e in inherited
+                  if isinstance(e, dict) and isinstance(e.get('source'), str) and e['source'].casefold() not in removed}
+        for entry in incoming:
+            if not isinstance(entry, dict) or not isinstance(entry.get('source'), str):
+                return dict(item)
+            merged[entry['source'].casefold()] = entry
+        if not inherited and not incoming and 'exceptions' not in item:
+            return dict(item)
+        return {**item, 'exceptions': list(merged.values())}
+
+    def repair_constraints(self, source, translation, exceptions, glossary, config):
+        terms = bridge.matched_terms(glossary, [source], config)
+        exceptions = exceptions if isinstance(exceptions, list) else []
+        exempt = {e['source'].casefold() for e in exceptions if isinstance(e, dict) and isinstance(e.get('source'), str)}
+        return {'satisfied_terms': [{'src': t['src'], 'dst': t['dst']} for t in terms
+                                    if t['dst'] in (translation or '') and not bridge.helper().is_keep_original_translation(t['dst'])],
+                'context_exceptions': exceptions,
+                'missing_terms': [t['src'] for t in terms if t['src'].casefold() not in exempt
+                                  and t['dst'] not in (translation or '') and not bridge.helper().is_keep_original_translation(t['dst'])]}
+
+    def repair_regression(self, db, config, stage, record_id, original, translation, exceptions, glossary, task_id):
+        """Called only by whole-round checks, never by batch saving."""
+        from translation_workflow import encoded
+        before = original.get('repair_constraints')
+        if not before:
+            before = self.repair_constraints(original['source'], original.get('translation'), original.get('exceptions', []), glossary, config)
+        after = self.repair_constraints(original['source'], translation, exceptions, glossary, config)
+        lost = sorted(set(after['missing_terms']) & {t['src'] for t in before['satisfied_terms']})
+        if not lost:
+            return []
+        db.execute('CREATE TABLE IF NOT EXISTS repair_regressions(record_id TEXT,stage TEXT,task_id TEXT,detail TEXT,PRIMARY KEY(record_id,stage,task_id))')
+        db.execute('INSERT OR IGNORE INTO repair_regressions VALUES (?,?,?,?)', (record_id, stage, task_id, encoded({'regressed_terms': lost})))
+        count = db.execute('SELECT count(*) FROM repair_regressions WHERE record_id=? AND stage=?', (record_id, stage)).fetchone()[0]
+        if count >= 2:
+            forced = self.meta(db, 'repair_sol_ids', {})
+            forced[stage] = sorted(set(forced.get(stage, [])) | {record_id})
+            self.put(db, 'repair_sol_ids', forced)
+        return lost
+
     def repair_routes(self, db, config, stage, prior=None):
         """Index completed per-ID rounds once; request retries are separate.
 
@@ -28,7 +89,9 @@ class ReviewRoundMixin:
         if stage == 'translate':
             for record_id, count in self.meta(db, 'draft_repair_attempts', {}).items():
                 used[record_id] = max(used.get(record_id, 0), count)
-        return {i: (n, 'sol' if n >= config.get('body_repair_round_limit', 6) else 'standard') for i, n in used.items()}
+        forced = set(self.meta(db, 'repair_sol_ids', {}).get(stage, []))
+        return {i: (used.get(i, 0), 'sol' if i in forced or used.get(i, 0) >= config.get('body_repair_round_limit', 6) else 'standard')
+                for i in set(used) | forced}
 
     @staticmethod
     def repair_dispatch(db, task_ids):
@@ -96,8 +159,8 @@ class ReviewRoundMixin:
             row.update(used=used, tier=tier, diagnostic=diagnostic, metadata=contexts.get(str(row['ordinal']), {}))
             rows.append(row)
         tasks = []
-        for used in sorted({r['used'] for r in rows}):
-            for group in self.batches([r for r in rows if r['used'] == used],
+        for used, tier in sorted({(r['used'], r['tier']) for r in rows}):
+            for group in self.batches([r for r in rows if (r['used'], r['tier']) == (used, tier)],
                                      {**config, 'batch_records': config['review_batch_records']}, respect_groups=False):
                 task_id = stage + '-round-' + uuid.uuid4().hex[:16]
                 payload = {'task_id': task_id, 'stage': stage, 'revision': self.meta(db, 'revision'),
@@ -111,11 +174,17 @@ class ReviewRoundMixin:
                            'revision_request': '整轮检查已结束；只修复本批诊断及审校证据，不重写无关表达。保存后等待全轮统一复查。'}
                 for row in group:
                     candidate = db.execute('SELECT item FROM review_candidates WHERE record_id=? AND stage=?', (row['id'], stage)).fetchone()
+                    candidate_item = json.loads(candidate['item']) if candidate else {}
+                    inherited = self.inherit_exceptions(candidate_item, {'exceptions': json.loads(row['exceptions'])})
+                    context_exceptions = inherited.get('exceptions', [])
+                    if not isinstance(context_exceptions, list):
+                        context_exceptions = json.loads(row['exceptions'])
                     payload['records'].append({'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
-                        'translation': row['translation'], 'exceptions': json.loads(row['exceptions']),
+                        'translation': row['translation'], 'exceptions': context_exceptions,
                         'locked': bool(row['locked']), 'metadata': row['metadata'],
                         'protection': [],  # Review source/translation use original variables, not SHH translation markers.
-                        'diagnostic': row['diagnostic'], 'candidate': json.loads(candidate['item']) if candidate else None})
+                        'repair_constraints': self.repair_constraints(row['source'], candidate_item.get('translation', row['translation']), context_exceptions, glossary, config),
+                        'diagnostic': row['diagnostic'], 'candidate': candidate_item if candidate else None})
                     db.execute('UPDATE records SET stage=? WHERE id=?', ('translate' if stage == 'review' else 'polish', row['id']))
                 value = fingerprint(payload); payload['input_hash'] = value
                 db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) VALUES (?,?,?,?,?,?,?,"pending",?)',
@@ -154,6 +223,10 @@ class ReviewRoundMixin:
                     value, exceptions = self.validate_body_item(db, task, {}, item, original, config, rules, glossary)
                 except ValueError as exc:
                     error = str(exc)
+                regression = self.repair_regression(db, config, stage, row['record_id'], original, item.get('translation', ''),
+                                                    item.get('exceptions', original.get('exceptions', [])), glossary, row['task_id'])
+                if regression and error:
+                    error += '; Regression: previously satisfied terms lost: ' + ', '.join(regression)
                 if error is None:
                     db.execute('UPDATE records SET translation=?,exceptions=?,stage=? WHERE id=?',
                                (value, encoded(exceptions), stage, row['record_id']))
@@ -163,7 +236,7 @@ class ReviewRoundMixin:
                 db.execute('UPDATE review_candidates SET status=?,diagnostic=? WHERE record_id=? AND stage=?',
                            ('failed' if error else 'passed', error, row['record_id'], stage))
                 checked.append({'id': row['record_id'], 'instance': row['instance'], 'task_id': row['task_id'],
-                                'result': 'failed' if error else 'passed', 'diagnostic': error})
+                                'result': 'failed' if error else 'passed', 'diagnostic': error, 'regressed_terms': regression})
             problems = {r['record_id']: r['diagnostic'] for r in db.execute(
                 'SELECT c.* FROM review_candidates c JOIN tasks t ON t.id=c.task_id '
                 'WHERE c.stage=? AND t.revision=? AND t.status!="obsolete" AND c.status="failed"',

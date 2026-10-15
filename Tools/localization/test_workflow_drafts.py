@@ -1,5 +1,6 @@
 """Whole-text draft collection, pooled repair, compatibility and strict final gates."""
 import json
+from pathlib import Path
 import shutil
 import subprocess
 import sys
@@ -236,6 +237,45 @@ class DraftPhaseTests(unittest.TestCase):
             self.assertEqual(baseline['execution'], 'reused')
             self.assertEqual(baseline['failed_records'], 2)
             self.assertEqual(len(baseline['checked_ids']), 4)
+
+    def test_oscillating_terms_escalate_before_six_rounds(self):
+        first = self.flow.batch_open('translate', 'initial-terms')
+        result = self.result(first); target = result['records'][0]['id']
+        result['records'][0]['translation'] = '爱丽丝。'
+        self.save(first, result); self.f.translate()
+        self.flow.draft_scan(prepare_repairs=True)
+        for n, text in enumerate(('狼。', '爱丽丝。')):
+            repair = self.flow.batch_open('translate', f'oscillation-{n}')
+            pack = Path(repair['input_file']).read_text(encoding='utf-8')
+            self.assertIn('satisfied_terms', pack)
+            bad = self.result(repair); bad['records'][0]['translation'] = text
+            self.save(repair, bad)
+            scan = self.flow.draft_scan(prepare_repairs=True)
+            self.assertEqual(scan['checked_records'], 1)
+            finding = workflow.read_json(scan['report_file'])['failures'][0]
+            self.assertTrue(finding['regressed_terms'])
+        self.assertEqual(scan['repair_dispatch'][0]['required_model'], 'gpt-6-sol')
+        sol = self.flow.batch_open('translate', 'sol-oscillation', worker_model='gpt-6-sol')
+        self.save(sol, self.result(sol))
+        self.assertTrue(self.flow.draft_scan()['clean'])
+
+    def test_repair_omission_preserves_context_exception_in_raw_journal(self):
+        first = self.flow.batch_open('translate', 'initial-exception')
+        result = self.result(first); target = result['records'][0]['id']
+        result['records'][0].update(translation='', exceptions=[{'source': 'Wolf', 'reason': 'Synthetic context decision'}])
+        self.save(first, result); self.f.translate()
+        self.flow.draft_scan(prepare_repairs=True)
+        repair = self.flow.batch_open('translate', 'fix-without-exception-field')
+        fixed = self.result(repair); fixed['records'][0]['translation'] = fixed['records'][0]['translation'].replace('爱丽丝看见一只狼。', '爱丽丝。')
+        self.save(repair, fixed)
+        self.assertTrue(self.flow.draft_scan()['clean'])
+        with self.flow.db() as db:
+            row = db.execute('SELECT exceptions FROM records WHERE id=?', (target,)).fetchone()
+            journal = db.execute('SELECT raw_item FROM draft_candidates WHERE record_id=?', (target,)).fetchone()
+            self.assertEqual(json.loads(row['exceptions'])[0]['source'], 'Wolf')
+            self.assertEqual(json.loads(journal['raw_item'])['exceptions'][0]['source'], 'Wolf')
+            token = db.execute('SELECT lease_token FROM tasks WHERE id=?', (repair['task_id'],)).fetchone()[0]
+        self.assertEqual(self.flow.submit(repair['task_id'], token, fixed)['status'], 'already_submitted')
 
     def test_round_attempt_budget_survives_new_tasks_and_identical_failed_text(self):
         session = self.flow.batch_open('translate', 'draft-first')

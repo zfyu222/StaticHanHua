@@ -49,3 +49,11 @@ disposition 可为 pass/contextual/repair。一致性组提出 repair 时必须�
 正文后的程序验收、独立审校及 Sol 最终验收所产生的修复链，按条目累计最多 6 轮常规修复（body_repair_round_limit 默认 6，最多 6）；首次翻译/首次审校不计入，任务格式或传输重试仍受 max_attempts=3 单任务限制。第 6 轮统一复查后仍失败，程序自动生成 repair_tier=sol、required_model=sol_repair_model（默认 gpt-6-sol）、automatic_escalation=true 的失败项任务；直接创建对应模型的新 Sol 子代理（fork_turns=none）执行，不请求用户批准追加轮次。batch-open 回执和输入包携带模型要求，必须按 required_model 派发，不能继续交给 Luna。Sol 修复继续整轮保存、整轮复查及失败 ID 定向处理；相同诊断持续失败时由 Sol 排查原文、术语例外或校验规则根因，不机械重复同一修改，也不借此放宽验收。主对话只调度与检查，不代写译文。Sol 任务使用 codex 后端，API 路线也转交 Sol 子代理，不用原 API 模型冒充升级。既有已完成修复轮及历史计数保留，不重置译文/审校证据，不修改在途任务。锁定冲突及执行故障仍须明确处理，但不得把常规修复超限当作向用户申请追加轮次的理由。
 
 派发前读取扫描/sol-round-finish 回执的 repair_dispatch，先按 required_model 创建真实的新实例，再用 batch-open --stage <对应阶段> --worker-model <该模型> --workers <真实实例ID> 领取匹配模型的任务。标准任务使用 gpt-6-luna，Sol 任务使用回执中的精确模型；混合任务池必须传 --worker-model，防止模型领错批次。程序不自行创建代理。
+
+### 防止多术语修复回退
+
+修复包继续携带本句全部命中术语，并以 repair_constraints 区分 satisfied_terms（已有字面命中）、context_exceptions（已有语境说明）和 missing_terms（当前缺失）。仅修必要部分，不能为了一个术语破坏其他术语或将形容词误译成人物名词。字面命中只表示程序约束满足，不代表语义已经审校通过。
+
+已有 exceptions 默认继承，返回时省略或 [] 不清除；补充或修订按 source 合并，撤销必须提供 exception_changes=[{source,action:"remove",reason:"原文依据"}]。程序不判断例外语义为真，仍保留独立审校与 Sol 验收。批次保存、直接 submit、草稿原始候选及逐条身份日志沿用同一合并规则。
+
+仅在整轮统一复查时对比修复前后，记录 regressed_terms 和具体诊断；通过一个术语却丢失另一个也算回退。相同条目在同阶段两次回退后，自动提前进入 Sol 修复队列（required_model），不等 6 轮、不询问追加授权。标准和 Sol 条目分批派发。计数以任务去重，重复读取报告不增加次数；仍只检查本轮影响 ID，不插入当批检查，不扩大到全文。Sol 结合语境排查词义冲突，不允许用删检查或无依据例外提高通过率。

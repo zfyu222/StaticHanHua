@@ -619,6 +619,8 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             candidates = db.execute('SELECT * FROM tasks WHERE stage=? AND revision=? AND backend=? AND status="pending" '
                               'AND attempt<? AND ready_at<=? ORDER BY id',
                               (stage, self.meta(db, 'revision'), backend, config['max_attempts'], time.time())).fetchall()
+            if worker_model:
+                candidates = [t for t in candidates if (json.loads(t['payload']).get('required_model') or 'gpt-6-luna') == worker_model]
             task = next((t for t in candidates if self.independent_worker(db, t, worker)), None)
             if candidates and not task:
                 raise ValueError('Independent reviewer instance required; this worker produced the assigned text')
@@ -745,6 +747,10 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             raise ValueError('Result must be a JSON object')
         config = self.config(db)
         prior = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
+        if prior and isinstance(result.get('records'), list) and prior['stage'] in ('translate', 'review', 'final_review', 'polish'):
+            originals = {r['id']: r for r in json.loads(prior['payload'])['records']}
+            result = {**result, 'records': [self.inherit_exceptions(item, originals.get(item.get('id'), {}))
+                                          if isinstance(item, dict) else item for item in result['records']]}
         if (prior and prior['status'] == 'done' and prior['lease_token'] == token
                 and prior['result'] == encoded(result) and prior['revision'] == self.meta(db, 'revision')):
             return {'status': 'already_submitted'}
@@ -1183,11 +1189,12 @@ def prompt(payload):
                    ' 本批是定向修复，只修复 diagnostic 指出的失败语句，提交后严格验收。'
                    if payload.get('strict_translation') else
                    ' 本批保存为正文草稿；术语、占位符等质量检查在全文草稿完成后集中执行，不当批自查返工。')
+    common += ' 已有 exceptions 默认继承；禁止用省略或空列表清除。确需撤销时提交 exception_changes=[{source,action:remove,reason:原文依据}]，仍须独立审校。仅作必要修改，保留 repair_constraints 中已满足术语及语境例外。'
     if stage in ('translate', 'pilot_translate'):
         common += ' 无需生成审校报告；普通词义例外使用 exceptions=[{source:本条实际命中的术语src,reason:原句依据及普通词义说明}]，其他情况省略。确需传递的语境疑点可简记为 warning，留给独立审校判断。'
     else:
         common += (' issues 条目须有 severity=warning/blocking 与 reason。无法解决的关键歧义写 blocking。'
-                   'exceptions 仅限源文确需语境例外，条目含 source（命中的术语 src）和 reason；没有则为空。')
+                   'exceptions 仅限源文确需语境例外，条目含 source（命中的术语 src）和 reason；未新增时可省略，已有例外默认保留。')
     # The legacy textarea prompt is limited to the legacy AINiee protocol. Custom tasks use ID-based JSON.
     return common, json.dumps(payload, ensure_ascii=False)
 

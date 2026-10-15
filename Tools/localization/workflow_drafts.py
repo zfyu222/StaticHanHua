@@ -249,6 +249,19 @@ class DraftMixin:
             by_id = {f['id']: f for f in found}
             for row in checked:
                 record_id = row['id']
+                journal = originals.get(record_id)
+                regression = []
+                if journal and phase == 'issue_recheck':
+                    task = db.execute('SELECT payload FROM tasks WHERE id=?', (journal['task_id'],)).fetchone()
+                    if task:
+                        original = next((r for r in json.loads(task['payload'])['records'] if r['id'] == record_id), None)
+                        if original:
+                            regression = self.repair_regression(db, config, 'translate', record_id, original,
+                                row['translation'], json.loads(row['exceptions']), self.glossary(db), journal['task_id'])
+                if record_id in by_id:
+                    by_id[record_id]['regressed_terms'] = regression
+                    if regression:
+                        by_id[record_id]['diagnostics'].append('Regression: previously satisfied terms lost: ' + ', '.join(regression))
                 findings.pop(record_id, None)
                 if record_id in by_id:
                     findings[record_id] = by_id[record_id]
@@ -297,8 +310,8 @@ class DraftMixin:
             history = [json.loads(t['payload']) for t in db.execute('SELECT payload FROM tasks WHERE revision=?', (self.meta(db, 'revision'),))
                        if json.loads(t['payload']).get('draft_scan_key')]
             round_number = 1 + max((t.get('draft_repair_round', 1) for t in history), default=0)
-            groups = [group for used in sorted({routes[r['id']][0] for r in eligible})
-                      for group in self.batches([r for r in eligible if routes[r['id']][0] == used], config, respect_groups=False)]
+            groups = [group for used, tier in sorted({routes[r['id']] for r in eligible})
+                      for group in self.batches([r for r in eligible if routes[r['id']] == (used, tier)], config, respect_groups=False)]
             for group in groups:
                 task_id = 'draft-repair-' + uuid.uuid4().hex[:20]
                 payload = {'task_id': task_id, 'stage': 'translate', 'revision': self.meta(db, 'revision'),
@@ -316,6 +329,7 @@ class DraftMixin:
                     payload['records'].append({'id': row['id'], 'ordinal': row['ordinal'], 'source': protected,
                         'translation': row['translation'], 'protection': protection, 'metadata': row['metadata'],
                         'exceptions': json.loads(row['exceptions']), 'locked': bool(row['locked']),
+                        'repair_constraints': self.repair_constraints(row['source'], row['translation'], json.loads(row['exceptions']), glossary, config),
                         'diagnostic': failed_by_id[row['id']]['diagnostics'],
                         'candidate': {'id': row['id'], 'translation': row['translation']}})
                 signature = fingerprint(payload); payload['input_hash'] = signature

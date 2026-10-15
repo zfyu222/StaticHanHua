@@ -91,3 +91,11 @@ source 必须指向本条实际命中的 src；reason 要解释原句依据及�
 原 claim/prompt/submit 保留给历史脚本和术语阶段兼容。新正文执行默认使用上述入口，不能混用旧 single_task.py 的 check 循环。
 
 派发前读取扫描/sol-round-finish 回执的 repair_dispatch，先按 required_model 创建真实的新实例，再用 batch-open --stage <对应阶段> --worker-model <该模型> --workers <真实实例ID> 领取匹配模型的任务。标准任务使用 gpt-6-luna，Sol 任务使用回执中的精确模型；混合任务池必须传 --worker-model，防止模型领错批次。程序不自行创建代理。
+
+### 防止多术语修复回退
+
+修复包继续携带本句全部命中术语，并以 repair_constraints 区分 satisfied_terms（已有字面命中）、context_exceptions（已有语境说明）和 missing_terms（当前缺失）。仅修必要部分，不能为了一个术语破坏其他术语或将形容词误译成人物名词。字面命中只表示程序约束满足，不代表语义已经审校通过。
+
+已有 exceptions 默认继承，返回时省略或 [] 不清除；补充或修订按 source 合并，撤销必须提供 exception_changes=[{source,action:"remove",reason:"原文依据"}]。程序不判断例外语义为真，仍保留独立审校与 Sol 验收。批次保存、直接 submit、草稿原始候选及逐条身份日志沿用同一合并规则。
+
+仅在整轮统一复查时对比修复前后，记录 regressed_terms 和具体诊断；通过一个术语却丢失另一个也算回退。相同条目在同阶段两次回退后，自动提前进入 Sol 修复队列（required_model），不等 6 轮、不询问追加授权。标准和 Sol 条目分批派发。计数以任务去重，重复读取报告不增加次数；仍只检查本轮影响 ID，不插入当批检查，不扩大到全文。Sol 结合语境排查词义冲突，不允许用删检查或无依据例外提高通过率。
