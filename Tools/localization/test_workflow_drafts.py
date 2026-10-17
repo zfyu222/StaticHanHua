@@ -4,11 +4,13 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import threading
 import unittest
 from unittest.mock import patch
 
 import test_translation_workflow as fixtures
 import translation_workflow as workflow
+from workflow_drafts import ordered_draft_checks
 
 
 class DraftPhaseTests(unittest.TestCase):
@@ -29,6 +31,72 @@ class DraftPhaseTests(unittest.TestCase):
     def save(self, session, result):
         workflow.write_json(session['result_file'], result)
         return self.flow.batch_finish(session['session_id'])
+
+    def test_threaded_scan_matches_serial_and_never_uses_worker_database_connections(self):
+        session = self.flow.batch_open('translate', 'draft-writer')
+        result = self.result(session)
+        result['records'][0]['translation'] = ''
+        result['records'][1]['exceptions'] = [{'source': 'Wolf'}]
+        self.save(session, result)
+        self.f.translate()
+        original = self.flow.validate_body_row
+        barrier = threading.Barrier(2, timeout=10)
+        threads = set()
+        main_thread = threading.get_ident()
+        lock = threading.Lock()
+
+        def validate(*args, **kwargs):
+            self.assertNotIn('db', kwargs)
+            self.assertIsInstance(args[0], dict)
+            with lock:
+                threads.add(threading.get_ident())
+            barrier.wait()
+            return original(*args, **kwargs)
+
+        with self.flow.db() as db:
+            config = self.flow.config(db)
+            before = [tuple(r) for r in db.execute('SELECT * FROM records ORDER BY ordinal')]
+            serial = self.flow.collect_draft_issues(db, {**config, 'draft_scan_workers': 1})
+            with patch.object(self.flow, 'validate_body_row', side_effect=validate), \
+                    patch.object(self.flow, 'db', side_effect=AssertionError('Worker opened database')):
+                parallel = self.flow.collect_draft_issues(db, {**config, 'draft_scan_workers': 2})
+            self.assertEqual(serial, parallel)
+            self.assertEqual(len(threads), 2)
+            self.assertNotIn(main_thread, threads)
+            self.assertEqual(before, [tuple(r) for r in db.execute('SELECT * FROM records ORDER BY ordinal')])
+
+    def test_worker_failure_does_not_save_partial_scan_receipts(self):
+        self.f.translate()
+        with patch.object(self.flow, 'validate_body_row', side_effect=RuntimeError('Worker failed')):
+            with self.assertRaisesRegex(RuntimeError, 'Worker failed'):
+                self.flow.draft_scan(workers=2)
+        with self.flow.db() as db:
+            self.assertEqual(db.execute('SELECT count(*) FROM draft_checks').fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT count(*) FROM draft_check_rounds').fetchone()[0], 0)
+            self.assertFalse(self.flow.meta(db, 'draft_audit', {}).get('clean'))
+        self.assertTrue(self.flow.draft_scan(workers=2)['clean'])
+        with self.flow.db() as db:
+            self.assertEqual(self.flow.config(db)['draft_scan_workers'], 1)
+
+    def test_worker_queue_is_bounded_and_exceptions_propagate(self):
+        visited = []
+        lock = threading.Lock()
+        def fail(row):
+            with lock:
+                visited.append(row)
+            if row == 0:
+                raise RuntimeError('Broken record')
+            return row
+        with self.assertRaisesRegex(RuntimeError, 'Broken record'):
+            list(ordered_draft_checks(fail, list(range(1000)), 2))
+        self.assertLessEqual(len(visited), 4)
+        self.assertEqual(list(ordered_draft_checks(lambda row: row, [], 2)), [])
+        self.assertEqual(list(ordered_draft_checks(lambda row: row, [1], 2)), [1])
+
+    def test_scan_worker_configuration_rejects_invalid_counts(self):
+        for count in (0, -1, True, 1.5, 33, '2'):
+            with self.subTest(count=count), self.assertRaisesRegex(ValueError, 'draft_scan_workers'):
+                workflow.merge_config(workflow.DEFAULT, {'draft_scan_workers': count})
 
     def test_quality_errors_are_saved_then_pooled_across_original_batches(self):
         first = self.flow.batch_open('translate', 'draft-a'); one = self.result(first)

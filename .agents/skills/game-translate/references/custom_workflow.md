@@ -32,12 +32,13 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 
 1. `extract`：覆盖全部源文，收集候选，条目保留 evidence_rows（从 1 开始的 CSV 逻辑记录号），不能凭提示词示例生成专名。结果含 analysis={characters,terms,non_translate}，采用 AINiee analysis_v1 字段。
 2. `glossary_review`：程序汇总同一条目、运行共享 glossary_tool 的检查、按条目分批提供出处。任务只有分配条目，table:index 指向完整原快照。每项做语义核对，提交 reviewed_refs、review_summary、所有命中自动 finding 的处理与带依据的决定。跨批冲突由主代理汇总处理；不能把程序检查通过等同审校完成。
+   成本控制：`glossary_families.py` 只在本地对已提取术语生成候选关系（英文冠词、所有格、部分单复数、保守派生词根和完整词组件），保存 `glossary/r{revision}/family_candidates.json`。尽量同族同批，超大词族按批次上限拆开；不增加模型阶段、全表复审或全文变体补提取。每批 term_families 最多 120 条候选关系及 12 个跨批精简关联词，不附加这些词的全文出处。候选不是语义等同结论，不自动改译名；在既有 entry_reviews.consistency 及修订理由中核对核心译名，保留合理差异，不额外生成词族报告。原有自动 finding 的必要关联项仍按旧机制提供，不受该新增提示上限裁剪。完整任务仍受 task_input_chars 限制。规则不是通用词形分析器，不保证识别所有语言、派生词或别名；已生成任务不自动重排，冻结表不变。
 3. `freeze-glossary`：汇总审校决定并调用共享 build；全部检查通过才冻结正式表。无术语仍要确认全文检查为空。失败时用 `reopen-review --task <相关审校任务> --reason <原因>` 重新领取、修正、提交，再冻结；已提交任务不能直接覆盖，不编辑 DB。轮次仍受 max_attempts 限制。
 4. `pilot_translate` → `pilot_review`：先 pilot-plan 检查批数与剩余预算，再执行试译及独立审校；默认两个阶段和重试累计最多 12 次领取，配置、分批、文体修改不刷新已用次数。审校采用一次六维批总结及逐条 pass，只有改动和疑难项输出详细证据。Sol 结束后一次审查；有问题时先 checkpoint-quality 保存明确通过的检查，再用 reopen-body --ids 集中退回问题语句，不重审整份样本。全部通过后 approve-quality --kind pilot。试译结果与文体总结保存在验收报告中，供全文任务参考。
 5. `translate`：试译验收通过后，程序按 ID 分批，筛选相关术语、人物信息、保留原文要求。翻译实例只翻译并写出 records=[{id,translation}]，普通词义可附 exceptions，不运行检查脚本、不生成审校报告、不自审或反复润色；完成后结束。每个任务附术语版本与 input_hash。批次只检查版本、ID、字段类型与锁定约束并保存草稿，不因术语、占位符或空译文当批返工。原始候选及保护映射留存，供全文程序检查使用。
 6. 全文草稿完成、在途任务结束后执行 `draft-scan --prepare-repairs`：首次全量验收占位符、结构、空译文、术语及例外；仅将失败 ID 跨原批次合并为同一轮 translate 修复任务，每批沿用正文条数与字符上限。通过 batch-open --stage translate 领取修复任务，输入仅含失败句、当前译文、诊断和相关术语，按 ID 合并。修复批次只保存候选，不立即质量验收或返修；本轮全部批次完成后才调用 draft-scan，统一复查本轮全部修复条目及其他变化条目，未变化的通过项不再检查或翻译，仍失败项继续修复；问题清零后自动最终全量验收，不能每轮重扫全文。首次全量无问题时直接复用该结果。最新汇总为 reports/full_draft_scan.json，逐轮范围、问题、修复状态与结果见 reports/draft_checks/，具体分流见 [批次程序交接](batch_execution.md)。旧工具有效的全量报告可核对版本后复用，没有有效检查记录时才首次全量，无需重置译文。clean 后才 `prepare --stage review`，由不同实例全量逐条对照原文、译文、术语及上下文，提交六维 checks、source_excerpt、修改前后及错误类型。疑难项写 issues；语境例外绑定命中术语和理由。程序通过不代表语义审校完成。review/final_review 的批次只保存候选与证据，整轮全部完成后执行 review-scan --stage <阶段> --prepare-repairs，再将失败 ID 跨批合成下一轮，通过项不重审。
 7. 可选 `polish` → `final_review`：润色保留含义，改变时记录理由；复审实例必须与对应译文和润色产出实例不同。未启用 polish 时无需这两步。
-8. Sol 最终审查：quality-report --kind final 汇总高风险文本、普通抽样、同源多译和角色口吻组。Sol 按返回 inspection_manifest 分包核对并用 sol-round-record 保存 pass/contextual/repair；本轮全部检查结束后 sol-round-finish 才集中合批派修或批准，不逐条插入返修。修复轮结束并 review-scan 通过后，仅检查变化项及受影响的一致性项。完整协议见 [审校与 Sol 整轮验收](review_rounds.md)，不得自动批量填“通过”。
+8. Sol 难题裁决：quality-report --kind final 只交付独立审校明确遗留的 issues，不把风险标签、普通抽样、已修正条目、同源多译或角色口吻组自动交给 Sol。Sol 按 inspection_manifest 裁决争议，用 sol-round-record 保存 pass/contextual/repair；全部本轮争议结束后 sol-round-finish 集中派修或关闭。没有遗留争议时无需模型逐项检查，直接完成程序闭环；已有 Sol 发现的问题通过 carried_findings 保留并定向修复，不重读、不自动批准。普通修复多轮失败或反复回退才升级 Sol 子代理；修复复查通过后不因曾经改动重派 Sol。试译验收保留。完整协议见 [审校与 Sol 整轮验收](review_rounds.md)。
 9. `export`：程序检查全部记录及当前 Sol 验收，才导出根目录单列 CSV 和 final_validation.json；实机状态记为 pending_repack。交接回填后按质量参考完成字体、排版、UI、对白及任务检查，record-game-check 保存版本、载荷与证据；release-check 通过后才发布。
 
 任务协议、完整字段及提示词由程序 `prompt` 命令生成。不要使用 AINiee 的 textarea 输出协议处理自定义任务，也不要根据回复顺序推测 ID。
@@ -50,8 +51,8 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 
 - agent_task_limit=1：同一实际实例最多领取一个不同任务；程序会拒绝超过工作量的领取。更改 worker 别名不能代替新上下文。
 - agent_attempt_limit=2：同一实例最多领取两次（包括同批恢复/重试），不是允许处理第二个不同任务。同一租约内至多一次局部格式或遗漏修复；需要再次修复时记录 fail --retry 并交新实例，仍受任务总 max_attempts 限制。
-- 默认正文翻译/润色最多 batch_records=80 条、batch_chars=12000 个原译文字符；正文审校/复审 review_batch_records=80，与翻译保持相同条数上限。条数是上限，长文本按字符预算提前拆批；场景变化不拆正文批次。术语提取另限制 extract_batch_records=60，术语审校另限制 glossary_review_batch_records=20，均不超过 batch_records。审校逐条六维证据保留；若完整输入超限或输出截断，按实际内容缩小任务，不截断证据。试译默认 150 条，每批最多 40 条，pilot_batch_count=1 表示在条数上限内尽量合批，不受正文批量限制；输入总预算仍检查，超限时缩小批次，但总领取/重试不得超过配置预算（默认 12 次）。
-- task_input_chars=48000：领取前计算完整提示词和任务 JSON 的字符数，包含背景、术语、本批文本、试译参考、占位符映射等。它是字符预算，不是模型 token 数；超限不消耗租约，暂停后缩小批次或整理经核实的背景，再准备新版本。不能截断正文或审校证据；单条超长记录需另设计保留对齐关系的切分方案。
+- 默认正文翻译/润色最多 batch_records=80 条、batch_chars=12000 个原译文字符；正文审校/复审 review_batch_records=80，与翻译保持相同条数上限。条数是上限，长文本按字符预算提前拆批；场景变化不拆正文批次。术语提取另限制 extract_batch_records=60，术语审校另限制 glossary_review_batch_records=60，均不超过 batch_records。审校逐条六维证据保留；若完整输入超限或输出截断，按实际内容缩小任务，不截断证据。试译默认 150 条，每批最多 40 条，pilot_batch_count=1 表示在条数上限内尽量合批，不受正文批量限制；输入总预算仍检查，超限时缩小批次，但总领取/重试不得超过配置预算（默认 12 次）。
+- task_input_chars=48000：在任务分配阶段生成完整提示词、任务 JSON 和 Codex 单文件输入包，计入背景、术语、关联条目、原文出处、试译参考、占位符映射及运行元数据预留。超限自动拆批；术语拆批后重新计算每批的必要关联项与出处，不截断证据。只有单个条目及必要证据仍超限时才报错并回滚本次分配，不产生超限待办任务。领取时直接使用分配结果，不重新计算或校验字符预算。旧版尚未尝试的待办任务在 prepare 时自动按新规则重新分配，已完成和在途任务保留。
 - 每个新实例只读取自己的任务与提示词，获得相同游戏背景、文体、冻结相关术语、已确认的角色/场景元数据、本批原文及待审译文和通过的试译样例。不附带 CSV 相邻记录，不加载已完成任务的完整聊天、全库或日志；不据提取顺序推断剧情关系。
 - 主代理领取时使用 claim --compact，只接收任务 ID、文件路径、租约和预算信息；完整任务包留在文件中，不反复进入 Sol 对话。子代理结束时仅报告任务 ID、结果文件路径、完成状态及简短疑难项，不粘贴整批译文或审校报告。Sol 按需读取落盘证据，继续承担调度和质量审查。
 
@@ -59,9 +60,11 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 
 既有运行沿用新上下文生命周期的默认限制，但已经生成的大任务不会自动改 ID 或拆分。需要重新分批时先暂停、结束/回收在途任务，再 configure 设置批次与输入预算并重新 prepare；保留已验收结果，不直接编辑任务文件或数据库。
 
+术语语义审校默认每批最多 60 个条目（glossary_review_batch_records=60），仍受 batch_records 和完整输入预算限制，关联条目及出处不截断。既有项目明确保存的旧值 20 不自动覆盖；需要扩大时，在暂停且无在途任务后通过 configure 设置 {"glossary_review_batch_records":60}，若 batch_records 小于 60 也需同步调整，再准备未完成的术语审校任务。已生成的任务不会自动重新分批，不重跑已完成审校。
+
 既有项目显式保存的较小批量不会因升级默认值自动变大。正文开始前或无在途任务时，通过 pause/configure/resume 应用 {"batch_records":80,"review_batch_records":80}，再 prepare 剩余正文任务；这是调度变更，不重跑已验收译文。字符上限可先沿用项目配置，根据实际批量、截断和返工情况再调整。短文本理想情况下，翻译和审校任务数相对 20 条上限均约减少四分之三；这不是总 token 或额度节省比例，正文和逐条证据成本仍然存在。
 
-本工作流明确要求使用子代理执行独立批次。主代理按当前可用并发容量领取任务，按用户确认的项目 model 配置运行（默认 Luna `gpt-6-luna`，`fork_turns=none`），避免继承整段聊天。若用户指定不同模型则遵从。主对话使用 Sol 负责主流程和产出物审查，不承担术语提取或正文翻译。
+本工作流明确要求使用子代理执行独立批次。主代理按当前可用并发容量领取任务，按用户确认的项目 model 配置运行（默认 Luna `gpt-6-luna`，`fork_turns=none`），避免继承整段聊天。若用户指定不同模型则遵从。主对话负责主流程和产出物审查，不承担术语提取或正文翻译。Sol 指验收/升级任务使用的模型；主对话不是 Sol 时，创建新的 Sol 子代理处理程序准备的验收或修复包，主对话模型保持用户选择。
 
 - 子代理负责 `extract`、`glossary_review`、`pilot_translate`、`pilot_review`、`translate`、`review`、可选 `polish` 和 `final_review` 的批次结果，以及退回后的术语与译文修订。全量逐条语义审校仍由子代理完成，主代理审查不替代该质量门槛。
 - 主代理负责准备配置和上下文、领取及派发任务、租约和重试管理、调用程序验收、审查术语依据与跨批一致性、审查译文及报告、冻结术语、导出与文档交接。发现错误或冲突时写明问题和验收要求，退回相关子代理任务；不自行生成、改写或补齐批次术语和译文结果。
@@ -77,7 +80,7 @@ context_records 默认 0，仅作为旧配置兼容字段保留，不再按 CSV 
 & $python $flow --project $project prompt --task-file <领取返回的task_file>
 ```
 
-先创建只等待任务的新子代理（fork_turns=none），取得 spawn_agent 的实际 agent ID，再以该 ID claim，生成 prompt 后通过 followup_task 发送该批任务。不能用别名、换 worker 字符串或新租约冒充新实例；程序记录并检查实例 ID，真实身份由主代理如实提供。提取与术语审校、翻译与审校、润色与复审分别使用不同实例；默认一个实例只处理一个批次及有限同批修复。派发消息包含任务、提示词、独立结果文件绝对路径及 Python 路径，要求仅生成指定 JSON，不修改原文、术语表、DB 或最终 CSV。结果写在 TranslateFiles/results/ 内自己的目录。子代理完成后主代理执行：
+先创建只等待任务的新子代理（fork_turns=none），取得 spawn_agent 的实际 agent ID，再以该 ID claim，生成 prompt 后通过 followup_task 发送该批任务。不能用别名、换 worker 字符串或新租约冒充新实例；程序记录并检查实例 ID，真实身份由主代理如实提供。提取与术语审校、翻译与审校、润色与复审分别使用不同实例；默认一个实例只处理一个批次及有限同批修复。术语阶段调用 prompt 后派发返回的单文件 input_file 和独立 result_file；Python 路径仅用于保存结果，不用于校验。输入包已经包含任务、协议和输出模板，不额外发送整份 task_file/prompt_file，不要求实例检查任务或结果。仅完成本阶段工作并写出结果，不修改原文、术语表、DB 或最终 CSV。结果写在 TranslateFiles/results/ 内自己的目录。子代理完成后主代理执行：
 
 ```powershell
 & $python $flow --project $project submit --task <task_id> --token <lease_token> --result <结果JSON>
@@ -120,3 +123,22 @@ run-api 只执行一个子阶段，主代理在阶段间及运行过程中调用
 ### 正文后修复预算
 
 正文后修复轮次采用 body_repair_round_limit（默认且最多 6），与 max_attempts（单任务执行重试）分开。超过常规轮次自动派发 Sol 子代理，按任务 required_model 执行，不要求用户追加授权；详见 [整轮验收](review_rounds.md#正文后自动升级)。试译及术语原预算不变。
+
+审校批量还受预计输出预算限制，Sol 升级后也有累计轮数与无进展停止条件；跨阶段/跨 revision 计数及恢复边界见 [整轮验收](review_rounds.md#修复计数与停止条件)。
+
+
+## 程序准备任务，子代理专注本职
+
+所有阶段统一遵循：程序准备合格输入 → 子代理完成本阶段工作并写出结果 → 程序收集、合并、验收 → 程序生成下一轮任务。适用于术语提取、术语审校、试译、正文翻译、独立审校、润色、复审、所有定向修复、Sol 裁决与 API 路线。
+
+术语审校分配前先按英文原词合并（忽略大小写和首尾空白）：多个译名也只算一条，汇总出处并保留 extraction_candidates。暂定译名按提取提案次数最多者选择，同票取首次出现者，最终由审校者确认。同一原词只分配一次，输入超限不把候选拆给不同实例；已有旧审校快照不自动重写。详见术语审校参考。
+
+程序在分配前负责：来源与修订绑定、ID/逻辑记录号一致性、原文完整性和保护映射、字段类型、已有译文/锁定约束、继承例外与修复计数、相关术语和必要出处筛选、完整输入及预计输出预算、自动拆批。坏输入在分配阶段报错，不交给子代理修包。新分配记录保存 input_contract_version=1；prepare 自动更新未尝试的旧待办任务，已完成和在途任务保留。
+
+程序提供 output_template / result.template.json，预填任务 ID、版本、记录 ID、术语 ref 和必要字段骨架。语义状态仍是 false/null/pending，证据和理由留空；不得由程序自动填 pass、编造证据或代替语义审校。子代理只填本阶段的实际译文、术语决定、审校证据或疑难裁决。
+
+主代理派发 input_file 和 result_file 即可。术语阶段 claim 后调用 prompt，同样返回包含任务材料及模板的单文件 input_file；prompt_file/task_file 仅保留兼容，不再把它们重复发送给实例。正文阶段继续 batch-open。task_ready=true 表示本次交接已由程序准备；false/旧合约应由主流程处理，不让子代理补做校验。
+
+子代理不执行任务预算、版本、ID 集合、字段结构、占位符统计或 JSON 合规检查，不运行 validate/check/audit 脚本，不重分批、不扫描全库、不修任务文件/数据库。翻译实例只翻译；审校实例逐条做语义核对并填写证据；润色实例只作必要润色；Sol 实例只裁决或修复分配的难题。语义核对属于审校本职，不能因机械检查前置而省略。
+
+发现文件缺失、字段损坏或源文不对应时，只简短报告 input_problem，由主流程定位输入生成问题。原文本身的歧义按本阶段 issues/语境例外处理。程序负责产出后的解析、ID 对齐、占位符/结构/术语校验、结果合并和整轮验收；实际执行次数及真实产出身份仍完整记账。租约、实际 worker 独立性和执行次数等运行状态由程序管理，不能要求子代理自行证明。

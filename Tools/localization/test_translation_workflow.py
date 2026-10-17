@@ -418,6 +418,8 @@ class WorkflowTests(unittest.TestCase):
         self.flow.prepare('glossary_review')
         claim = self.flow.claim('glossary_review', 'w')
         p = claim['payload']
+        self.assertTrue(p['term_families']['candidate_only'])
+        self.assertIn('family_candidates.json', [f.name for f in (self.flow.root / 'glossary/r1').iterdir()])
         result = {**self.envelope(claim), 'decisions': {
             'snapshot_sha256': p['snapshot_sha256'], 'source_sha256': p['source_hash'],
             'review_complete': True, 'review_summary': '已核对', 'reviewed_refs': [e['ref'] for e in p['entries']],
@@ -688,6 +690,11 @@ class LocalFixTests(unittest.TestCase):
         self.assertEqual(bridge.structural_issues(text, text, rules), [])
         self.assertIn('curly_format', bridge.structural_issues('{0:0.00}', '{0:0.0}', rules))
         with self.assertRaises(ValueError): bridge.restore(protected + mapping[0]['placeholder'], mapping)
+
+    def test_boundary_whitespace_is_preserved(self):
+        self.assertIn('boundary_whitespace', bridge.structural_issues(' fragment ', ' 译文', []))
+        self.assertEqual(bridge.structural_issues(' fragment ', ' 译文 ', []), [])
+        self.assertIn('boundary_whitespace', bridge.structural_issues('fragment  ', '译文 ', []))
 
     def test_player_choice_and_blank_exclusion_note(self):
         rules = bridge.patterns(False, [{'markers': '[Custom]', 'regex': '', 'info': ''}])

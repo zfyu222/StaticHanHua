@@ -36,6 +36,51 @@ class RepairPolicyTests(unittest.TestCase):
         self.assertEqual(route['required_model'], 'gpt-6-sol')
         self.assertTrue(route['automatic_escalation'])
 
+    def ledger(self):
+        db = sqlite3.connect(':memory:'); db.row_factory = sqlite3.Row
+        self.addCleanup(db.close)
+        db.execute('CREATE TABLE tasks(id TEXT,stage TEXT,revision INTEGER,status TEXT,attempt INTEGER,ids TEXT,payload TEXT,result TEXT)')
+        flow = ReviewRoundMixin()
+        flow.meta = lambda db, key, default=None: default
+        return flow, db
+
+    def add_repair(self, db, name, stage, revision, count, scope=None, tier='standard', status='done'):
+        payload = {'draft_scan_key': 'scan'} if stage == 'translate' else {'review_repair_origin': 'scan'}
+        payload.update(repair_counts={'x': count}, repair_tier=tier)
+        if scope:
+            payload['repair_budget_scope'] = scope
+        db.execute('INSERT INTO tasks VALUES (?,?,?,?,?,?,?,?)',
+                   (name, stage, revision, status, 1, '["x"]', json.dumps(payload), '{}'))
+
+    def test_budget_survives_stage_revision_and_completed_task_obsolescence(self):
+        flow, db = self.ledger()
+        self.add_repair(db, 'old-draft', 'translate', 1, 3, status='obsolete')
+        self.add_repair(db, 'old-review', 'review', 2, 2)
+        self.add_repair(db, 'new-review', 'final_review', 3, 6, scope='record')
+        self.assertEqual(flow.repair_routes(db, {}, 'review'), {'x': (6, 'sol')})
+        flow.meta = lambda db, key, default=None: {'x': 6} if key == 'draft_repair_attempts' else default
+        self.assertEqual(flow.repair_routes(db, {}, 'translate'), {'x': (6, 'sol')})
+
+    def test_sol_limits_and_no_progress_receipts_are_idempotent(self):
+        flow, db = self.ledger()
+        for n in range(2):
+            self.add_repair(db, str(n), 'review', n + 1, n + 7, scope='record', tier='sol')
+            task = db.execute('SELECT * FROM tasks WHERE id=?', (str(n),)).fetchone()
+            for _ in range(2):
+                flow.record_repair_outcome(db, task, 'x', {'code': 'same_problem'})
+        self.assertEqual(db.execute('SELECT count(*) FROM repair_outcomes').fetchone()[0], 2)
+        self.assertEqual(flow.repair_routes(db, {}, 'translate')['x'][1], 'stopped')
+        self.assertEqual(flow.repair_stops(db, {})['x'], 'sol_no_progress')
+
+    def test_changed_diagnostics_do_not_hide_the_total_sol_limit(self):
+        flow, db = self.ledger()
+        for n in range(3):
+            self.add_repair(db, str(n), 'review', n, n + 7, scope='record', tier='sol')
+            task = db.execute('SELECT * FROM tasks WHERE id=?', (str(n),)).fetchone()
+            flow.record_repair_outcome(db, task, 'x', {'code': str(n)})
+        self.assertEqual(flow.repair_routes(db, {}, 'review')['x'][1], 'stopped')
+        self.assertEqual(flow.repair_stops(db, {})['x'], 'sol_round_limit')
+
     def test_empty_or_omitted_exceptions_inherit_but_explicit_removal_is_audited(self):
         original = {'exceptions': [{'source': 'pagan', 'reason': 'Adjective modifying gods'}]}
         for item in ({}, {'exceptions': []}):
@@ -44,6 +89,24 @@ class RepairPolicyTests(unittest.TestCase):
         self.assertEqual(ReviewRoundMixin.inherit_exceptions(changed, original)['exceptions'], [])
         with self.assertRaises(ValueError):
             ReviewRoundMixin.inherit_exceptions({'exception_changes': [{'source': 'pagan', 'action': 'remove'}]}, original)
+
+    def test_exception_keys_preserve_distinct_frozen_source_casing(self):
+        original = {'exceptions': [{'source': 'Guard', 'reason': 'A title'}, {'source': 'guard', 'reason': 'An ordinary action'}]}
+        merged = ReviewRoundMixin.inherit_exceptions({'exceptions': []}, original)
+        self.assertEqual(merged['exceptions'], original['exceptions'])
+        changed = ReviewRoundMixin.inherit_exceptions({'exception_changes': [
+            {'source': 'guard', 'action': 'remove', 'reason': 'Rechecked this exact frozen term'}]}, original)
+        self.assertEqual(changed['exceptions'], original['exceptions'][:1])
+
+    def test_exception_removal_requires_text_evidence_and_cannot_silently_readd(self):
+        original = {'exceptions': [{'source': 'guard', 'reason': 'Ordinary action'}]}
+        for reason in (None, 1, {}, ' '):
+            with self.subTest(reason=reason), self.assertRaisesRegex(ValueError, 'requires source'):
+                ReviewRoundMixin.inherit_exceptions({'exception_changes': [
+                    {'source': 'guard', 'action': 'remove', 'reason': reason}]}, original)
+        with self.assertRaisesRegex(ValueError, 'must not also'):
+            ReviewRoundMixin.inherit_exceptions({'exceptions': original['exceptions'], 'exception_changes': [
+                {'source': 'guard', 'action': 'remove', 'reason': 'Explicit recheck'}]}, original)
 
     def test_regression_count_is_task_deduplicated_and_forces_sol(self):
         flow = ReviewRoundMixin(); state = {}

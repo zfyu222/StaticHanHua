@@ -24,11 +24,14 @@ import uuid
 
 import ainiee_bridge as bridge
 import glossary_tool
+import glossary_families
 from workflow_batches import BatchMixin
 from workflow_drafts import DraftMixin
 from workflow_review_rounds import ReviewRoundMixin
 from workflow_sol_rounds import SolRoundMixin
-from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews, validate_pilot_review
+from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews, validate_pilot_review, nonempty
+from workflow_allocation import AllocationMixin
+from workflow_task_contract import WORKER_INSTRUCTION, output_template, render_protocol_input
 
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
 DEFAULT = {
@@ -40,7 +43,9 @@ DEFAULT = {
     'pilot_call_limit': 12,
     'batch_records': 80, 'batch_chars': 12000, 'context_records': 0,
     'agent_task_limit': 1, 'agent_attempt_limit': 2, 'task_input_chars': 48000,
-    'review_batch_records': 80, 'extract_batch_records': 60, 'glossary_review_batch_records': 20,
+    'review_batch_records': 80, 'extract_batch_records': 60, 'glossary_review_batch_records': 60,
+    'review_output_tokens': 16384, 'sol_repair_round_limit': 3, 'sol_no_progress_limit': 2,
+    'draft_scan_workers': 1,
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
     'polish': False, 'max_attempts': 3, 'body_repair_round_limit': 6, 'sol_repair_model': 'gpt-6-sol', 'lease_seconds': 3600,
     'exclusions': [], 'stage_backends': {}, 'placeholder_family_overrides': {},
@@ -170,10 +175,15 @@ def validate_config(config):
                 'extract_batch_records', 'glossary_review_batch_records', 'pilot_call_limit'):
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError('Positive integer required: ' + key)
+    for key, default in (('review_output_tokens', 16384), ('sol_repair_round_limit', 3), ('sol_no_progress_limit', 2)):
+        if type(config.get(key, default)) is not int or config.get(key, default) < 1:
+            raise ValueError('Positive integer required: ' + key)
     if type(config.get('body_repair_round_limit', 6)) is not int or not 1 <= config.get('body_repair_round_limit', 6) <= 6:
         raise ValueError('body_repair_round_limit must be between 1 and 6')
     if config.get('sol_repair_model', 'gpt-6-sol') not in ('gpt-6-sol', 'gpt-6.1-sol'):
         raise ValueError('sol_repair_model must select a Sol model')
+    if type(config.get('draft_scan_workers', 1)) is not int or not 1 <= config.get('draft_scan_workers', 1) <= 32:
+        raise ValueError('draft_scan_workers must be between 1 and 32')
     if type(config['context_records']) is not int or config['context_records'] < 0:
         raise ValueError('Invalid context_records')
     if config.get('pilot_batch_count') is not None and (
@@ -216,7 +226,7 @@ def validate_config(config):
             raise ValueError('Exclusion must not match empty text')
 
 
-class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin):
+class Workflow(AllocationMixin, SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin):
     def __init__(self, project):
         requested = Path(project).absolute()
         if requested.name.casefold() == 'game' or requested.is_symlink() or (hasattr(requested, 'is_junction') and requested.is_junction()):
@@ -415,6 +425,7 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             if config['workflow'] != 'custom':
                 raise ValueError('Selected workflow is AINiee GUI; custom tasks disabled')
             revision = self.meta(db, 'revision')
+            self.allocate_legacy_pending(db, stage)
             existing = db.execute('SELECT id,ids FROM tasks WHERE stage=? AND revision=? AND status!="obsolete"', (stage, revision)).fetchall()
             if existing and stage not in ('extract', 'translate', 'review', 'polish', 'final_review'):
                 return {'tasks': [r['id'] for r in existing], 'existing': True}
@@ -432,21 +443,11 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                 if not eligible:
                     return {'tasks': [r['id'] for r in existing], 'existing': True}
             elif stage == 'glossary_review':
-                extraction = db.execute('SELECT * FROM tasks WHERE stage="extract" AND revision=?', (revision,)).fetchall()
+                extraction = db.execute('SELECT * FROM tasks WHERE stage="extract" AND revision=? ORDER BY rowid', (revision,)).fetchall()
                 if not extraction or any(t['status'] != 'done' for t in extraction):
                     raise ValueError('Complete every glossary extraction task first')
-                original = {table: [] for table in glossary_tool.TABLES}
-                seen = {}
-                for task in extraction:
-                    for table in glossary_tool.TABLES:
-                        for entry in json.loads(task['result'])['analysis'][table]:
-                            identity = {k: v for k, v in entry.items() if k != 'evidence_rows'}
-                            key = (table, encoded(identity))
-                            if key not in seen:
-                                original[table].append(copy.deepcopy(entry))
-                                seen[key] = original[table][-1]
-                            else:
-                                seen[key]['evidence_rows'] = sorted(set(seen[key]['evidence_rows'] + entry['evidence_rows']))
+                from glossary_merge import merge_extractions
+                original = merge_extractions((task['id'], json.loads(task['result'])['analysis']) for task in extraction)
                 folder = self.root / f'glossary/r{revision}'
                 folder.mkdir(parents=True, exist_ok=True)
                 # Shared audit accepts AINiee cache shape, never a bare analysis object.
@@ -490,7 +491,7 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             if stage == 'extract':
                 batch_config['batch_records'] = min(config['batch_records'], config.get('extract_batch_records', 60))
             elif stage == 'glossary_review':
-                batch_config['batch_records'] = min(config['batch_records'], config.get('glossary_review_batch_records', 20))
+                batch_config['batch_records'] = min(config['batch_records'], config.get('glossary_review_batch_records', 60))
             elif stage in ('review', 'final_review'):
                 batch_config['batch_records'] = min(config['batch_records'], config['review_batch_records'])
             review_groups = None
@@ -499,7 +500,9 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                            for table in glossary_tool.TABLES for i, row in enumerate(original[table])]
                 audit_data = read_json(self.root / f'glossary/r{revision}/audit/glossary_audit.json')
                 batch_size = batch_config['batch_records']
-                review_groups = [entries[i:i + batch_size] for i in range(0, len(entries), batch_size)] or [[]]
+                review_groups, family_candidates = glossary_families.family_plan(entries, batch_size)
+                write_json(self.root / f'glossary/r{revision}/family_candidates.json',
+                           {'candidate_only': True, 'relations': family_candidates})
                 related_groups = []
                 groups = []
                 for entries_batch in review_groups:
@@ -507,17 +510,21 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                     related_refs = {ref for finding in audit_data['findings'] if assigned.intersection(finding['refs']) for ref in finding['refs']} - assigned
                     related = [entry for entry in entries if entry['ref'] in related_refs]
                     related_groups.append(related)
-                    evidence_ids = {n for entry in entries_batch + related for n in entry['row'].get('evidence_rows', [])[:2]}
+                    from glossary_merge import review_evidence_rows
+                    evidence_ids = {n for entry in entries_batch + related for n in review_evidence_rows(entry['row'])}
                     groups.append([r for r in records if r['ordinal'] in evidence_ids])
             elif stage.startswith('pilot_'):
                 # User-selected pilot cost limit overrides scene/record splitting only here.
-                # Actual task input budget remains enforced by claim; never truncate evidence.
-                groups = [g for g in self.fixed_pilot_batches(scope, eligible, config.get('pilot_batch_count') or 1) if g]
+                # Complete package budgets are enforced during allocation below.
+                groups = (self.pilot_review_batches(scope, eligible, config) if stage == 'pilot_review' else
+                          [g for g in self.fixed_pilot_batches(scope, eligible, config.get('pilot_batch_count') or 1) if g])
+            elif stage in ('review', 'final_review'):
+                groups = list(self.review_batches(eligible, config, stage))
             else:
                 groups = list(self.batches(eligible, batch_config, respect_groups=stage == 'extract'))
             if stage.startswith('pilot_'):
                 remaining = config.get('pilot_call_limit', 6) - self.pilot_spent(db)
-                reserve = len(self.fixed_pilot_batches(scope, scope, config.get('pilot_batch_count') or 1)) if stage == 'pilot_translate' else 0
+                reserve = len(self.pilot_review_batches(scope, scope, config)) if stage == 'pilot_translate' else 0
                 if len(groups) + reserve > remaining:
                     raise ValueError('Pilot plan exceeds configured execution budget; consolidate batches or reuse a smaller completed sample; no tasks created')
             task_ids = [r['id'] for r in existing]
@@ -552,6 +559,8 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                 if original is not None:
                     payload['entries'] = review_groups[group_index]
                     payload['related_entries'] = related_groups[group_index]
+                    payload['term_families'] = glossary_families.batch_hints(
+                        review_groups[group_index], entries, family_candidates)
                     refs = {e['ref'] for e in payload['entries']}
                     audit = read_json(self.root / f'glossary/r{revision}/audit/glossary_audit.json')
                     payload['audit'] = {**audit, 'findings': [f for f in audit['findings'] if refs.intersection(f['refs'])]}
@@ -561,9 +570,12 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                 signature = fingerprint(payload)
                 payload['input_hash'] = signature
                 backend = config['stage_backends'].get(stage, config['backend'])
-                db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status) VALUES (?,?,?,?,?,?,?,?)',
-                           (task_id, stage, revision, encoded(record_ids), encoded(payload), signature, backend, 'pending'))
-                task_ids.append(task_id)
+                task_ids.extend(self.allocate_task(db, payload, backend))
+            if stage.startswith('pilot_'):
+                pending_count = db.execute('SELECT count(*) FROM tasks WHERE revision=? AND stage=? AND status="pending"',
+                                           (revision, stage)).fetchone()[0]
+                if pending_count + reserve > remaining:
+                    raise ValueError('Pilot allocation exceeds configured execution budget after complete-input splitting; no tasks created')
             self.event(db, 'prepare', {'stage': stage, 'tasks': task_ids})
             return {'tasks': task_ids}
 
@@ -581,11 +593,22 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             if fingerprint(immutable) != task['input_hash']:
                 raise ValueError('Claimed task file content changed')
             authoritative = json.loads(task['payload'])
-            authoritative.update(lease_token=payload['lease_token'], attempt=task['attempt'], worker=payload.get('worker', ''))
+            owner = db.execute('SELECT instance FROM quality_attempts WHERE task_id=? AND token=?',
+                               (task['id'], payload['lease_token'])).fetchone()
+            authoritative.update(lease_token=payload['lease_token'], attempt=task['attempt'], worker=owner['instance'] if owner else '')
+            self.allocation_tables(db)
+            allocation = db.execute('SELECT contract_version FROM task_allocations WHERE task_id=?', (task['id'],)).fetchone()
+            task_ready = bool(allocation and allocation['contract_version'] >= 1)
         system, _ = prompt(authoritative)
         output = path.with_suffix('.prompt.txt')
         atomic_write(output, system + '\n')
-        return {'prompt_file': str(output), 'task_file': str(path)}
+        input_file = path.with_suffix('.input.md')
+        result_file = self.root / 'results' / authoritative['task_id'] / authoritative['lease_token'] / 'result.json'
+        atomic_write(input_file, render_protocol_input(authoritative, result_file))
+        template_file = input_file.with_suffix('.result.template.json')
+        write_json(template_file, output_template(authoritative))
+        return {'prompt_file': str(output), 'task_file': str(path), 'input_file': str(input_file),
+                'result_file': str(result_file), 'result_template_file': str(template_file), 'task_ready': task_ready}
 
     def heartbeat(self, task_id, token):
         with self.db() as db:
@@ -626,8 +649,11 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                 raise ValueError('Independent reviewer instance required; this worker produced the assigned text')
             if not task:
                 return None
-            if stage.startswith('pilot_') and self.pilot_spent(db) + (1 if stage == 'pilot_translate' else 0) >= config.get('pilot_call_limit', 6):
-                raise ValueError('Pilot execution budget exhausted; stop spawning agents and let Sol inspect existing results')
+            if stage.startswith('pilot_'):
+                limit = config.get('pilot_call_limit', 6)
+                limit = self.pilot_claim_limit(db, task, limit)
+                if self.pilot_spent(db) + (1 if stage == 'pilot_translate' else 0) >= limit:
+                    raise ValueError('Pilot execution budget exhausted; stop spawning agents and let Sol inspect existing results')
             if json.loads(task['payload']).get('context'):
                 raise ValueError('Legacy task contains adjacent text; pause/configure context_records=0 and prepare a new revision before claiming')
             if backend == 'codex':
@@ -635,17 +661,15 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                 used_tasks = {r['task_id'] for r in previous}
                 if (task['id'] not in used_tasks and len(used_tasks) >= config.get('agent_task_limit', 1)) or sum(r['n'] for r in previous) >= config.get('agent_attempt_limit', 2):
                     raise ValueError('Fresh agent context required: instance workload limit reached; spawn a new agent with fork_turns=none')
-            budget_payload = json.loads(task['payload'])
-            budget_payload.update(worker=worker, lease_token='0' * 32, attempt=task['attempt'] + 1)
-            if compact_input:
-                pack = self.render_batch_input(db, budget_payload, json.loads(task['ids']),
-                                               self.root / f'tasks/{task["id"]}/handoffs/{"0" * 32}/result.json', '0' * 32)
-                input_chars = len(pack)
-            else:
-                system, user = prompt(budget_payload)
-                input_chars = len(system) + len(user)
-            if input_chars > config.get('task_input_chars', 48000):
-                raise ValueError(f'Task input exceeds context budget ({input_chars} characters); reduce batch/context size or background and prepare a new revision; do not truncate evidence')
+            task_payload = json.loads(task['payload'])
+            if task_payload.get('draft_scan_key') or task_payload.get('review_repair_origin'):
+                routes = self.repair_routes(db, config, stage)
+                stopped = [i for i in json.loads(task['ids']) if routes.get(i, (0, 'standard'))[1] == 'stopped']
+                if stopped:
+                    raise ValueError('Repair stopped; investigate root cause before dispatch: ' + ', '.join(stopped))
+            self.allocation_tables(db)
+            allocation = db.execute('SELECT * FROM task_allocations WHERE task_id=?', (task['id'],)).fetchone()
+            input_chars = (((allocation['compact_chars'] or allocation['input_chars']) if compact_input else allocation['input_chars']) if allocation else None)
             token = secrets.token_hex(16)
             db.execute('INSERT INTO quality_attempts VALUES (?,?,?)', (task['id'], token, worker))
             db.execute('UPDATE tasks SET status="running",attempt=attempt+1,lease_token=?,lease_until=? WHERE id=?',
@@ -656,7 +680,9 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             write_json(path, payload)
             self.event(db, 'claim', {'task': task['id'], 'worker': worker, 'attempt': payload['attempt']})
             return {'task_id': task['id'], 'lease_token': token, 'task_file': str(path), 'payload': payload,
-                    'context_policy': {'input_chars': input_chars, 'input_limit_chars': config.get('task_input_chars', 48000),
+                    'context_policy': {'input_chars': input_chars, 'input_limit_chars': allocation['input_limit'] if allocation else None,
+                                       'checked_at': 'allocation' if allocation else 'legacy_unrecorded',
+                                       'input_contract_version': allocation['contract_version'] if allocation else 0,
                                        'agent_task_limit': config.get('agent_task_limit', 1),
                                        'fresh_context_default': config.get('agent_task_limit', 1) == 1}}
 
@@ -669,8 +695,12 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
         return task
 
     def validate_body_item(self, db, task, result, item, original, config, rules, analysis):
-        stage = task['stage']
         row = db.execute('SELECT * FROM records WHERE id=?', (item['id'],)).fetchone()
+        return self.validate_body_row(row, task, result, item, original, config, rules, analysis, db=db)
+
+    def validate_body_row(self, row, task, result, item, original, config, rules, analysis, *, db=None, terms=None):
+        """Validate a snapshot without database access unless a caller supplies its own connection."""
+        stage = task['stage']
         summaries = result.get('review_summaries', {})
         if not isinstance(summaries, dict):
             raise ValueError('Review summaries must be keyed by record ID')
@@ -704,19 +734,20 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             raise ValueError('Cannot change locked translation')
         issues = item.get('issues', [])
         if not isinstance(issues, list) or any(not isinstance(i, dict) or i.get('severity') not in ('warning', 'blocking')
-                                              or not str(i.get('reason', '')).strip() for i in issues):
+                                              or not nonempty(i.get('reason')) for i in issues):
             raise ValueError('Issues require severity and reason')
         if any(i['severity'] == 'blocking' for i in issues):
             raise ValueError('Unresolved blocking semantic issue')
         if compact_pilot:
             validate_pilot_review(item, row['source'], row['translation'], translation, summary)
-        elif stage in ('review', 'pilot_review', 'final_review') and (item.get('reviewed') is not True or not str(item.get('reason', '')).strip()):
+        elif stage in ('review', 'pilot_review', 'final_review') and (item.get('reviewed') is not True or not nonempty(item.get('reason'))):
             raise ValueError('Every record requires explicit semantic review and evidence/reason')
         if stage in ('review', 'pilot_review', 'final_review') and not compact_pilot:
             validate_review(item, row['source'], row['translation'], translation)
-        if stage == 'polish' and translation != row['translation'] and not str(item.get('reason', '')).strip():
+        if stage == 'polish' and translation != row['translation'] and not nonempty(item.get('reason')):
             raise ValueError('Polishing changes require a reason')
-        terms = bridge.matched_terms(analysis, [row['source']], config)
+        if terms is None:
+            terms = bridge.matched_terms(analysis, [row['source']], config)
         exceptions = bridge.normalize_exception_sources(item.get('exceptions', json.loads(row['exceptions'])), terms, config['case_sensitive'])
         if not isinstance(exceptions, list) or any(not isinstance(e, dict) or not e.get('source') or not str(e.get('reason', '')).strip()
                                                   for e in exceptions):
@@ -727,15 +758,16 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
         known_sources = {t['src'] for t in terms}
         if any(e['source'] not in known_sources for e in exceptions):
             raise ValueError('Context exception refers to an unrelated term')
-        signature = fingerprint([row['source'], translation, terms, exceptions,
-                                 config['case_sensitive'], config['whole_word']])
-        if not db.execute('SELECT 1 FROM checks WHERE signature=?', (signature,)).fetchone():
+        signature = (fingerprint([row['source'], translation, terms, exceptions,
+                                  config['case_sensitive'], config['whole_word']]) if db is not None else None)
+        if db is None or not db.execute('SELECT 1 FROM checks WHERE signature=?', (signature,)).fetchone():
             exempt = {e['source'] for e in exceptions}
             missing = [t['src'] for t in terms if not bridge.helper().is_keep_original_translation(t['dst'])
                        and t['src'] not in exempt and t['dst'] not in translation]
             if missing:
                 raise ValueError(f'{item["id"]}: terminology mismatch {missing}')
-            db.execute('INSERT OR IGNORE INTO checks VALUES (?)', (signature,))
+            if db is not None:
+                db.execute('INSERT OR IGNORE INTO checks VALUES (?)', (signature,))
         return translation, exceptions
 
     def submit(self, task_id, token, result):
@@ -747,7 +779,7 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             raise ValueError('Result must be a JSON object')
         config = self.config(db)
         prior = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
-        if prior and isinstance(result.get('records'), list) and prior['stage'] in ('translate', 'review', 'final_review', 'polish'):
+        if prior and isinstance(result.get('records'), list) and prior['stage'] in ('pilot_translate', 'pilot_review', 'translate', 'review', 'final_review', 'polish'):
             originals = {r['id']: r for r in json.loads(prior['payload'])['records']}
             result = {**result, 'records': [self.inherit_exceptions(item, originals.get(item.get('id'), {}))
                                           if isinstance(item, dict) else item for item in result['records']]}
@@ -785,7 +817,7 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
             if (decisions.get('snapshot_sha256') != payload['snapshot_sha256']
                     or decisions.get('source_sha256') != payload['source_hash']):
                 raise ValueError('Glossary snapshot mismatch')
-            if decisions.get('review_complete') is not True or not str(decisions.get('review_summary', '')).strip():
+            if decisions.get('review_complete') is not True or not nonempty(decisions.get('review_summary')):
                 raise ValueError('Semantic review summary required')
             review_issues = decisions.get('issues', [])
             if not isinstance(review_issues, list) or any(not isinstance(i, dict) for i in review_issues):
@@ -1082,14 +1114,29 @@ class Workflow(SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityM
                           (self.meta(db, 'revision'),)).fetchone():
                 raise ValueError('Unfinished current tasks prevent export')
             rules = self.rules(db, config)
-            if any(bridge.structural_issues(r['source'], r['translation'], rules) for r in records):
-                raise ValueError('Final structural validation failed')
-            for row in records:
+            total = len(records)
+            print(f'export progress: structural validation 0/{total}', file=sys.stderr, flush=True)
+            for index, row in enumerate(records, 1):
+                issues = bridge.structural_issues(row['source'], row['translation'], rules)
+                if issues:
+                    raise ValueError(f"Final structural validation failed: {row['id']} ({', '.join(issues)})")
+                if index % 1000 == 0 or index == total:
+                    print(f'export progress: structural validation {index}/{total}',
+                          file=sys.stderr, flush=True)
+            print(f'export progress: terminology validation 0/{total}', file=sys.stderr, flush=True)
+            term_cache = {}
+            for index, row in enumerate(records, 1):
                 exempt = {e['source'] for e in json.loads(row['exceptions'])}
+                source_text = row['source']
+                if source_text not in term_cache:
+                    term_cache[source_text] = bridge.matched_terms(analysis, [source_text], config)
                 if any(t['dst'] not in row['translation'] and t['src'] not in exempt
                        and not bridge.helper().is_keep_original_translation(t['dst'])
-                       for t in bridge.matched_terms(analysis, [row['source']], config)):
+                       for t in term_cache[source_text]):
                     raise ValueError('Final terminology validation failed: ' + row['id'])
+                if index % 1000 == 0 or index == total:
+                    print(f'export progress: terminology validation {index}/{total}',
+                          file=sys.stderr, flush=True)
             quality = self.require_final_approval(db, config)
             source = Path(self.meta(db, 'source_path'))
             path = source.with_name(source.stem + '_translated.csv')
@@ -1128,6 +1175,12 @@ def prompt(payload):
                    'characters/terms 含 recommended_translation，人物含 gender（男性/女性/其他），'
                    'terms 含 category_path（身份/物品/组织/地名/技能/种族/其他）。覆盖本批全部文本；无术语时可为空表。',
         'glossary_review': '对 entries 中全部分配条目做来源、译名、分类、一致性语义审校，返回顶层 decisions 对象。'
+                           '同一英文已合并为一条，只占一个审校名额；extraction_candidates 保留不同批次的译名、分类及出处。'
+                           'recommended_translation 只是按提取提案次数选择的暂定译名，次数相同时取首个，不代表正确。'
+                           '一次比较所有候选及提供的出处，确认或修正标准译名；确属多义时说明语境区别，不盲目统一。'
+                           'term_families 是本地规则生成的候选关系，不是同义结论；核对变体、派生词和复合词的核心译名一致性，允许语境差异。'
+                           '在现有 entry_reviews.consistency 和修订理由中记录结论，不额外输出词族报告，不扩展任务或扫描全文。'
+                           'term_families.related_terms 仅为跨批只读提示，不修改、不列入 reviewed_refs；缺少出处时不猜测。'
                            'related_entries 是跨批冲突的只读关联项，可参考，不得修改或列入 reviewed_refs。'
                            '共用译名、单复数变体不等于错误，不因条目分批而隔离已明确的同一术语变体。'
                            'decisions 字段：snapshot_sha256、source_sha256（使用任务 source_hash）、'
@@ -1149,6 +1202,7 @@ def prompt(payload):
     schemas['pilot_translate'] = '代表性试译；用于 Sol 验收文体和语义质量。' + schemas['translate']
     schemas['pilot_review'] = '独立逐条审校试译，不沿用原翻译者的判断；返回顶层 records 和 review_summary，使用下述精简协议。'
     common += schemas[stage]
+    common += WORKER_INSTRUCTION
     if stage not in ('extract', 'glossary_review'):
         common += ' 正文沿用已冻结术语，不自行新增或修改术语表。'
     if stage in ('pilot_review', 'review', 'final_review'):
@@ -1161,9 +1215,14 @@ def prompt(payload):
     if stage == 'pilot_review':
         common += (' 试译优先采用精简协议：顶层 review_summary 为 accuracy/completeness/terminology/tone/logic/placeholders '
                    '六项对象，各项含 status=pass/corrected/not_applicable 和具体 evidence；整批总结一次，不逐条重复六维说明。'
+                   '只要本批含非空原文，review_summary 的 accuracy/completeness/logic 就只允许 pass/corrected；'
+                   '非空记录的详细 checks 也遵守此限制，短标签仍须核对没有新增或改变关系。'
                    '全部分配 ID 仍须逐条对照原文。无问题记录仅返回 {id,reviewed:true,verdict:pass}，不用复制原译文。'
                    '有修改或疑难项返回 verdict:corrected、完整 translation、reason、source_excerpt、六维 checks、'
                    'changes=[{category,severity:minor|major|critical,source_excerpt,before:完整原译文,after:完整新译文,reason}]、issues、exceptions。'
+                   '详细记录的 changes[].source_excerpt 必须引用本条原文的连续摘录，可分别引用不同片段；'
+                   'before/after 使用任务完整原译文/完整新译文。已有术语例外也须详细核对，使用 verdict:corrected '
+                   '并提交完整证据；译文无需修改时 changes=[]，不能用精简 pass 隐藏继承的例外。'
                    '关键疑难项写 blocking；旧完整审校协议仍可接受，但优先精简。')
     if stage in ('review', 'final_review'):
         common += (' 本实例仍须逐条独立语义审校并留下真实证据；结果先保存为候选。'
@@ -1172,9 +1231,14 @@ def prompt(payload):
                    'checks 为对象，必须包含 accuracy/completeness/terminology/tone/logic/placeholders 六项；'
                    '各项为 {status:pass|corrected|not_applicable,evidence:具体核对依据}。'
                    '分别核对动作与主体、漏译增译、专名、人物口吻、否定条件数量关系、变量标签；'
-                   '无相关内容时写 not_applicable 并解释，不使用“符合原意”代替依据。'
+                   '非空原文的 accuracy、completeness、logic 必须逐项显式核对，只允许 pass/corrected，并填写具体 evidence；'
+                   '短标签即使没有否定、条件或数字，也须核对译文是否新增或改变关系，据实际核对填写 logic，不能写 not_applicable。'
+                   '只有其余维度确实不适用时才写 not_applicable 并解释；空原文须核对空译文。不使用“符合原意”代替依据。'
                    '改动时 changes=[{category:上述检查项,severity:minor|major|critical,source_excerpt,'
-                   'before:任务原译文全文,after:修订译文全文,reason:具体错误和修正依据}]；未改为空数组。'
+                   'before:任务原译文全文,after:修订译文全文,reason:具体错误和修正依据}]；'
+                   '每个 changes[].source_excerpt 必须引用本条原文的连续摘录，可与顶层及其他修改项引用不同片段；未改为空数组。'
+                   '复查时按 diagnostic_detail 的字段路径、实际值、期望值和修复要求补全真实审校记录；'
+                   '仅证据协议有误且译文正确时保留译文，不机械补 pass，不伪造依据。'
                    '疑难含义、任务条件、数字和人物关系必须在 issues 中提出，不虚构完成记录。')
     if stage == 'glossary_review':
         common += (' decisions.entry_reviews 必须逐条覆盖 entries，格式为 '
@@ -1191,12 +1255,12 @@ def prompt(payload):
                    ' 本批保存为正文草稿；术语、占位符等质量检查在全文草稿完成后集中执行，不当批自查返工。')
     common += ' 已有 exceptions 默认继承；禁止用省略或空列表清除。确需撤销时提交 exception_changes=[{source,action:remove,reason:原文依据}]，仍须独立审校。仅作必要修改，保留 repair_constraints 中已满足术语及语境例外。'
     if stage in ('translate', 'pilot_translate'):
-        common += ' 无需生成审校报告；普通词义例外使用 exceptions=[{source:本条实际命中的术语src,reason:原句依据及普通词义说明}]，其他情况省略。确需传递的语境疑点可简记为 warning，留给独立审校判断。'
+        common += ' 无需生成审校报告；普通词义例外使用 exceptions=[{source:本条实际命中的术语src,reason:原句依据及普通词义说明}]，其他情况省略。确需记录的语境疑点使用 issues=[{severity:warning,reason:具体原文依据及未确定之处}]，不使用字符串或其他结构；独立审校仍须自行逐条判断。'
     else:
         common += (' issues 条目须有 severity=warning/blocking 与 reason。无法解决的关键歧义写 blocking。'
                    'exceptions 仅限源文确需语境例外，条目含 source（命中的术语 src）和 reason；未新增时可省略，已有例外默认保留。')
     # The legacy textarea prompt is limited to the legacy AINiee protocol. Custom tasks use ID-based JSON.
-    return common, json.dumps(payload, ensure_ascii=False)
+    return common, json.dumps({**payload, 'output_template': output_template(payload)}, ensure_ascii=False)
 
 
 def run_api(flow, stage, requester_factory=None):
@@ -1294,9 +1358,11 @@ def main():
     p = sub.add_parser('prompt'); p.add_argument('--task-file', required=True)
     p = sub.add_parser('batch-open'); p.add_argument('--worker-model'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--workers', nargs='+', required=True)
     p = sub.add_parser('batch-finish'); p.add_argument('--sessions', nargs='+', required=True); p.add_argument('--next-worker')
+    p = sub.add_parser('batch-split'); p.add_argument('--task', required=True)
     p = sub.add_parser('batch-repair'); p.add_argument('--session', required=True); p.add_argument('--worker', required=True); p.add_argument('--reason')
     p = sub.add_parser('batch-save'); p.add_argument('--session', required=True); p.add_argument('--file', required=True)
     p = sub.add_parser('draft-scan'); p.add_argument('--prepare-repairs', action='store_true')
+    p.add_argument('--workers', type=int, choices=range(1, 33), help='Override draft scan threads for this invocation')
     p = sub.add_parser('review-scan'); p.add_argument('--stage', choices=('review', 'final_review'), default='review'); p.add_argument('--prepare-repairs', action='store_true')
     p = sub.add_parser('sol-round-record'); p.add_argument('--decisions', required=True)
     sub.add_parser('sol-round-finish')
@@ -1309,7 +1375,7 @@ def main():
     p = sub.add_parser('recover'); p.add_argument('--task', required=True); p.add_argument('--worker-stopped', action='store_true')
     p = sub.add_parser('heartbeat'); p.add_argument('--task', required=True); p.add_argument('--token', required=True)
     p = sub.add_parser('reopen-review'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True)
-    p = sub.add_parser('reopen-body'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True); p.add_argument('--ids', nargs='+')
+    p = sub.add_parser('reopen-body'); p.add_argument('--task'); p.add_argument('--reason', required=True); p.add_argument('--ids', nargs='+')
     p = sub.add_parser('quality-report'); p.add_argument('--kind', choices=('pilot', 'final'), required=True)
     sub.add_parser('pilot-plan')
     p = sub.add_parser('reduce-pilot'); p.add_argument('--records', type=int, default=30); p.add_argument('--reason', required=True)
@@ -1338,9 +1404,10 @@ def main():
             if args.next_worker and len(args.sessions) != 1:
                 raise ValueError('next-worker requires exactly one completed session')
             result = flow.batch_many('finish', args.sessions, next_worker=args.next_worker)
+        elif args.command == 'batch-split': result = flow.batch_split(args.task)
         elif args.command == 'batch-repair': result = flow.batch_repair(args.session, args.worker, args.reason)
         elif args.command == 'batch-save': result = flow.batch_save(args.session, args.file)
-        elif args.command == 'draft-scan': result = flow.draft_scan(args.prepare_repairs)
+        elif args.command == 'draft-scan': result = flow.draft_scan(args.prepare_repairs, workers=args.workers)
         elif args.command == 'review-scan': result = flow.review_scan(args.stage, args.prepare_repairs)
         elif args.command == 'sol-round-record': result = flow.record_sol_round(read_json(args.decisions))
         elif args.command == 'sol-round-finish': result = flow.finish_sol_round()
@@ -1353,7 +1420,8 @@ def main():
         elif args.command == 'recover': result = flow.recover(args.task, args.worker_stopped)
         elif args.command == 'heartbeat': result = flow.heartbeat(args.task, args.token)
         elif args.command == 'reopen-review': result = flow.reopen_review(args.task, args.reason)
-        elif args.command == 'reopen-body': result = flow.reopen_body(args.task, args.reason, args.ids)
+        elif args.command == 'reopen-body':
+            result = flow.reopen_body(args.task, args.reason, args.ids) if args.task else flow.reopen_body_ids(args.reason, args.ids)
         elif args.command == 'quality-report': result = flow.quality_report(args.kind)
         elif args.command == 'pilot-plan': result = flow.pilot_plan()
         elif args.command == 'reduce-pilot': result = flow.reduce_pilot(args.records, args.reason)

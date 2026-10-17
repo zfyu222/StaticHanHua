@@ -1,8 +1,34 @@
 """Save production drafts first; audit once at the phase boundary and pool repairs."""
+from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 import json
+import sys
 import uuid
 
 import ainiee_bridge as bridge
+
+
+def ordered_draft_checks(check, rows, workers):
+    """Bound queued work and yield in source order; workers never receive SQLite objects."""
+    if workers == 1 or len(rows) < 2:
+        yield from map(check, rows)
+        return
+    workers = min(workers, len(rows))
+    pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix='draft-scan')
+    pending = deque()
+    remaining = iter(rows)
+    try:
+        for row in remaining:
+            pending.append(pool.submit(check, row))
+            if len(pending) >= workers * 2:
+                break
+        while pending:
+            yield pending.popleft().result()
+            row = next(remaining, None)
+            if row is not None:
+                pending.append(pool.submit(check, row))
+    finally:
+        pool.shutdown(wait=True, cancel_futures=True)
 
 
 class DraftMixin:
@@ -58,7 +84,7 @@ class DraftMixin:
             raise ValueError('Complete all production drafts before the full draft scan')
         if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status="running"', (self.meta(db, 'revision'),)).fetchone():
             raise ValueError('Finish in-flight work before the full draft scan')
-        originals = {r['record_id']: r for r in db.execute('SELECT * FROM draft_candidates')}
+        originals = {r['record_id']: dict(r) for r in db.execute('SELECT * FROM draft_candidates')}
         return rows, originals
 
     @staticmethod
@@ -79,18 +105,28 @@ class DraftMixin:
                 raise ValueError('Unknown draft check ID')
             rows = [r for r in rows if r['id'] in scope]
         rules, glossary = self.rules(db, config), self.glossary(db)
+        workers = config.get('draft_scan_workers', 1)
+        if type(workers) is not int or not 1 <= workers <= 32:
+            raise ValueError('draft_scan_workers must be between 1 and 32')
         fake_task = {'stage': 'translate', 'payload': encoded({'strict_translation': True})}
         failures = []
-        for row in rows:
+        show_progress = record_ids is None and len(rows) >= 1000
+        total = len(rows)
+        if show_progress:
+            print(f'[draft-scan] full validation started: 0/{total} records', file=sys.stderr, flush=True)
+        def check(row):
+            # Only detached snapshots and read-only rules/glossary are shared.
+            # All report/receipt writes remain on the calling transaction thread.
             item, protection = self.draft_candidate(row, originals.get(row['id']))
             errors = []
+            terms = bridge.matched_terms(glossary, [row['source']], config)
             try:
-                self.validate_body_item(db, fake_task, {}, item, {'protection': protection}, config, rules, glossary)
+                self.validate_body_row(row, fake_task, {}, item, {'protection': protection},
+                                       config, rules, glossary, terms=terms)
             except ValueError as exc:
                 errors.append(str(exc))
             # Collect additional mechanical findings now, rather than spending
             # another model round discovering the next error in the same sentence.
-            terms = bridge.matched_terms(glossary, [row['source']], config)
             try:
                 exceptions = bridge.normalize_exception_sources(item.get('exceptions', []), terms, config['case_sensitive'])
                 known = {t['src'] for t in terms}
@@ -105,9 +141,17 @@ class DraftMixin:
             if structure:
                 errors.append('structural mismatch: ' + ', '.join(structure))
             if errors:
-                failures.append({'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
+                return {'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
                                  'translation': row['translation'], 'diagnostics': list(dict.fromkeys(errors)),
-                                 'missing_terms': missing, 'structural_issues': structure})
+                                 'missing_terms': missing, 'structural_issues': structure}
+            return None
+
+        for index, finding in enumerate(ordered_draft_checks(check, rows, workers), start=1):
+            if finding is not None:
+                failures.append(finding)
+            if show_progress and (index % 500 == 0 or index == total):
+                print(f'[draft-scan] full validation progress: {index}/{total} records; failures={len(failures)}',
+                      file=sys.stderr, flush=True)
         return rows, failures
 
     def ensure_draft_audit(self, db, config):
@@ -140,9 +184,14 @@ class DraftMixin:
                 raise ValueError('Complete all batches in the current repair round before checking or independent review')
             raise ValueError(f'Full draft scan found {report["failed_records"]} affected IDs; run draft-scan --prepare-repairs before independent review. Report: {report["report_file"]}')
 
-    def draft_scan(self, prepare_repairs=False):
+    def draft_scan(self, prepare_repairs=False, workers=None):
+        if workers is not None and (type(workers) is not int or not 1 <= workers <= 32):
+            raise ValueError('draft_scan_workers must be between 1 and 32')
         with self.db() as db:
-            return self.scan_drafts_in_transaction(db, self.config(db), prepare_repairs)
+            config = self.config(db)
+            if workers is not None:
+                config = {**config, 'draft_scan_workers': workers}
+            return self.scan_drafts_in_transaction(db, config, prepare_repairs)
 
     def unfinished_draft_repairs(self, db):
         return [dict(t) for t in db.execute('SELECT id,payload,status FROM tasks WHERE revision=? AND status IN ("pending","running","failed")',
@@ -245,12 +294,20 @@ class DraftMixin:
         rounds = []
 
         def check(phase, ids):
+            scope = len(ids) if ids is not None else len(rows)
+            print(f'[draft-scan] phase={phase} started; scope={scope} records', file=sys.stderr, flush=True)
             checked, found = self.collect_draft_issues(db, config, ids)
             by_id = {f['id']: f for f in found}
             for row in checked:
                 record_id = row['id']
                 journal = originals.get(record_id)
                 regression = []
+                if journal:
+                    repair_task = db.execute('SELECT * FROM tasks WHERE id=?', (journal['task_id'],)).fetchone()
+                    if repair_task:
+                        failure = by_id.get(record_id)
+                        self.record_repair_outcome(db, repair_task, record_id,
+                            {k: failure[k] for k in ('diagnostics', 'missing_terms', 'structural_issues')} if failure else None)
                 if journal and phase == 'issue_recheck':
                     task = db.execute('SELECT payload FROM tasks WHERE id=?', (journal['task_id'],)).fetchone()
                     if task:
@@ -293,6 +350,7 @@ class DraftMixin:
         blocked_ids = []
         history_routes = self.repair_routes(db, config, 'translate')
         routes = {r['id']: history_routes.get(r['id'], (0, 'standard')) for r in failures}
+        blocked_ids = [i for i, (_, tier) in routes.items() if tier == 'stopped']
         if prepare_repairs and failures and not existing:
             failed_by_id = {r['id']: r for r in failures}
             contexts = self.meta(db, 'contexts', {})
@@ -333,10 +391,8 @@ class DraftMixin:
                         'diagnostic': failed_by_id[row['id']]['diagnostics'],
                         'candidate': {'id': row['id'], 'translation': row['translation']}})
                 signature = fingerprint(payload); payload['input_hash'] = signature
-                db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,attempt,status) VALUES (?,?,?,?,?,?,?,?,"pending")',
-                           (task_id, 'translate', self.meta(db, 'revision'), encoded([r['id'] for r in group]), encoded(payload),
-                            signature, 'codex' if payload['repair_tier'] == 'sol' else config['stage_backends'].get('translate', config['backend']), 0))
-                tasks.append(task_id)
+                tasks.extend(self.allocate_task(db, payload,
+                    'codex' if payload['repair_tier'] == 'sol' else config['stage_backends'].get('translate', config['backend'])))
         clean = not failures and not tasks
         report_file = self.root / 'reports/full_draft_scan.json'
         task_states = [dict(r) for r in db.execute('SELECT id,status,attempt,ids,payload FROM tasks WHERE revision=?',
@@ -364,6 +420,8 @@ class DraftMixin:
                    'round_reports': round_files, 'repair_status': task_states,
                    'imported_baseline': self.meta(db, 'draft_imported_baseline'),
                    'needs_attention_ids': blocked_ids}
+        summary['repair_stop_reasons'] = {i: reason for i, reason in self.repair_stops(db, config).items() if i in blocked_ids}
+        summary['status'] = 'needs_attention' if blocked_ids else ('clean' if clean else 'needs_repair')
         write_json(report_file, summary)
         self.put(db, 'draft_audit', {'key': key, 'clean': clean})
         self.event(db, 'draft_scan', {k: summary[k] for k in ('key', 'phase', 'checked_records', 'failed_records', 'repair_tasks', 'round_reports')})

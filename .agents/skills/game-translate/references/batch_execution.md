@@ -96,6 +96,16 @@ source 必须指向本条实际命中的 src；reason 要解释原句依据及�
 
 修复包继续携带本句全部命中术语，并以 repair_constraints 区分 satisfied_terms（已有字面命中）、context_exceptions（已有语境说明）和 missing_terms（当前缺失）。仅修必要部分，不能为了一个术语破坏其他术语或将形容词误译成人物名词。字面命中只表示程序约束满足，不代表语义已经审校通过。
 
-已有 exceptions 默认继承，返回时省略或 [] 不清除；补充或修订按 source 合并，撤销必须提供 exception_changes=[{source,action:"remove",reason:"原文依据"}]。程序不判断例外语义为真，仍保留独立审校与 Sol 验收。批次保存、直接 submit、草稿原始候选及逐条身份日志沿用同一合并规则。
+已有 exceptions 默认继承，返回时省略或 [] 不清除；补充或修订按冻结 src 原样值合并，不在继承层忽略大小写合并不同术语。撤销必须提供 exception_changes=[{source,action:"remove",reason:"原文依据"}]，source 使用冻结 src 原样值，reason 必须为非空字符串；不能同时撤销又在 exceptions 中返回该项。程序不判断例外语义为真，仍保留独立审校与 Sol 验收。批次保存、直接 submit（包括试译）、草稿原始候选及逐条身份日志沿用同一合并规则。
 
 仅在整轮统一复查时对比修复前后，记录 regressed_terms 和具体诊断；通过一个术语却丢失另一个也算回退。相同条目在同阶段两次回退后，自动提前进入 Sol 修复队列（required_model），不等 6 轮、不询问追加授权。标准和 Sol 条目分批派发。计数以任务去重，重复读取报告不增加次数；仍只检查本轮影响 ID，不插入当批检查，不扩大到全文。Sol 结合语境排查词义冲突，不允许用删检查或无依据例外提高通过率。
+
+审校批量还受预计输出预算限制，Sol 升级后也有累计轮数与无进展停止条件；跨阶段/跨 revision 计数及恢复边界见 [整轮验收](review_rounds.md#修复计数与停止条件)。
+
+## 全部任务的准备与验收职责
+
+遵循 [程序准备任务，子代理专注本职](custom_workflow.md#程序准备任务子代理专注本职)。输入包附有程序生成的输出模板，模板中的空证据和待定状态不得当作实际通过。代理只读输入、完成本职并写出结果；不做任务或结果的程序校验。
+
+格式/传输可靠性修复同样前置准备：batch-repair 在派发前组成失败 ID、当前候选及完整诊断，按统一输入合约自动拆成独立小包。回执含 repair_parent_session、repair_part、repair_parts、pending_repair_parts。每个新实例只处理自己的一个 input_file。
+
+有剩余分包时，用新的实际实例 ID 再调用 batch-repair --session <同一个 repair_parent_session> --worker <新实例ID>，领取已准备的下一包。各包完成后 batch-finish；尚有其他包未完成时返回 repair_part_saved，仅保存产出，不提前验收整批或插入下一轮。全部包收齐后程序统一按 ID 合并并验收，保留其他通过记录及每条真实作者。分包沿用同一修复轮，不通过拆分刷新任务尝试数；试译每个实际实例的领取仍计入试译执行预算。

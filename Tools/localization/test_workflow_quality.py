@@ -1,6 +1,7 @@
 """Behavioral regression tests for the quality gates, using synthetic local text."""
 import csv
 import importlib.util
+import json
 from pathlib import Path
 import unittest
 import uuid
@@ -163,13 +164,14 @@ class QualityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'every requested check'):
             self.flow.approve_quality('pilot', decisions)
 
-    def test_export_waits_for_sol_risk_acceptance(self):
+    def test_export_requires_closure_but_heuristics_do_not_trigger_sol_reading(self):
         self.fixture.pilot(); self.fixture.translate(); self.raw_review('review')
-        with self.assertRaisesRegex(ValueError, 'Sol risk/consistency'):
+        with self.assertRaisesRegex(ValueError, 'final quality closure'):
             self.flow.export()
         report = workflow.read_json(self.flow.quality_report('final')['report_file'])
-        flags = {flag for row in report['records_to_check'] for flag in row['risk_reasons']}
-        self.assertIn('numbers', flags); self.assertIn('variables', flags)
+        self.assertGreater(report['coverage']['risk_records'], 0)
+        self.assertEqual(report['records_to_check'], [])
+        self.assertEqual(report['required_decisions'], [])
         self.flow.approve_quality('final', self.decisions('final'))
         self.assertEqual(self.flow.export()['in_game_check'], 'pending_repack')
 
@@ -186,6 +188,21 @@ class QualityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'current report'):
             self.flow.approve_quality('final', old)
         self.flow.approve_quality('final', self.decisions('final')); self.flow.export()
+
+    def test_reopen_body_ids_pools_explicit_records_across_batches(self):
+        self.complete()
+        with self.flow.db() as db:
+            ids = [r['id'] for r in db.execute('SELECT id FROM records ORDER BY ordinal LIMIT 2')]
+        result = self.flow.reopen_body_ids('恢复原文首尾空格。', ids)
+        self.assertEqual(result['repair_records'], 2)
+        self.assertEqual(len(result['repair_tasks']), 1)
+        with self.flow.db() as db:
+            selected = {r['id']: r['stage'] for r in db.execute('SELECT id,stage FROM records') if r['id'] in ids}
+            pending = [dict(r) for r in db.execute('SELECT ids FROM tasks WHERE status="pending" AND stage="review"')]
+        self.assertEqual(selected, {record_id: 'translate' for record_id in ids})
+        self.assertEqual([record_id for task in pending for record_id in json.loads(task['ids'])], ids)
+        with self.assertRaisesRegex(ValueError, 'unique'):
+            self.flow.reopen_body_ids('duplicate', [ids[0], ids[0]])
 
     def test_runtime_check_needs_current_export_payload_and_evidence(self):
         self.complete(); export = self.flow.export()
@@ -236,7 +253,7 @@ class QualityTests(unittest.TestCase):
         self.assertEqual({r['metadata']['text_type'] for r in picked}, {'ui', 'dialogue'})
         self.assertGreater(max(r['ordinal'] for r in picked), 95)
 
-    def test_duplicate_source_translation_conflicts_are_reported(self):
+    def test_duplicate_source_variants_do_not_automatically_trigger_sol(self):
         self.complete()
         # Model submits one of two translations for repeated text in different batches.
         # Create a separate synthetic run through the public protocol.
@@ -252,7 +269,8 @@ class QualityTests(unittest.TestCase):
                 **fixture.envelope(claim), 'records': [{'id': claim['payload']['records'][0]['id'], 'translation': translation}]})
         fixture.review()
         report = workflow.read_json(fixture.flow.quality_report('final')['report_file'])
-        self.assertTrue(any(g['kind'] == 'same_source_multiple_translations' for g in report['consistency']))
+        self.assertEqual(report['consistency'], [])
+        self.assertEqual(report['required_decisions'], [])
 
     def test_packager_rejects_untested_custom_run(self):
         self.complete(); self.flow.export()

@@ -12,6 +12,7 @@ import uuid
 
 REVIEW_CHECKS = ('accuracy', 'completeness', 'terminology', 'tone', 'logic', 'placeholders')
 GLOSSARY_CHECKS = ('source', 'translation', 'category', 'consistency')
+SOL_SCOPE_POLICY = 'disputes_only_v1'
 
 
 def signature(value):
@@ -23,31 +24,88 @@ def nonempty(value):
     return isinstance(value, str) and bool(value.strip())
 
 
+class ReviewContractError(ValueError):
+    """Machine-readable evidence errors; never a semantic correctness verdict."""
+    def __init__(self, message, code, fields, repair):
+        self.detail = {'category': 'review_record_contract', 'code': code,
+                       'fields': fields, 'repair': repair}
+        super().__init__(message + '; ' + repair + ' Fields: ' + json.dumps(fields, ensure_ascii=False))
+
+
+def review_failure_detail(error):
+    if isinstance(error, ReviewContractError):
+        return error.detail
+    text = str(error)
+    category = ('terminology_gate' if 'terminology mismatch' in text else
+                'structure_gate' if 'structural mismatch' in text else
+                'reported_blocking_semantic_issue' if 'Unresolved blocking semantic issue' in text else
+                'review_record_contract')
+    return {'category': category, 'code': 'validation_error', 'message': text}
+
+
+def review_candidate_failure_detail(error, candidate, source, before):
+    """Enrich legacy pending tasks on rendering, without rewriting their state."""
+    if isinstance(candidate, dict) and str(error).startswith((
+            'Meaning/completeness/logic checks cannot', 'Invalid review change evidence')):
+        try:
+            validate_review(candidate, source, before, candidate.get('translation'))
+        except ReviewContractError as exc:
+            return exc.detail
+        except ValueError:
+            pass
+    return review_failure_detail(error)
+
+
 def check_dimensions(checks, expected):
     if not isinstance(checks, dict) or set(checks) != set(expected):
-        raise ValueError('Structured review checks must cover: ' + ', '.join(expected))
+        raise ReviewContractError('Structured review checks must cover: ' + ', '.join(expected),
+            'invalid_check_dimensions', [{'path': 'checks', 'actual': list(checks) if isinstance(checks, dict) else checks,
+                                          'expected': list(expected)}],
+            'Provide every required check as an object with status and specific evidence; do not fabricate review results.')
     for name, item in checks.items():
         if not isinstance(item, dict) or item.get('status') not in ('pass', 'corrected', 'not_applicable') or not nonempty(item.get('evidence')):
-            raise ValueError('Each review check requires status and specific evidence: ' + name)
+            raise ReviewContractError('Each review check requires status and specific evidence: ' + name,
+                'invalid_check_evidence', [{'path': 'checks.' + name, 'actual': item,
+                    'expected': {'status': ['pass', 'corrected', 'not_applicable'], 'evidence': 'nonempty specific evidence'}}],
+                'Independently check this dimension and record status plus specific evidence; '
+                'nonempty review text requires accuracy/completeness/logic status pass or corrected.')
 
 
 def validate_review(item, source, before, after):
     check_dimensions(item.get('checks'), REVIEW_CHECKS)
-    if source.strip() and any(item['checks'][name]['status'] == 'not_applicable' for name in ('accuracy', 'completeness', 'logic')):
-        raise ValueError('Meaning/completeness/logic checks cannot be skipped for non-empty text')
+    skipped = [name for name in ('accuracy', 'completeness', 'logic')
+               if source.strip() and item['checks'][name]['status'] == 'not_applicable']
+    if skipped:
+        raise ReviewContractError('Meaning/completeness/logic checks cannot be skipped for non-empty text',
+            'required_dimension_not_applicable',
+            [{'path': f'checks.{name}.status', 'actual': 'not_applicable', 'expected': ['pass', 'corrected']} for name in skipped],
+            'Independently recheck each listed dimension and provide specific evidence. For a label without '
+            'negation/conditions/numbers, check that the translation adds or changes no relation. '
+            'Keep a correct translation unchanged; do not mechanically replace status or fabricate evidence.')
     excerpt = item.get('source_excerpt')
-    if not isinstance(excerpt, str) or (source and not excerpt.strip()) or excerpt not in source:
+    if not isinstance(excerpt, str) or (source.strip() and not excerpt.strip()) or excerpt not in source:
         raise ValueError('Review source_excerpt must cite the assigned original text')
     changes = item.get('changes', [])
     if not isinstance(changes, list):
         raise ValueError('Review changes must be a list')
     if before != after and not changes:
         raise ValueError('Review correction requires before/after and an error category')
-    for change in changes:
+    for index, change in enumerate(changes):
+        quote = change.get('source_excerpt') if isinstance(change, dict) else None
+        valid_quote = isinstance(quote, str) and (not source.strip() or bool(quote.strip())) and quote in source
         if (not isinstance(change, dict) or change.get('before') != before or change.get('after') != after
                 or change.get('category') not in REVIEW_CHECKS or change.get('severity') not in ('minor', 'major', 'critical')
-                or not nonempty(change.get('reason')) or change.get('source_excerpt') != excerpt or before == after):
-            raise ValueError('Invalid review change evidence')
+                or not nonempty(change.get('reason')) or not valid_quote or before == after):
+            expected = {'before': before, 'after': after}
+            fields = [{'path': f'changes[{index}].{key}', 'actual': change.get(key), 'expected': value}
+                      for key, value in expected.items() if isinstance(change, dict) and change.get(key) != value]
+            if not valid_quote:
+                fields.append({'path': f'changes[{index}].source_excerpt', 'actual': quote,
+                               'expected': 'A continuous excerpt from this assigned source'})
+            raise ReviewContractError('Invalid review change evidence', 'invalid_change_evidence', fields,
+                'Use complete task translation for before and complete revised translation for after; '
+                'each change source_excerpt must cite this assigned source; different changes may cite different excerpts. '
+                'Use a valid category, severity and specific reason; unchanged translations require changes=[].')
     if before != after and not any(c['status'] == 'corrected' for c in item['checks'].values()):
         raise ValueError('Corrected translation must identify a corrected check')
 
@@ -119,6 +177,57 @@ def validate_pilot_review(item, source, before, after, summary):
 
 
 class QualityMixin:
+    @staticmethod
+    def review_output_budget(config, stage, backend=None):
+        limit = config.get('review_output_tokens', 16384)
+        backend = backend or config.get('stage_backends', {}).get(stage, config.get('backend', 'codex'))
+        if backend == 'api':
+            limit = min(limit, config['api']['max_completion_tokens'])
+        return max(1, limit * 4 // 5)  # Reserve 20% for variation and the envelope.
+
+    @staticmethod
+    def estimate_review_output(row, stage):
+        """Planning estimate, not an exact tokenizer or a semantic evidence limit."""
+        def tokens(text):
+            text = str(text or '')
+            ascii_chars = sum(ord(c) < 128 for c in text)
+            return (ascii_chars + 2) // 3 + (len(text) - ascii_chars) * 2
+        source = tokens(row.get('source'))
+        translation = tokens(row.get('translation')) or source
+        # Full correction may repeat source excerpts, before/after and six checks.
+        return (120 if stage == 'pilot_review' else 420) + source + 3 * translation + tokens(row.get('exceptions', ''))
+
+    def review_batches(self, rows, config, stage, backend=None):
+        limit = self.review_output_budget(config, stage, backend)
+        batch, output, chars = [], 0, 0
+        record_limit = 40 if stage == 'pilot_review' else config.get('review_batch_records', 80)
+        if stage != 'pilot_review':
+            record_limit = min(record_limit, config.get('batch_records', 80))
+        for row in rows:
+            estimate = self.estimate_review_output(row, stage)
+            if estimate > limit:
+                raise ValueError(f'Review output budget too small for {row["id"]}: estimated {estimate} tokens, budget {limit}; increase output allowance or design an aligned split; no text truncated')
+            size = len(row.get('source', '')) + len(row.get('translation') or '')
+            if batch and (len(batch) >= record_limit or output + estimate > limit or chars + size > config.get('batch_chars', 12000)):
+                yield batch
+                batch, output, chars = [], 0, 0
+            batch.append(row); output += estimate; chars += size
+        if batch:
+            yield batch
+
+    def pilot_review_batches(self, scope, eligible, config):
+        return [batch for group in self.fixed_pilot_batches(scope, eligible, config.get('pilot_batch_count') or 1)
+                for batch in self.review_batches(group, config, 'pilot_review')]
+
+    def pilot_claim_limit(self, db, task, default_limit):
+        grant = self.meta(db, 'pilot_repair_grant', {})
+        if grant and task['id'] in grant.get('task_ids', []):
+            if (grant.get('additional_calls') != 2 or not grant.get('authorization', {}).get('human_answer')
+                    or set(json.loads(task['ids'])) != set(grant['record_ids'])):
+                raise ValueError('Repair task exceeds human-authorized record scope/budget')
+            return grant['baseline_spent'] + grant['additional_calls']
+        return default_limit
+
     def pilot_spent(self, db):
         # Retries and obsolete revisions count. Scheduling/style changes do not refresh
         # the calibration budget. Legacy runs start counting when this policy is enabled.
@@ -138,23 +247,39 @@ class QualityMixin:
             selected = self.pilot_ids(db, rows, config)
             scope = [r for r in rows if r['id'] in selected]
             count = config.get('pilot_batch_count') or 1
-            untranslated = [r for r in scope if r['stage'] not in ('pilot_translate', 'pilot_review')]
-            unreviewed = [r for r in scope if r['stage'] != 'pilot_review']
+            approved = self.pilot_approved(db, config)
+            untranslated = [] if approved else [r for r in scope if r['stage'] not in ('pilot_translate', 'pilot_review')]
+            unreviewed = [] if approved else [r for r in scope if r['stage'] != 'pilot_review']
             translate = sum(bool(g) for g in self.fixed_pilot_batches(scope, untranslated, count))
-            review = sum(bool(g) for g in self.fixed_pilot_batches(scope, unreviewed, count))
+            review = len(self.pilot_review_batches(scope, unreviewed, config))
             pending = db.execute('SELECT stage,payload FROM tasks WHERE revision=? AND status IN ("pending","failed") '
                                  'AND stage IN ("pilot_translate","pilot_review")', (self.meta(db, 'revision'),)).fetchall()
             translate = max(translate, sum(t['stage'] == 'pilot_translate' for t in pending))
             review = max(review, sum(t['stage'] == 'pilot_review' for t in pending))
-            maximum = max((sum(len(x) for x in prompt(json.loads(t['payload']))) for t in pending), default=0)
+            self.allocation_tables(db)
+            maximum = db.execute('SELECT coalesce(max(max(a.input_chars,a.compact_chars)),0) '
+                                 'FROM task_allocations a JOIN tasks t ON t.id=a.task_id '
+                                 'WHERE t.revision=? AND t.status IN ("pending","failed") '
+                                 'AND t.stage IN ("pilot_translate","pilot_review")',
+                                 (self.meta(db, 'revision'),)).fetchone()[0]
             running = db.execute('SELECT count(*) FROM tasks WHERE status="running" AND stage IN ("pilot_translate","pilot_review")').fetchone()[0]
             spent = self.pilot_spent(db); limit = config.get('pilot_call_limit', 6)
+            grant = self.meta(db, 'pilot_repair_grant', {})
+            if grant:
+                limit = grant['baseline_spent'] + grant['additional_calls']
+                repair_tasks = [db.execute('SELECT stage,status FROM tasks WHERE id=?', (i,)).fetchone()
+                                for i in grant['task_ids']]
+                translate = int(not any(t['stage'] == 'pilot_translate' and t['status'] == 'done' for t in repair_tasks))
+                review = int(not any(t['stage'] == 'pilot_review' and t['status'] == 'done' for t in repair_tasks))
+                # In-flight leases already count as spent; reserve only future calls.
+                translate -= int(any(t['stage'] == 'pilot_translate' and t['status'] == 'running' for t in repair_tasks))
+                review -= int(any(t['stage'] == 'pilot_review' and t['status'] == 'running' for t in repair_tasks))
             return {'sample_records': len(scope), 'translated_records': len(scope) - len(untranslated),
                     'reviewed_records': len(scope) - len(unreviewed), 'translation_batches': translate,
                     'review_batches': review, 'executions_used': spent, 'execution_limit': limit,
                     'running_tasks': running, 'maximum_prepared_input_chars': maximum,
-                    'within_budget': spent + translate + review <= limit and maximum + (128 if maximum else 0) <= config.get('task_input_chars', 48000),
-                    'note': 'No agent spawned; all claims/retries after policy activation count across revisions.'}
+                    'within_budget': spent + translate + review <= limit and maximum <= config.get('task_input_chars', 48000),
+                    'note': 'No agent spawned; all claims/retries count across revisions. Explicit repair grant, if present, applies only to its tasks.'}
 
     def reduce_pilot(self, count, reason):
         """Adopt a smaller calibration sample without discarding its accepted work."""
@@ -415,7 +540,12 @@ class QualityMixin:
                       'translation': row['translation'], 'metadata': row['metadata'],
                       'risk_reasons': reasons, 'review': {k: v for k, v in review.items() if k != 'batch_summary'}}
             (risks if reasons else ordinary).append(record)
-        selected = risks + (ordinary if kind == 'pilot' else evenly(ordinary, 20))
+        # Heuristic risk is a reminder for the independent reviewer, not an
+        # unresolved defect and not a reason to purchase another full review.
+        selected = risks + ordinary if kind == 'pilot' else [r for r in risks if r['review'].get('issues')]
+        if kind == 'final':
+            known = self.meta(db, 'sol_pending_findings', {})
+            selected = [r for r in selected if r['id'] not in known]
         groups = defaultdict(list)
         speakers = defaultdict(list)
         for row in rows:
@@ -423,11 +553,11 @@ class QualityMixin:
             if row['metadata'].get('speaker'):
                 speakers[str(row['metadata']['speaker'])].append(row)
         consistency = []
-        for source, group in sorted(groups.items()):
+        for source, group in sorted(groups.items()) if kind == 'pilot' else []:
             if len({r['translation'] for r in group}) > 1:
                 consistency.append({'id': 'C:' + signature(source)[:16], 'kind': 'same_source_multiple_translations',
                                     'source': source, 'records': group})
-        for speaker, group in sorted(speakers.items()):
+        for speaker, group in sorted(speakers.items()) if kind == 'pilot' else []:
             consistency.append({'id': 'S:' + signature(speaker)[:16], 'kind': 'speaker_voice',
                                 'speaker': speaker, 'record_ids': [r['id'] for r in group],
                                 'examples': evenly(group, 12)})
@@ -454,7 +584,8 @@ class QualityMixin:
                                               'polish': config['polish']}),
                   'coverage': {'records': len(rows), 'text_types': dict(Counter(str(r['metadata'].get('text_type', 'unknown')) for r in rows)),
                                'missing_context': sum(not r['metadata'] for r in rows),
-                               'risk_records': len(risks), 'ordinary_sample': len(selected) - len(risks)},
+                               'risk_records': len(risks), 'ordinary_sample': len(selected) - len(risks) if kind == 'pilot' else 0,
+                               'sol_records': len(selected)},
                   'risk_detection': 'Heuristic candidates plus reviewer findings; absence of flags is not proof of correctness.',
                   'records_to_check': [r for r in selected if r['id'] not in reused],
                   'consistency': [r for r in consistency if r['id'] not in reused],
@@ -463,6 +594,13 @@ class QualityMixin:
                                            if kind == 'pilot' and r['id'] not in reused and reviews[r['id']].get('batch_summary') is not None},
                   'check_signatures': signatures, 'reused_decisions': reused,
                   'required_decisions': required}
+        if kind == 'final':
+            report['sol_scope_policy'] = SOL_SCOPE_POLICY
+            report['carried_findings'] = self.meta(db, 'sol_pending_findings', {})
+            report['selection_explanation'] = ('Only explicit unresolved reviewer issues need Sol adjudication. '
+                'Risk flags, corrections, ordinary samples, duplicate-source groups and speaker groups do not trigger Sol. '
+                'Known Sol repair findings are carried to standard repair without re-reading; exhausted or regressing '
+                'repairs use the existing targeted Sol escalation route.')
         report['report_hash'] = signature(report)
         return report
 
@@ -501,6 +639,12 @@ class QualityMixin:
                 report, round_id = self.build_quality_report(db, kind, config), None
             saved = {}
             next_input = None
+            inspection_manifest = None
+            if kind == 'pilot':
+                inspection_manifest = self.write_sol_inputs(report, None, config, kind='pilot')
+                packets = read_json(inspection_manifest)
+                if packets:
+                    next_input = packets[0]['file']
             if round_id is not None:
                 saved = json.loads(db.execute('SELECT decisions FROM sol_review_rounds WHERE id=?', (round_id,)).fetchone()[0])
                 # A compact view of the fixed round scope; its canonical complete
@@ -509,12 +653,15 @@ class QualityMixin:
                           'required_decisions': [i for i in report['required_decisions'] if i not in saved]}
                 for key in ('records_to_check', 'consistency', 'glossary_checks'):
                     report[key] = [i for i in report[key] if i['id'] not in saved]
-                manifest = read_json(self.root / f'reports/sol_rounds/round_{round_id:05d}.inputs.json')
+                inspection_manifest = self.root / f'reports/sol_rounds/round_{round_id:05d}.inputs.json'
+                manifest = read_json(inspection_manifest)
                 for batch in manifest:
                     todo = set(batch['check_ids']) - set(saved)
                     if todo:
                         packet = read_json(batch['file'])
                         packet['checks'] = [i for i in packet['checks'] if i['id'] in todo]
+                        if packet.get('output_template'):
+                            packet['output_template']['decisions'] = [i for i in packet['output_template']['decisions'] if i['id'] in todo]
                         next_input = self.root / f'reports/sol_rounds/round_{round_id:05d}.next.json'
                         write_json(next_input, packet)
                         break
@@ -526,8 +673,10 @@ class QualityMixin:
             return {'report_file': str(path), 'report_hash': report['report_hash'], 'coverage': report['coverage'], 'sol_round': round_id,
                     'status': 'already_approved' if kind == 'final' and round_id is None else 'inspection_open',
                     'remaining_checks': 0 if kind == 'final' and round_id is None else len(report['required_decisions']),
+                    'carried_finding_records': len(report.get('carried_findings', {})),
+                    'next_action': 'sol-round-finish' if kind == 'final' and round_id is not None and not report['required_decisions'] else None,
                     'next_input_file': str(next_input) if next_input else None,
-                    'inspection_manifest': str(self.root / f'reports/sol_rounds/round_{round_id:05d}.inputs.json') if round_id is not None else None}
+                    'inspection_manifest': str(inspection_manifest) if inspection_manifest else None}
 
     def approve_quality(self, kind, decisions):
         from translation_workflow import write_json
@@ -567,6 +716,8 @@ class QualityMixin:
 
     def accept_quality_in_transaction(self, db, kind, report, decisions):
         from translation_workflow import write_json
+        if kind == 'final' and report.get('carried_findings'):
+            raise ValueError('Unresolved carried Sol findings; use sol-round-finish to dispatch targeted repairs')
         receipt = {'report_hash': report['report_hash'], 'snapshot_hash': report['snapshot_hash'],
                    'pilot_key': report['pilot_key'], 'reviewer': 'sol', 'decisions': decisions}
         approvals = self.meta(db, 'quality_approvals', {}); approvals[kind] = receipt
@@ -584,7 +735,7 @@ class QualityMixin:
         report = self.build_quality_report(db, 'final', config)
         receipt = self.meta(db, 'quality_approvals', {}).get('final', {})
         if receipt.get('report_hash') != report['report_hash']:
-            raise ValueError('Current Sol risk/consistency approval required before export')
+            raise ValueError('Current final quality closure required before export; unresolved disputes/findings cannot be skipped')
         return {'report_hash': receipt['report_hash'], 'reviewer': 'sol'}
 
     def reopen_body(self, task_id, reason, record_ids=None):
@@ -638,20 +789,55 @@ class QualityMixin:
             payload.pop('input_hash', None)
             input_hash = signature(payload)
             payload['input_hash'] = input_hash
+            planned = self.plan_task_allocation(db, payload, task['backend'])
             if partial:
-                db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) VALUES (?,?,?,?,?,?,?,"pending",?)',
-                           (task_id, task['stage'], task['revision'], json.dumps([r['id'] for r in payload['records']]),
-                            json.dumps(payload, ensure_ascii=False), input_hash, task['backend'], prior_attempts))
+                allocated = self.allocate_task(db, payload, task['backend'], prior_attempts, planned)
             else:
-                db.execute('UPDATE tasks SET payload=?,input_hash=?,status="pending",lease_token=NULL,lease_until=NULL,ready_at=0,result=NULL,attempt=? WHERE id=?',
-                           (json.dumps(payload, ensure_ascii=False), input_hash, prior_attempts, task_id))
+                if len(planned) == 1:
+                    value, raw_chars, compact_chars = planned[0]
+                    db.execute('UPDATE tasks SET payload=?,input_hash=?,status="pending",lease_token=NULL,lease_until=NULL,ready_at=0,result=NULL,attempt=? WHERE id=?',
+                               (json.dumps(value, ensure_ascii=False), value['input_hash'], prior_attempts, task_id))
+                    self.allocation_tables(db)
+                    db.execute('INSERT OR REPLACE INTO task_allocations VALUES (?,?,?,?,1)',
+                               (task_id, raw_chars, compact_chars, config['task_input_chars']))
+                    allocated = [task_id]
+                else:
+                    db.execute('UPDATE tasks SET status="obsolete" WHERE id=?', (task_id,))
+                    allocated = self.allocate_task(db, payload, task['backend'], prior_attempts, planned)
             approvals = self.meta(db, 'quality_approvals', {})
             approvals.pop('final', None)
             if task['stage'] == 'pilot_review':
                 approvals.pop('pilot', None)
             self.put(db, 'quality_approvals', approvals)
             self.event(db, 'reopen_body', {'task': task_id, 'reason': reason, 'record_ids': sorted(ids)})
-            return {'task_id': task_id, 'repair_records': len(ids), 'preserved_records': len(original_ids - ids)}
+            return {'task_id': allocated[0], 'repair_tasks': allocated, 'repair_records': len(ids), 'preserved_records': len(original_ids - ids)}
+
+    def reopen_body_ids(self, reason, record_ids):
+        """Reopen an explicit, cross-batch set after the prior review round is complete."""
+        with self.db() as db:
+            config = self.config(db)
+            if not nonempty(reason) or not isinstance(record_ids, list) or not record_ids:
+                raise ValueError('A reason and explicit review IDs are required')
+            ids = list(record_ids)
+            if any(not isinstance(record_id, str) or not record_id for record_id in ids) or len(set(ids)) != len(ids):
+                raise ValueError('Review IDs must be unique non-empty strings')
+            rows = {row['id']: row for row in db.execute(
+                'SELECT id,stage FROM records WHERE id IN (' + ','.join('?' for _ in ids) + ')', ids)}
+            if set(rows) != set(ids):
+                raise ValueError('Unknown review ID')
+            if any(row['stage'] != 'review' for row in rows.values()):
+                raise ValueError('Only records with completed full review can be reopened')
+            if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status="running"',
+                          (self.meta(db, 'revision'),)).fetchone():
+                raise ValueError('Finish/recover in-flight tasks before reopening a review')
+            self.require_review_round_complete(db, 'review')
+            self.guard_sol_dispatch(db)
+            tasks, blocked = self.plan_review_repairs(
+                db, config, 'review', {record_id: reason for record_id in ids}, 'reopen-body')
+            self.event(db, 'reopen_body_ids', {'repair_tasks': tasks, 'record_ids': sorted(ids), 'reason': reason})
+            return {'repair_tasks': tasks, 'repair_records': len(ids) - len(blocked),
+                    'needs_attention_ids': blocked,
+                    'preserved_records': db.execute('SELECT count(*) FROM records').fetchone()[0] - len(ids)}
 
     def write_game_check_template(self, export):
         from translation_workflow import write_json

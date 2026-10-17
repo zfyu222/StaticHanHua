@@ -52,15 +52,30 @@ def glossary_rows(analysis):
     return rows
 
 
+_FROZEN_MATCHERS = {}
+
+
+def _frozen_matcher(helper_class):
+    matcher = _FROZEN_MATCHERS.get(helper_class)
+    if matcher is None:
+        # Keep one subclass per helper class so its cached compiled search patterns
+        # are reused across records during full-project validation.
+        class FrozenMatcher(helper_class):
+            @classmethod
+            def unify_term_family_translations(cls, rows, *args, **kwargs):
+                return [dict(row) for row in rows or []]
+
+        matcher = FrozenMatcher
+        _FROZEN_MATCHERS[helper_class] = matcher
+    return matcher
+
+
 def matched_terms(analysis, texts, options):
     h = helper()
     rows = glossary_rows(analysis)
     # Reuse literal/quote/boundary/overlap matching, but frozen rows are authoritative.
     # AINiee's automatic family unification can merge different meanings (Guards/Guard).
-    class FrozenMatcher(h):
-        @classmethod
-        def unify_term_family_translations(cls, rows, *args, **kwargs):
-            return [dict(row) for row in rows or []]
+    FrozenMatcher = _frozen_matcher(h)
 
     matched = FrozenMatcher.collect_matched_rows(rows, {str(i): t for i, t in enumerate(texts)},
                                     case_sensitive=options['case_sensitive'],
@@ -168,10 +183,24 @@ def structural_issues(source, translation, rules):
         issues.append('empty_translation')
     if not source.strip() and translation.strip():
         issues.append('invented_translation_for_blank_source')
+    source_edges = (len(source) - len(source.lstrip(' \t')),
+                    len(source) - len(source.rstrip(' \t')))
+    translation_edges = (len(translation) - len(translation.lstrip(' \t')),
+                         len(translation) - len(translation.rstrip(' \t')))
+    if source_edges != translation_edges:
+        issues.append('boundary_whitespace')
     for name, pattern in rules:
         # finditer.group(0), not findall: captures in format patterns are not the full tag.
-        if Counter(m.group(0) for m in pattern.finditer(source)) != Counter(
-                m.group(0) for m in pattern.finditer(translation)):
+        originals = Counter(m.group(0) for m in pattern.finditer(source))
+        destination_pattern = pattern
+        # Identifier boundaries describe Latin variable keys, not translated prose.
+        # Unicode \b otherwise loses intact XX/RationsLost when Chinese touches it.
+        # Keep source discovery and non-identifier/Unicode exclusion rules unchanged.
+        if (name.startswith('exclusion_') and '\\b' in pattern.pattern and pattern.pattern.isascii()
+                and '(?u' not in pattern.pattern
+                and all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', token) for token in originals)):
+            destination_pattern = re.compile(pattern.pattern, (pattern.flags & ~re.UNICODE) | re.ASCII)
+        if originals != Counter(m.group(0) for m in destination_pattern.finditer(translation)):
             issues.append(name)
     if re.findall(r'\r\n|\r|\n', source) != re.findall(r'\r\n|\r|\n', translation):
         issues.append('physical_newlines')

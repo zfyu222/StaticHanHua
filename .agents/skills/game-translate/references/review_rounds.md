@@ -8,6 +8,8 @@
 
 batch-finish 只检查版本、ID、字段类型、身份与锁定约束，然后保存该批候选、证据及实际审校者。此时 records 中的正式译文及审校阶段不变化；不能拿候选数宣称全量语义审校通过。完成通知后继续领取本轮剩余任务，不插入质量修复。
 
+任务分配阶段会计算完整输入并自动拆批；旧审校任务需要显式重新分配时，可用 `batch-split --task <task_id>` 按完整输入包及预计输出预算拆分。该命令只接受当前 revision 中未尝试、无交接、仍待办的 pilot_review/review/final_review 首轮或修复任务；它保留每个失败 ID、诊断、证据、修复约束和计数，先确认所有子包都在预算内，再将原任务标记为 obsolete 并创建子任务。回执会列出各子包的 ID 数和字符数；不截断证据、不重跑已完成条目。已领取或有交接记录的任务不能拆分。
+
 ```powershell
 & $python $flow --project $project review-scan --stage review --prepare-repairs
 ```
@@ -16,11 +18,15 @@ batch-finish 只检查版本、ID、字段类型、身份与锁定约束，然�
 
 下一轮仍等全部批次完成，再统一 review-scan；已通过且未改变的条目不重审、不改写。常规修复与任务重试分开计数；最多 6 轮后仍失败自动升级新的 Sol 子代理，不再请求追加轮次。只有锁定冲突等实际阻塞进入 needs_attention_ids。reports/review_rounds/ 保存逐轮检查 ID、诊断、实际审校实例、通过结果与下一轮任务；最新摘要是 reports/review_round_status.json。
 
+修复轮与首轮沿用同一已核实的 game_background 和 style，不能因进入修复而丢失题材背景。新修复任务保存背景，旧修复任务重新生成输入包时从当前已验证运行补充背景，不改写任务哈希或在途输入；补充后的完整输入仍受预算和 batch-split 检查。语义 reason、issues[].reason 及例外撤销理由必须是非空字符串，null、数字或对象不能当作审校依据。空原文或仅含空白的原文可以使用空 source_excerpt，实际换行/控制符保护仍严格检查。
+
 启用润色时 final_review 同样执行 review-scan --stage final_review --prepare-repairs。独立性、证据、术语及导出门槛均保留。旧版已经严格验收的审校结果沿用；旧版最新被当批检查拒绝的候选可重新 batch-finish 保存，不覆盖后续或在途交接、不重置译文。
 
 ## Sol 固定范围检查轮
 
-独立审校 clean 后 quality-report --kind final 开启本轮 Sol 检查。范围包括高风险文本、普通抽样及跨批一致性，保留独立审校证据；不是让 Sol 再逐条翻译或审校全文。reports/sol_rounds/ 下归档固定报告，并按 review_batch_records 和 task_input_chars 拆成检查输入包。返回 inspection_manifest；单个超长项不截断，需按原文件完整核对，不能假装已读。
+独立审校 clean 后 quality-report --kind final 只收集审校结果中明确遗留的 issues，供 Sol 裁决。Sol 定位为高质量、高成本的难题处理者，不能按数字、否定、变量、术语例外、历史改动、普通抽样、同源多译或角色口吻分组自动扩大范围；这些不是未解决问题。已修正且通过独立复查的记录不再进入 Sol。reports/sol_rounds/ 归档固定报告和争议输入包，返回 inspection_manifest。实际仍失败的条目按下方多轮升级机制交新 Sol 子代理定向修复；主对话不承担大批逐项复审。
+
+旧大范围 Sol 轮在下一次 quality-report 时自动 supersede；保留原始报告、实际通过结论和已发现的问题。通过结论按未变的内容签名复用；已有 repair 结论成为 carried_findings，交下一轮定向修复，不让 Sol 重读、不丢弃或自动批准。新 report_hash 拒绝旧输入继续落盘。carried_findings 不为空时不能直接 approve/export；全部争议结论齐备后用 sol-round-finish 集中派修，任务持久化后才移交该问题责任。没有争议也没有遗留问题时 remaining_checks=0、next_action=sol-round-finish，程序关闭质量阶段，不需要编造逐项通过记录。试译范围及验收不变。
 
 Sol 可以分包检查、分次落盘，但整轮范围与 report_hash 固定。优先读取返回的 next_input_file，它只包含下一包仍待查的项，避免重新阅读已记录内容。所有结论必须实际阅读依据后给出；不由程序自动填充通过。记录结果使用：
 
@@ -40,7 +46,7 @@ disposition 可为 pass/contextual/repair。一致性组提出 repair 时必须�
 & $python $flow --project $project sol-round-finish
 ```
 
-程序拒绝缺少任何本轮结论时关闭或派修，检查期间也拒绝用 reopen-body 逐条插入修复。全部结论齐备后，集中保留通过结论、合并问题 ID，创建一整轮子代理审校修复任务；各批仍只保存候选，必须全部结束再 review-scan。问题处理完成后重新 quality-report，只检查变化条目及受影响的一致性项，通过结论按内容签名复用。
+程序拒绝缺少任何本轮争议结论时关闭或派修，检查期间也拒绝用 reopen-body 逐条插入修复。全部结论齐备后，集中保留通过结论、合并问题 ID 和 carried_findings，创建一整轮子代理审校修复任务；各批仍只保存候选，必须全部结束再 review-scan。问题处理完成后重新 quality-report，只处理仍然明确遗留的争议，通过结论按内容签名复用；不能仅因译文发生过修改而重派 Sol。
 
 当整轮所有结论都是 pass/contextual 时，sol-round-finish 才批准最终验收。一次提交完整通过文件的 approve-quality --kind final 仍兼容，但必须覆盖整轮且不能绕过已记录的 repair 问题。当前报告已经批准时返回 already_approved，不开始重复检查轮。export 仍执行完整交付门槛；实机检查在回填后完成。
 
@@ -57,3 +63,17 @@ disposition 可为 pass/contextual/repair。一致性组提出 repair 时必须�
 已有 exceptions 默认继承，返回时省略或 [] 不清除；补充或修订按 source 合并，撤销必须提供 exception_changes=[{source,action:"remove",reason:"原文依据"}]。程序不判断例外语义为真，仍保留独立审校与 Sol 验收。批次保存、直接 submit、草稿原始候选及逐条身份日志沿用同一合并规则。
 
 仅在整轮统一复查时对比修复前后，记录 regressed_terms 和具体诊断；通过一个术语却丢失另一个也算回退。相同条目在同阶段两次回退后，自动提前进入 Sol 修复队列（required_model），不等 6 轮、不询问追加授权。标准和 Sol 条目分批派发。计数以任务去重，重复读取报告不增加次数；仍只检查本轮影响 ID，不插入当批检查，不扩大到全文。Sol 结合语境排查词义冲突，不允许用删检查或无依据例外提高通过率。
+
+## 修复计数与停止条件
+
+普通修复按语句 ID 跨 translate、review、final_review 和所有 revision 累计，最多 6 轮后升级 Sol；同一任务的格式/传输重试不增加修复轮数。修复任务标记 repair_budget_scope=record。历史任务和旧阶段计数作为下限保留，已完成任务即使被标记 obsolete 也计入，不因 configure、拆批或换阶段刷新。
+
+Sol 修复默认累计最多 3 轮（sol_repair_round_limit），同一条目连续 2 轮 Sol 检查得到相同的未解决诊断（sol_no_progress_limit）也停止该条自动派发。停止按条目生效，其他条目继续；通过项不返工。报告返回 needs_attention_ids、repair_stop_reasons（sol_round_limit / sol_no_progress），保留候选、证据及计数，不能批准或导出未解决问题。主流程应核对原文、术语语境和校验规则根因，不通过改任务 ID 或调整配置重置预算。配置修改不清除停止历史；确有规则缺陷应修正规则并复核保存的候选，通过后再继续，不能机械追加模型轮次。
+
+## 审校输出预算
+
+review_batch_records=80 是独立条数上限，审校不再按翻译条数直接合批。review_output_tokens 默认 16384；API 阶段取其与 api.max_completion_tokens（默认 8192）的较小值，再预留 20%。程序根据原译文、可能的完整前后修订、摘录和六维证据估计输出，按预算提前拆批。估算不是精确 tokenizer，不保证模型绝不截断；不得为满足预算截断原文或审校证据。
+
+正文审校、复审及其修复采用相同预算；试译审校按精简协议单独估算，仍最多 40 条且总领取预算保持 12 次，pilot-plan 计入拆分后的审校批数。单条超限时在创建任务前明确报错，需调整输出额度或设计保留 ID 对齐的切分。完整输入和预计输出预算统一在分配阶段检查并自动拆批，claim/batch-open 领取时不再重算或校验字符/输出预算。prepare 会按同一规则重新分配尚未尝试的旧待办任务；可用 batch-split 显式拆分当前 revision 中尚未尝试、无交接的 pilot_review/review/final_review 任务（首轮和修复均支持），同时满足输入与输出预算，保留 ID、修复计数及证据。已领取的任务不能拆分。
+
+Sol 裁决输入包同样先完成完整文件大小检查和自动分包，附有 report_hash 与检查 ID 预填的输出模板；单项超限在分配时停止，不生成 over_budget=true 的包。已保存的裁决不重做，next_input_file 同时过滤已完成检查和对应模板项。

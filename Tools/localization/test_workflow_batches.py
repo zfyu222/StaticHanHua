@@ -119,6 +119,103 @@ class BatchTests(unittest.TestCase):
         finished = self.flow.batch_many('finish', [session['session_id'], 'unknown-session'])
         self.assertEqual([r['status'] for r in finished], ['submitted', 'needs_attention'])
 
+    def test_oversized_pending_review_repair_splits_with_exact_id_and_attempt_preservation(self):
+        with self.flow.db() as db:
+            self.flow.review_tables(db)
+            source_rows = [dict(r) for r in db.execute('SELECT * FROM records ORDER BY ordinal LIMIT 2')]
+            task_id = 'review-round-oversized'
+            records = []
+            for row in source_rows:
+                records.append({'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
+                    'translation': '候选译文', 'locked': False, 'metadata': {}, 'protection': [],
+                    'repair_constraints': {'diagnostic': '需保留'}, 'diagnostic': '证据' * 7000,
+                    'candidate': {'translation': '候选译文'}})
+            payload = {'task_id': task_id, 'stage': 'review', 'revision': self.flow.meta(db, 'revision'),
+                'source_hash': self.flow.meta(db, 'source_hash'), 'review_round': 1,
+                'review_repair_origin': 'review-scan', 'repair_tier': 'standard', 'required_model': None,
+                'repair_counts': {row['id']: 1 for row in records}, 'language': {'source': '英语', 'target': '简体中文'},
+                'style': '忠实准确', 'context': [], 'game_background': '', 'glossary_version': self.flow.meta(db, 'glossary'),
+                'records': records, 'terms': [], 'revision_request': '只修本条诊断问题。'}
+            payload['input_hash'] = workflow.fingerprint(payload)
+            db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) '
+                       'VALUES (?,?,?,?,?,?,?,"pending",0)',
+                       (task_id, 'review', payload['revision'], workflow.encoded([row['id'] for row in records]),
+                        workflow.encoded(payload), payload['input_hash'], 'codex'))
+            for original, candidate in zip(source_rows, records):
+                item = {'id': candidate['id'], 'translation': '候选译文'}
+                db.execute('INSERT INTO review_candidates VALUES (?,?,?,?,?,? ,"failed",?)',
+                    (candidate['id'], 'review', 'review-origin', workflow.encoded(item),
+                     workflow.encoded({'source': original['source'], 'translation': original['translation']}),
+                     'independent-reviewer', 'synthetic oversized review failure'))
+
+        split = self.flow.batch_split(task_id)
+        self.assertEqual(split['status'], 'split')
+        self.assertEqual(split['records'], 2)
+        self.assertTrue(all(child['input_chars'] <= split['input_limit_chars'] for child in split['children']))
+        self.assertEqual([i for child in split['children'] for i in child['record_ids']], [r['id'] for r in records])
+        self.assertEqual([child['records'] for child in split['children']], [1, 1])
+        with self.flow.db() as db:
+            parent = db.execute('SELECT status,attempt FROM tasks WHERE id=?', (task_id,)).fetchone()
+            children = [db.execute('SELECT * FROM tasks WHERE id=?', (child['task_id'],)).fetchone()
+                        for child in split['children']]
+        self.assertEqual(tuple(parent), ('obsolete', 0))
+        for child, receipt in zip(children, split['children']):
+            payload = json.loads(child['payload'])
+            self.assertEqual(json.loads(child['ids']), receipt['record_ids'])
+            self.assertEqual(payload['repair_counts'], {receipt['record_ids'][0]: 1})
+            self.assertEqual(payload['records'][0]['diagnostic'], '证据' * 7000)
+            self.assertEqual(child['status'], 'pending')
+            self.assertEqual(child['attempt'], 0)
+
+    def test_oversized_sol_carried_finding_can_split_after_review_candidate_passed(self):
+        with self.flow.db() as db:
+            self.flow.review_tables(db)
+            source_rows = [dict(r) for r in db.execute('SELECT * FROM records ORDER BY ordinal LIMIT 2')]
+            task_id = 'review-round-sol-oversized'
+            records = []
+            for row in source_rows:
+                records.append({'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
+                    'translation': '候选译文', 'locked': False, 'metadata': {}, 'protection': [],
+                    'repair_constraints': {}, 'diagnostic': 'Sol遗留问题' * 5000,
+                    'candidate': None})
+            payload = {'task_id': task_id, 'stage': 'review', 'revision': self.flow.meta(db, 'revision'),
+                'source_hash': self.flow.meta(db, 'source_hash'), 'review_round': 2,
+                'review_repair_origin': 'sol-round-2', 'repair_tier': 'standard', 'required_model': None,
+                'repair_counts': {row['id']: 1 for row in records}, 'language': {'source': '英语', 'target': '简体中文'},
+                'style': '忠实准确', 'context': [], 'game_background': '', 'glossary_version': self.flow.meta(db, 'glossary'),
+                'records': records, 'terms': [], 'revision_request': '只修本条Sol裁定的问题。'}
+            payload['input_hash'] = workflow.fingerprint(payload)
+            db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) '
+                       'VALUES (?,?,?,?,?,?,?,"pending",0)',
+                       (task_id, 'review', payload['revision'], workflow.encoded([row['id'] for row in records]),
+                        workflow.encoded(payload), payload['input_hash'], 'codex'))
+            for original, candidate in zip(source_rows, records):
+                item = {'id': candidate['id'], 'translation': '候选译文'}
+                db.execute('INSERT INTO review_candidates VALUES (?,?,?,?,?,? ,"passed",NULL)',
+                    (candidate['id'], 'review', 'review-origin', workflow.encoded(item),
+                     workflow.encoded({'source': original['source'], 'translation': original['translation']}),
+                     'independent-reviewer'))
+
+        split = self.flow.batch_split(task_id)
+        self.assertEqual(split['status'], 'split')
+        self.assertEqual(split['records'], 2)
+        self.assertEqual([child['records'] for child in split['children']], [1, 1])
+        self.assertTrue(all(child['input_chars'] <= split['input_limit_chars'] for child in split['children']))
+
+    def test_old_untouched_initial_review_can_split_on_output_budget_without_spending_attempts(self):
+        self.f.translate()
+        self.flow.prepare('review')
+        with self.flow.db() as db:
+            task = db.execute('SELECT * FROM tasks WHERE stage="review" AND status="pending" ORDER BY id').fetchone()
+            task_id, ids = task['id'], json.loads(task['ids'])
+        original_config = self.flow.config
+        with patch.object(self.flow, 'config', side_effect=lambda db: {**original_config(db), 'review_output_tokens': 800}):
+            split = self.flow.batch_split(task_id)
+        self.assertEqual([i for child in split['children'] for i in child['record_ids']], ids)
+        with self.flow.db() as db:
+            self.assertEqual(db.execute('SELECT attempt FROM tasks WHERE id=?', (task_id,)).fetchone()[0], 0)
+            self.assertEqual(db.execute('SELECT count(*) FROM quality_attempts WHERE task_id=?', (task_id,)).fetchone()[0], 0)
+
     def test_unrelated_id_and_second_repair_are_rejected(self):
         session = self.strict_session('writer')
         result = self.result(session)
@@ -140,6 +237,31 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(self.flow.batch_finish(directed['session_id'])['status'], 'submitted')
         with self.flow.db() as db:
             self.assertEqual(db.execute('SELECT attempt FROM tasks WHERE id=?', (session['task_id'],)).fetchone()['attempt'], 3)
+
+    def test_reliability_repair_is_split_before_dispatch_and_merges_after_all_parts(self):
+        session = self.strict_session('split-source-worker')
+        bad = self.result(session)
+        for item in bad['records']:
+            item['translation'] = ''
+        self.write_result(session, bad)
+        self.assertEqual(self.flow.batch_finish(session['session_id'])['status'], 'repair_required')
+        with self.flow.db() as db:
+            db.execute('UPDATE batch_items SET error=? WHERE task_id=? AND valid=0',
+                       ('diagnostic ' * 400, session['task_id']))
+            config = self.flow.config(db)
+        with patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': 16000}):
+            first = self.flow.batch_repair(session['session_id'], 'split-fix-a')
+            self.assertEqual(first['repair_parts'], 2)
+            self.assertLessEqual(first['input_chars'], 16000)
+            self.write_result(first, self.result(first))
+            receipt = self.flow.batch_finish(first['session_id'])
+            self.assertEqual(receipt['status'], 'repair_part_saved')
+            second = self.flow.batch_repair(session['session_id'], 'split-fix-b')
+            self.assertLessEqual(second['input_chars'], 16000)
+            self.write_result(second, self.result(second))
+            self.assertEqual(self.flow.batch_finish(second['session_id'])['status'], 'submitted')
+        with self.flow.db() as db:
+            self.assertEqual(db.execute('SELECT attempt FROM tasks WHERE id=?', (session['task_id'],)).fetchone()[0], 2)
 
     def test_review_provenance_is_per_record_after_repair(self):
         self.f.translate()
@@ -279,6 +401,15 @@ class LargeBatchTest(unittest.TestCase):
 
 
 class FrozenMatcherTests(unittest.TestCase):
+    def test_compiled_patterns_are_reused_between_record_checks(self):
+        helper = workflow.bridge.helper()
+        helper.build_search_pattern.cache_clear()
+        glossary = {'characters': [], 'terms': [
+            {'source': 'cache-token', 'recommended_translation': '缓存词'}], 'non_translate': []}
+        workflow.bridge.matched_terms(glossary, ['cache-token'], workflow.DEFAULT)
+        workflow.bridge.matched_terms(glossary, ['unrelated text'], workflow.DEFAULT)
+        self.assertEqual(helper.build_search_pattern.cache_info().misses, 1)
+
     def test_matching_does_not_unify_distinct_frozen_translations(self):
         glossary = {'characters': [], 'terms': [
             {'source': 'Guard', 'recommended_translation': '守卫', 'category_path': '身份'},
