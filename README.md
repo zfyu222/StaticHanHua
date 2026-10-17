@@ -30,6 +30,7 @@
 | 百度网盘 MCP | Python 3.12 | `cd Tools/baidu-netdisk-mcp`; 按其 `pyproject.toml` 创建虚拟环境并安装项目依赖 |
 | dnSpy | .NET 5 SDK/Desktop Runtime | `dotnet build Tools/dnSpy-source/dnSpy/dnSpy.Console/dnSpy.Console.csproj -f net5.0-windows` |
 | UABEA | .NET SDK 8 | `dotnet build Tools/UABEA/UABEAvalonia/UABEAvalonia.csproj -c Release` |
+| REA + Ghidra | Node.js、Ghidra、JDK 21 | 源码子模块 `Tools/REA/source`（`zfyu222/rea`）；运行依赖安装和 CLI/MCP 入口见 [REA 工具说明](Tools/REA/README.md) |
 | BepInEx / XUnity.AutoTranslator | Visual Studio 或匹配的 .NET SDK | 仅在需要重新构建插件时打开各自的 `.sln` 并按上游说明构建 |
 
 4. 构建 AINiee 后，可从根目录运行 `startAINiee.bat`。

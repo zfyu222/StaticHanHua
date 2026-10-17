@@ -13,6 +13,7 @@
 | `dnSpy-source` | `dnSpy/dnSpy` | `zfyu222/dnSpy` | `dnSpy.Console/Program.cs` |
 | `UABEA` | `nesrak1/UABEA` | `zfyu222/UABEA` | `CommandLineHandler.cs`、`Program.cs`、`AssetContainer.cs`、`AssetWorkspace.cs` |
 | `XUnity.AutoTranslator` | `bbepis/XUnity.AutoTranslator` | `zfyu222/XUnity.AutoTranslator` | 无 |
+| `REA/source` | `morluto/rea` | `zfyu222/rea` | 无；固定到 `rea-agents-6.4.0` |
 
 `dnSpy-source` 含上游子模块；初始化本工作区时使用 `git submodule update --init --recursive`，以获取这些嵌套依赖。
 
@@ -30,7 +31,7 @@
 - 百度网盘 MCP：多个 Python `__pycache__/` 文件；其中部分目前被上游历史追踪，迁移时不得纳入自定义提交。
 - dnSpy：`Tools/dnSpy-net-win64/` 是预编译运行目录，不是源码 fork。
 - UABEA、BepInEx、XUnity.AutoTranslator：仓库内可能有上游已追踪的第三方 DLL；不要为“清理编译产物”而删除上游已追踪文件。
-- REA：`Tools/REA/` 保存 npm manifest/lock 和启动脚本，发布包装在 `node_modules/`；独立 Node 运行时在 `runtime/`。Ghidra、JDK 分别放在 `Tools/Ghidra/`、`Tools/Java/`，这些本地依赖均不入库。安装版本和校验值见 [REA 工具说明](Tools/REA/README.md)。
+- REA：源码由 `Tools/REA/source/` 子模块管理，origin 为 `zfyu222/rea`，upstream 为 `morluto/rea`。`Tools/REA/` 保存框架集成用的 npm manifest/lock 和启动脚本，匹配版本的发布包装在 `node_modules/`；独立 Node 运行时在 `runtime/`。Ghidra、JDK 分别放在 `Tools/Ghidra/`、`Tools/Java/`，这些本地依赖均不入库。源码固定版本与 npm 版本应同步更新；安装版本和校验值见 [REA 工具说明](Tools/REA/README.md)。
 
 ## 验证
 

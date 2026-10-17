@@ -2,6 +2,16 @@
 
 StaticHanHua 的原生逆向工具链。CLI 入口 `rea.ps1`；MCP 注册在工作区 `.mcp.json` 和 `.codex/config.toml`，固定选择 Ghidra。
 
+## 源码子模块
+
+REA 与其他工具一样由 Git submodule 管理源码：目录 `Tools/REA/source/`，fork 为 [zfyu222/rea](https://github.com/zfyu222/rea)，上游为 [morluto/rea](https://github.com/morluto/rea)。当前固定到 `rea-agents-6.4.0`（`a56f7bb668ab23fec8d33f7af353ac7ed2fe1895`），与下方 npm 运行版本一致。
+
+```powershell
+git submodule update --init --recursive -- Tools/REA/source
+```
+
+`source/` 保存上游源码；本目录的启动脚本、npm manifest/lock 和说明由框架仓库维护。实际 CLI/MCP 使用 npm 发布包，保留已安装的 Windows 原生组件；初始化子模块后仍需按下文安装运行依赖。更新 REA 时同步源码子模块指针与 npm 锁定版本。
+
 ## 已安装版本
 
 | 组件 | 版本 | 本地位置 |

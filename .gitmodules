@@ -19,3 +19,6 @@
 [submodule "Tools/XUnity.AutoTranslator"]
 	path = Tools/XUnity.AutoTranslator
 	url = https://github.com/zfyu222/XUnity.AutoTranslator.git
+[submodule "Tools/REA/source"]
+	path = Tools/REA/source
+	url = https://github.com/zfyu222/rea.git
