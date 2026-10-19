@@ -4,6 +4,15 @@
 
 本项目是游戏汉化工作区，用于对各类游戏进行静态汉化（反编译、文本提取、翻译、回填）。
 
+## 跨 Agent 工具兼容
+
+本工作流以 Codex 为基准编写。其他 Agent 工具（如 CodeBuddy、Claude Code 等）遇到无法直接支持的描述时，可按以下原则选择类似的处理方式：
+
+- 流程目标、阶段边界、质量标准和产物格式保持不变，只替换执行手段。
+- 子代理模型绑定、`fork_turns`、原生完成事件等 Codex 专属调度机制，改用该工具自身的子任务/并行机制或程序化执行；无法替代时降级为串行或 API 执行，并在交付说明中注明。
+- 工具专属配置（如 `.codex/config.toml`）对应到该工具的等价配置入口（如 `.mcp.json`），保持相同语义。
+- 不能等价实现的部分须明确告知用户差异，不得默认已按原描述完成。
+
 ## 目录结构
 
 ```
@@ -15,7 +24,7 @@ StaticHanHua/
 │       ├── .git/      # 该游戏的独立 git 仓库（由 start-translate 初始化，仅管汉化工程）
 │       ├── {gamename}_text.csv            # 第1步：提取的待翻译文本（1列，1个文本1行）
 │       ├── {gamename}_text_translated.csv # 第2步：翻译完成后的文本（对应原文逐行翻译）
-│       └── *.csv / *.txt                  # 其他中间文件
+│       └── TranslateFiles/               # 翻译配置、术语、任务、报告、缓存等中间产物
 │
 ├── Tools/             # 工具集
 │   ├── AINiee/        # AI 翻译工具（主翻译引擎）
@@ -28,7 +37,7 @@ StaticHanHua/
 └── .mcp.json          # MCP 服务器配置（含 REA + Ghidra MCP）
 ```
 
-## 汉化流程（三步走）
+## 汉化流程（四步走）
 
 ### 第 1 步：提取文本（解包）
 
@@ -55,13 +64,19 @@ StaticHanHua/
 
 ### 第 2 步：翻译
 
-> 使用 `game-translate` Skill 分析原文占位符、生成 AINiee 配置（禁翻表/自动占位）与操作文档 `TranslateDoc.md`，并在译后校验修复占位符破坏问题。
+> 使用 `game-translate` Skill 完成翻译阶段。保留 AINiee 工作流，也可选择自定义工作流；自定义可用 Codex 子代理或 API 程序执行。内部规则与工具见该技能，不在基础文档展开。
+
+开发、诊断或优化翻译流程本身时，使用 `translation-workflow-dev` Skill，遵循减少 API 模型机械负担、优先简单有效方案及基于数据验证的原则；实际翻译继续使用 `game-translate`。
+
+自定义的 SubAgent 与 API 共用同一份流程规范、任务输入产出及批次程序，以现有 SubAgent 规范为准；API 只作单次请求，由程序解析回复并落盘。升级修复可强制使用 Sol SubAgent，共同规则统一在 `game-translate` 技能及共用程序中维护。
+
+首次执行让用户选择工作流，已明确选择直接沿用。源文和正式译文在项目根目录；所有翻译中间产物统一放 `TranslateFiles/`，包括 `TranslateDoc.md`、配置、术语审校、任务、结果、报告、缓存与备份。
 
 | 项目 | 说明 |
 |------|------|
 | **输入** | `{gamename}_text.csv`（1 列，逐行原文） |
 | **输出** | `{gamename}_text_translated.csv`（逐行译文，与原文一一对应） |
-| **方式** | 手动翻译 / AiNiee AI 翻译 / 混合 |
+| **方式** | AINiee 工作流 / 自定义工作流（Codex 子代理或 API） / 手动翻译 |
 | **AI 接口** | DeepSeek（推荐）、OpenAI、Anthropic、Google 等 |
 
 **翻译流程**：
@@ -69,13 +84,16 @@ StaticHanHua/
 2. 若使用 AI 辅助翻译（AiNiee）：
    - 启动 AINiee：`cd Tools\AINiee && .\venv\Scripts\python.exe AiNiee.py`
    - 在「接口管理」中添加并激活 API（如 DeepSeek）
-   - 将 `{gamename}_text.csv` 拖入输入框，设置源语言/目标语言
+   - 新项目导入 `TranslateFiles/source/{gamename}_text.csv` 源文快照，设置源语言/目标语言；既有项目沿用已保存的缓存与进度
+   - 先提取项目术语（全文分析），完成下面的固定术语审校步骤并应用审校版
    - 点击「开始翻译」
 3. 翻译完成后将译文保存为 `{gamename}_text_translated.csv`，与原文逐行一一对应。
 
+**共同要求**：正文前先完成全文术语整理与语义审校，再冻结使用；程序检查通过不等于语义审校完成。两种工作流都需保护占位符并完成译后校验。具体内部阶段、调度、缓存与修复规则由 `.agents/skills/game-translate/` 维护。缓存、备份和凭据不入库。
+
 **翻译过程中**：如果有需要注意的信息（字体选择、术语表、特殊语境说明、文本分组等），补充到 `README.md` 中，供打包阶段参考。
 
-**完成后必须**：将翻译方式、占位符/禁翻表、校验结果写入 `README.md` 的「翻译」节，并提交 git（`git add {gamename}_text_translated.csv README.md TranslateDoc.md && git commit`）。
+**完成后必须**：将翻译方式、占位符/禁翻表、校验结果写入 `README.md` 的「翻译」节，并提交 git（`git add {gamename}_text_translated.csv README.md TranslateFiles/TranslateDoc.md && git commit`）。
 
 ### 第 3 步：打包回填
 
@@ -92,6 +110,20 @@ StaticHanHua/
 - **插件注入**：使用 BepInEx 等框架动态注入翻译，不修改原文件，兼容性好
 
 **完成后必须**：将回填所用的技术栈、工具版本、验证结果、已知问题写入 `README.md`，并提交 git（`git add README.md && git commit`；汉化产物视体积决定是否入库，`Game/` 永不提交）。
+
+### 第 4 步：对外发布补丁
+
+> 使用 `game-release-patch` Skill 将已验证的汉化成果制作成可分发的 ZIP 补丁。
+
+- **输出目录**：`Projects/{GameName}/Dispatch/`
+- **ZIP 命名与版本**：固定为 `{游戏名}_子非鱼汉化{版本号}.zip`。首次发布为 `1.0`；以后每次对外发布取现有最高版本加 `0.1`。补丁标题同步使用版本号，默认 `《{游戏名}》子非鱼AI汉化补丁 v{版本号}`。
+- **补丁结构**：游戏根目录相对路径的补丁载荷 + 根目录 `补丁说明.txt` + `PATCH_MANIFEST.json` + `SHA256SUMS.txt`
+- **压缩前载荷**：将本次发布的文件按游戏根目录相对路径复制到 `Dispatch/Files/`，确认无误后只从该目录生成 ZIP。
+- **补丁说明**：标题必须包含「子非鱼AI汉化」，并写明介绍、覆盖范围、支持的游戏版本和平台、汉化日期、AI 汉化提示、安装/卸载方法、验证结果与已知问题。
+- **后续更新提醒**：发布说明必须提醒玩家「补丁后续可能会更新，建议关注或订阅本项目的 GitHub 仓库 / Releases，及时获取新版补丁」。已有公开链接时附上对应链接，不编造地址。
+- **更新日志**：首次发布在说明书末尾记录 `v1.0：首次发布`；每次升级必须把本版更新内容追加到说明书末尾，保留历次记录。
+- **安全边界**：不得打包 `Game/`、游戏本体、原始可分发资源、密钥或开发日志；仅包含玩家安装补丁所需的文件。
+- **完成后必须**：在项目 `README.md` 的「对外发布」节记录补丁名称、支持版本、载荷、验证结果与已知问题，并提交文档（大体积 ZIP 和二进制产物默认不入库）。
 
 ## 工具分类
 
@@ -237,20 +269,6 @@ StaticHanHua/
   - 虚拟环境：`Tools/AINiee/venv/`（Python 3.12，已安装所有依赖包括 babeldoc）
   - 包含 `StevExtraction/` 子工具用于 RPG Maker 游戏文本提取
 
-### 插件注入 / 运行时翻译工具（备用）
-
-> 第 3 步回填时若不便直接改游戏文件，可改用插件注入：通过 BepInEx 加载 XUnity.AutoTranslator，运行时拦截并替换 Unity 文本，不改动原文件。两者均从源码编译。
-
-- **BepInEx** — `Tools/BepInEx/` — Unity 插件框架，为翻译插件提供加载入口
-  - 构建：`dotnet run --project build/Build.csproj --`（Cake.Frosting，需 .NET 8 SDK；若 PowerShell 禁用 `.ps1` 直接用此命令）
-- **XUnity.AutoTranslator** — `Tools/XUnity.AutoTranslator/` — Unity 运行时翻译插件（v5.6.1），支持 BepInEx/IPA/MelonLoader/UnityInjector/ReiPatcher 等注入框架
-  - ⚠ **必须用 VS 的 MSBuild 构建，不能用 `dotnet build`**：
-    ```powershell
-    & "C:\Program Files\Microsoft Visual Studio\18\Community\MSBuild\Current\Bin\MSBuild.exe" XUnity.AutoTranslator.sln -restore -p:Configuration=Release -m
-    ```
-  - 原因：`dotnet build`（.NET 10 SDK）不带 ResGen.exe 处理 net35 的 `.resx`，且 ILRepack 2.0.13 在 .NET Core 运行时下崩溃
-  - 产物：`dist/` 下按注入框架分 zip 包（如 `dist\XUnity.AutoTranslator-BepInEx-5.6.1.zip`），按目标游戏注入框架选用
-
 ## Git 与 README 协作规范
 
 每个游戏项目（`Projects/{GameName}/`）都拥有**独立的 git 仓库**，由 `start-translate` skill 在初始化工作区时创建。该仓库专门管理本游戏的汉化工程，**不管理游戏目录**（`Game/` 软连接已被 `.gitignore` 排除）。
@@ -263,8 +281,9 @@ StaticHanHua/
 |------|-----------|----------|-------------|
 | 初始化 | `start-translate` | `README.md` + `.gitignore`（脚本自动提交） | `初始化汉化项目工作区 (start-translate)` |
 | 提取 | `game-unpack` | `{gamename}_text.csv` + `README.md`（文本提取节） | `提取: 从 resources.assets 提取 1234 条文本` |
-| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateDoc.md` + 占位符报告 | `翻译: 完成 AINiee 翻译并校验通过` |
+| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateFiles/` 内适合入库的配置、术语审校及交付报告 | `翻译: 完成 AINiee 翻译并校验通过` |
 | 回填 | `game-repack` | `README.md`（回填/已知问题节）+ 汉化产物（视体积） | `回填: 替换 12 个 TextAsset，游戏内验证通过` |
+| 发布 | `game-release-patch` | `README.md`（对外发布节）+ 小型说明/清单 | `发布: 生成 v1.0 对外汉化补丁` |
 
 ### 提交规范
 
@@ -339,6 +358,7 @@ git commit -m "<阶段>: <简述>"
 | 提取 |  |  |
 | 翻译 |  |  |
 | 回填 |  |  |
+| 发布 | `game-release-patch` |  |
 
 ## 文本提取
 - 文本位置：
@@ -357,6 +377,13 @@ git commit -m "<阶段>: <简述>"
 
 ## 已知问题
 
+## 对外发布
+- 补丁文件：
+- 支持版本/平台：
+- 载荷：
+- 验证结果：
+- 已知问题：
+
 ## 版本记录
 ```
 
@@ -365,10 +392,10 @@ git commit -m "<阶段>: <简述>"
 - 每个游戏在 `Projects/` 下建独立子目录，命名使用英文游戏名
 - **每个项目必须创建 `README.md`**，按上方规范填写游戏信息和汉化方案
 - 游戏文件通过 `Game/` 软连接引用，不直接复制
-- 翻译过程文件放在项目根目录下，与 `Game/` 同级：
+- 原文和正式译文放在项目根目录下，与 `Game/` 同级：
   - **第 1 步输出**：`{gamename}_text.csv`（提取的待翻译文本，1 列，1 个文本 1 行）
   - **第 2 步输出**：`{gamename}_text_translated.csv`（翻译完成后的译文，与原文逐行对应）
-  - 其他中间文件命名使用小写下划线
+  - 翻译中间文件统一放在 `TranslateFiles/`；其他阶段中间文件沿用原约定。缓存、备份和凭据不入库
 - 新增工具放入 `Tools/` 目录，按功能归类
 
 ## 逆向工具链约定

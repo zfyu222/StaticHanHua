@@ -99,7 +99,7 @@ def make_guide(args: argparse.Namespace, version: str, changelog: str) -> str:
         ("卸载 / 恢复", args.uninstall or "删除本补丁新增文件，并用备份恢复被覆盖的原文件。"),
         ("实机验证", args.verification or "未提供；请在安装后自行验证。"),
         ("说明", AI_NOTICE),
-        ("后续更新", "补丁后续可能会更新，建议关注或订阅本项目的 GitHub 仓库 / Releases，或收藏、订阅网盘发布渠道，及时获取新版补丁。"),
+        ("后续更新", "补丁后续可能会更新，建议关注或订阅本项目的 GitHub 仓库 / Releases，及时获取新版补丁。"),
         ("已知问题", args.known_issues or "暂无已知问题。"),
         ("文件校验", "请使用压缩包内 `SHA256SUMS.txt` 核对补丁文件完整性；`PATCH_MANIFEST.json` 记录文件路径与哈希值。"),
         ("反馈", "如遇问题，请附上游戏版本、平台、安装步骤、报错截图和日志。请勿在补丁中传播游戏本体或其他受版权保护的原始资源。"),
