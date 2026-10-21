@@ -27,7 +27,6 @@
 |---|---|---|
 | AINiee | Python 3.12 | `cd Tools/AINiee`; `py -3.12 -m venv venv`; `venv\Scripts\python.exe -m pip install -r requirements.txt` |
 | AssetRipper-CLI | .NET SDK 10 | `dotnet build Tools/AssetRipper-CLI/src/AssetRipper.Tools.ExportRunner/AssetRipper.Tools.ExportRunner.csproj -c Release` |
-| 百度网盘 MCP | Python 3.12 | `cd Tools/baidu-netdisk-mcp`; 按其 `pyproject.toml` 创建虚拟环境并安装项目依赖 |
 | dnSpy | .NET 5 SDK/Desktop Runtime | `dotnet build Tools/dnSpy-source/dnSpy/dnSpy.Console/dnSpy.Console.csproj -f net5.0-windows` |
 | UABEA | .NET SDK 8 | `dotnet build Tools/UABEA/UABEAvalonia/UABEAvalonia.csproj -c Release` |
 | REA + Ghidra | Node.js、Ghidra、JDK 21 | 源码子模块 `Tools/REA/source`（`zfyu222/rea`）；运行依赖安装和 CLI/MCP 入口见 [REA 工具说明](Tools/REA/README.md) |

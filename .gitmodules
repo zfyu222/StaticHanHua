@@ -4,9 +4,6 @@
 [submodule "Tools/AssetRipper-CLI"]
 	path = Tools/AssetRipper-CLI
 	url = https://github.com/zfyu222/AssetRipper-CLI.git
-[submodule "Tools/baidu-netdisk-mcp"]
-	path = Tools/baidu-netdisk-mcp
-	url = https://github.com/zfyu222/baidu-netdisk-mcp.git
 [submodule "Tools/BepInEx"]
 	path = Tools/BepInEx
 	url = https://github.com/zfyu222/BepInEx.git

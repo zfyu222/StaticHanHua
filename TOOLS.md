@@ -8,7 +8,6 @@
 |---|---|---|---|
 | `AINiee` | `AiNiee` | 已存在：`zfyu222/AiNiee` | `LLMClientFactory.py`、`ExclusionListPage.py`、`TableHelper.py` |
 | `AssetRipper-CLI` | `MeikoMei16/AssetRipper-CLI` | `zfyu222/AssetRipper-CLI` | 无 |
-| `baidu-netdisk-mcp` | `baidu-netdisk/mcp` | `zfyu222/baidu-netdisk-mcp` | `fileupload_tool.py` |
 | `BepInEx` | `BepInEx/BepInEx` | `zfyu222/BepInEx` | 无 |
 | `dnSpy-source` | `dnSpy/dnSpy` | `zfyu222/dnSpy` | `dnSpy.Console/Program.cs` |
 | `UABEA` | `nesrak1/UABEA` | `zfyu222/UABEA` | `CommandLineHandler.cs`、`Program.cs`、`AssetContainer.cs`、`AssetWorkspace.cs` |
@@ -28,7 +27,6 @@
 ## 已知本地生成物
 
 - AINiee：`venv/` 和 `extracted_for_ainiee_translated.csv`。
-- 百度网盘 MCP：多个 Python `__pycache__/` 文件；其中部分目前被上游历史追踪，迁移时不得纳入自定义提交。
 - dnSpy：`Tools/dnSpy-net-win64/` 是预编译运行目录，不是源码 fork。
 - UABEA、BepInEx、XUnity.AutoTranslator：仓库内可能有上游已追踪的第三方 DLL；不要为“清理编译产物”而删除上游已追踪文件。
 - REA：源码由 `Tools/REA/source/` 子模块管理，origin 为 `zfyu222/rea`，upstream 为 `morluto/rea`。`Tools/REA/` 保存框架集成用的 npm manifest/lock 和启动脚本，匹配版本的发布包装在 `node_modules/`；独立 Node 运行时在 `runtime/`。Ghidra、JDK 分别放在 `Tools/Ghidra/`、`Tools/Java/`，这些本地依赖均不入库。源码固定版本与 npm 版本应同步更新；安装版本和校验值见 [REA 工具说明](Tools/REA/README.md)。
