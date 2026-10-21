@@ -6,53 +6,40 @@ from unittest.mock import patch, Mock
 
 import test_translation_workflow as fixtures
 import translation_workflow as workflow
-from workflow_quality import REVIEW_CHECKS
 
 
 class ContractPipelineTests(unittest.TestCase):
-    def test_direct_and_batch_pilot_keep_exceptions_and_per_record_summaries(self):
+    def test_direct_and_batch_pilot_keep_original_output_exceptions_and_provenance(self):
         for mode in ('direct', 'batch'):
             with self.subTest(mode=mode):
                 fixture = fixtures.WorkflowTests(); fixture.setUp()
                 try:
-                    flow = fixture.flow; fixture.freeze(True, pilot=False)
-                    original_submit = flow.submit
-
-                    def seed(task_id, token, result):
-                        result['records'][0]['exceptions'] = [{'source': 'Wolf', 'reason': 'Synthetic retained context exception.'}]
-                        return original_submit(task_id, token, result)
-
-                    with patch.object(flow, 'submit', side_effect=seed):
-                        fixture.translate('pilot_translate')
+                    flow = fixture.flow
+                    flow.pause(True); flow.configure({'batch_records': None}, 'Single synthetic batch'); flow.pause(False)
+                    fixture.freeze(True, pilot=False)
                     if mode == 'batch':
-                        session = flow.batch_open('pilot_review', 'batch-independent-reviewer')
+                        session = flow.batch_open('pilot_translate', 'batch-producer')
                         with flow.db() as db:
                             task = db.execute('SELECT * FROM tasks WHERE id=?', (session['task_id'],)).fetchone()
-                        claim = {'task_id': task['id'], 'lease_token': task['lease_token'], 'input_hash': task['input_hash'],
-                                 'payload': json.loads(task['payload'])}
+                        claim = {'task_id': task['id'], 'lease_token': task['lease_token'], 'payload': json.loads(task['payload'])}
                     else:
-                        flow.prepare('pilot_review')
-                        claim = flow.claim('pilot_review', 'direct-independent-reviewer')
-                    rows = claim['payload']['records']; target = rows[0]
-                    records = [{'id': r['id'], 'reviewed': True, 'verdict': 'pass'} for r in rows]
-                    records[0] = {'id': target['id'], 'translation': target['translation'], 'reviewed': True,
-                                  'verdict': 'corrected', 'reason': 'Explicitly checked retained context exception.',
-                                  **fixture.review_evidence(target)}
-                    # Deliberately omit exceptions: both entry points must inherit.
-                    summaries = {r['id']: {k: {'status': 'pass', 'evidence': 'Synthetic record ' + r['id']}
-                                           for k in REVIEW_CHECKS} for r in rows}
-                    result = {'task_id': claim['task_id'], 'input_hash': claim['payload']['input_hash'],
-                              'records': records, 'review_summaries': summaries}
+                        flow.prepare('pilot_translate')
+                        claim = flow.claim('pilot_translate', 'direct-producer')
+                    rows = claim['payload']['records']
+                    records = [{'id': r['id'], 'translation': r['source'].replace('Alice sees a Wolf.', '爱丽丝看见一只狼。')
+                        .replace('The Wolf has', '这只狼拥有').replace('gold.', '金币。').replace('text', '文本')}
+                        for r in rows]
+                    records[0]['exceptions'] = [{'source': 'Wolf', 'reason': 'Synthetic retained context exception.'}]
+                    result = {**fixture.envelope(claim), 'records': records}
                     if mode == 'batch':
                         workflow.write_json(session['result_file'], result)
                         self.assertEqual(flow.batch_finish(session['session_id'])['status'], 'submitted')
                     else:
                         flow.submit(claim['task_id'], claim['lease_token'], result)
-                    with flow.db() as db:
-                        saved = json.loads(db.execute('SELECT result FROM tasks WHERE id=?', (claim['task_id'],)).fetchone()[0])
-                    self.assertEqual(saved['review_summaries'], summaries)
-                    self.assertEqual(saved['records'][0]['exceptions'], target['exceptions'])
-                    self.assertTrue(flow.quality_report('pilot')['report_hash'])
+                    report = workflow.read_json(flow.pilot_report()['report_file'])
+                    self.assertEqual(report['records'][0]['exceptions'], records[0]['exceptions'])
+                    self.assertEqual(report['records'][0]['producer']['instance'], mode + '-producer')
+                    fixture.approve('pilot')
                 finally:
                     fixture.tearDown()
 

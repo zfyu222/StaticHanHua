@@ -84,7 +84,7 @@ class ContextTests(unittest.TestCase):
         self.assertNotEqual(first['task_id'], second['task_id'])
 
     def test_full_task_budget_includes_background_and_rejects_allocation(self):
-        self.flow.init(self.source, {'game_background': '背景' * 1000, 'task_input_chars': 1000})
+        self.flow.init(self.source, {'game_background': '背景' * 1000, 'task_input_tokens': 1000})
         with self.assertRaisesRegex(ValueError, 'allocation exceeds'):
             self.flow.prepare('extract')
         with self.flow.db() as db:
@@ -103,12 +103,12 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(sum(sizes), 85)
         self.assertTrue(all(size <= 80 for size in sizes))
 
-    def test_body_batches_cross_groups_but_keep_size_and_character_limits(self):
+    def test_body_batches_cross_groups_using_token_limits_without_default_record_cap(self):
         records = [{'id': str(i), 'source': 'text', 'translation': None,
                     'metadata': {'group': str(i)}} for i in range(161)]
-        self.assertEqual([len(b) for b in self.flow.batches(records, workflow.DEFAULT, False)], [80, 80, 1])
+        self.assertEqual([len(b) for b in self.flow.batches(records, workflow.DEFAULT, False)], [161])
         self.assertEqual(len(list(self.flow.batches(records, workflow.DEFAULT))), 161)
-        limited = {**workflow.DEFAULT, 'batch_chars': 9}
+        limited = {**workflow.DEFAULT, 'batch_tokens': 2}
         groups = list(self.flow.batches(records[:5], limited, False))
         self.assertEqual([len(b) for b in groups], [2, 2, 1])
         self.assertEqual(groups[0][1]['metadata'], {'group': '1'})
@@ -125,7 +125,7 @@ class ContextTests(unittest.TestCase):
         with fixture.flow.db() as db:
             tasks = db.execute('SELECT payload FROM tasks WHERE stage="translate"').fetchall()
         rows = [json.loads(t['payload'])['records'] for t in tasks]
-        self.assertEqual([len(batch) for batch in rows], [80, 5])
+        self.assertEqual([len(batch) for batch in rows], [85])
         self.assertEqual(rows[0][1]['metadata']['group'], '2')
 
     def test_adjacent_text_is_omitted_even_with_legacy_setting(self):

@@ -2,10 +2,29 @@
 import copy
 import json
 import uuid
+from contextvars import ContextVar
+from functools import wraps
 
 import ainiee_bridge as bridge
 import glossary_families
+from workflow_profile import profiled
 from glossary_merge import review_evidence_rows
+from workflow_tokens import count_tokens, record_limit, batch_limit, record_tokens
+
+
+_PREPARATION_INPUTS = ContextVar('preparation_inputs', default=None)
+
+
+def allocation_session(function):
+    """A cache bounded to one prepare call, isolated across threads/nesting."""
+    @wraps(function)
+    def wrapped(self, *args, **kwargs):
+        token = _PREPARATION_INPUTS.set((self, {}))
+        try:
+            return function(self, *args, **kwargs)
+        finally:
+            _PREPARATION_INPUTS.reset(token)
+    return wrapped
 
 
 class AllocationMixin:
@@ -102,8 +121,12 @@ class AllocationMixin:
         db.execute('CREATE TABLE IF NOT EXISTS task_allocations(task_id TEXT PRIMARY KEY,input_chars INTEGER,compact_chars INTEGER,input_limit INTEGER,contract_version INTEGER DEFAULT 0)')
         if 'contract_version' not in {r[1] for r in db.execute('PRAGMA table_info(task_allocations)')}:
             db.execute('ALTER TABLE task_allocations ADD COLUMN contract_version INTEGER DEFAULT 0')
+        for column in ('input_tokens', 'compact_tokens', 'token_limit'):
+            if column not in {r[1] for r in db.execute('PRAGMA table_info(task_allocations)')}:
+                db.execute(f'ALTER TABLE task_allocations ADD COLUMN {column} INTEGER')
 
-    def plan_task_allocation(self, db, payload, backend, fixed_identity=False):
+    @profiled('task_allocate')
+    def plan_task_allocation(self, db, payload, backend, fixed_identity=False, *, reliability_limit=None):
         from translation_workflow import fingerprint, prompt, read_json, STAGES
         config = self.config(db)
         if (not isinstance(payload, dict) or payload.get('stage') not in STAGES or
@@ -114,22 +137,37 @@ class AllocationMixin:
         units = payload.get('entries' if glossary_stage else 'records')
         if not isinstance(units, list) or any(not isinstance(r, dict) for r in units):
             raise ValueError('Task allocation requires structured entries/records')
-        record_limit = min(config['batch_records'], config.get({'extract': 'extract_batch_records',
-            'glossary_review': 'glossary_review_batch_records', 'review': 'review_batch_records',
-            'final_review': 'review_batch_records'}.get(stage, 'batch_records'), config['batch_records']))
-        if stage.startswith('pilot_'):
-            record_limit = 40
-        contexts = self.meta(db, 'contexts', {})
+        cap = record_limit(config, stage)
+        if reliability_limit is not None:
+            if type(reliability_limit) is not int or reliability_limit < 1:
+                raise ValueError('Reliability split requires a positive record limit')
+            cap = min(cap, reliability_limit) if cap is not None else reliability_limit
+        active = _PREPARATION_INPUTS.get()
+        cache = active[1] if active is not None and active[0] is self else None
+        context_key = (id(db), payload['revision'], 'contexts')
+        if cache is not None and context_key in cache:
+            contexts = cache[context_key]
+        else:
+            contexts = self.meta(db, 'contexts', {})
+            if cache is not None:
+                cache[context_key] = contexts
         glossary = self.glossary(db) if stage not in ('extract', 'glossary_review') else None
+        rules = self.rules(db, config) if glossary is not None else ()
         if glossary_stage:
-            folder = self.root / f'glossary/r{payload["revision"]}'
-            snapshot = read_json(folder / 'glossary_original.json')
-            entries = [{'ref': f'{table}:{i}', 'table': table, 'index': i, 'row': row}
-                       for table in ('characters', 'terms', 'non_translate') for i, row in enumerate(snapshot[table])]
-            audit = read_json(folder / 'audit/glossary_audit.json')
-            families_file = folder / 'family_candidates.json'
-            families = read_json(families_file)['relations'] if families_file.is_file() else []
-            source_records = [dict(row) for row in db.execute('SELECT * FROM records ORDER BY ordinal')]
+            key = (id(db), payload['revision'], 'glossary_inputs')
+            if cache is not None and key in cache:
+                entries, audit, families, source_records = cache[key]
+            else:
+                folder = self.root / f'glossary/r{payload["revision"]}'
+                snapshot = read_json(folder / 'glossary_original.json')
+                entries = [{'ref': f'{table}:{i}', 'table': table, 'index': i, 'row': row}
+                           for table in ('characters', 'terms', 'non_translate') for i, row in enumerate(snapshot[table])]
+                audit = read_json(folder / 'audit/glossary_audit.json')
+                families_file = folder / 'family_candidates.json'
+                families = read_json(families_file)['relations'] if families_file.is_file() else []
+                source_records = [dict(row) for row in db.execute('SELECT * FROM records ORDER BY ordinal')]
+                if cache is not None:
+                    cache[key] = entries, audit, families, source_records
         planned = []
 
         def build(group, task_id):
@@ -163,7 +201,7 @@ class AllocationMixin:
                             raise ValueError('Task allocation: unknown source record ID')
                         raw = source_row['source']
                         texts.extend((raw, row.get('metadata', {}).get('speaker', '')))
-                    value['terms'] = bridge.matched_terms(glossary, texts, config)
+                    value['terms'] = bridge.matched_terms(glossary, texts, config, rules=rules)
             if isinstance(value.get('repair_counts'), dict):
                 ids = {r['id'] for r in value['records']}
                 value['repair_counts'] = {i: n for i, n in value['repair_counts'].items() if i in ids}
@@ -177,24 +215,40 @@ class AllocationMixin:
             # does not render or measure the model input again.
             envelope = {**value, 'worker': 'w' * 128, 'lease_token': '0' * 32, 'attempt': 999999}
             system, user = prompt(envelope)
-            raw_chars = len(system) + len(user)
-            if backend == 'codex':
-                from workflow_task_contract import render_protocol_input
-                path = self.root / 'results' / task_id / ('0' * 32) / 'result.json'
-                raw_chars = max(raw_chars, len(render_protocol_input(envelope, path)))
-            compact_chars = 0
-            if stage not in ('extract', 'glossary_review') and backend == 'codex':
+            raw_tokens = count_tokens(system) + count_tokens(user)
+            from workflow_task_contract import render_protocol_input
+            path = self.root / 'results' / task_id / ('0' * 32) / 'result.json'
+            raw_tokens = max(raw_tokens, count_tokens(render_protocol_input(envelope, path)))
+            compact_tokens = 0
+            if stage not in ('extract', 'glossary_review'):
                 path = self.root / 'tasks' / task_id / 'handoffs' / ('0' * 32) / 'result.json'
-                compact_chars = len(self.render_batch_input(db, envelope, [r['id'] for r in value['records']], path, '0' * 32))
+                compact_tokens = count_tokens(self.render_batch_input(db, envelope, [r['id'] for r in value['records']], path, '0' * 32))
+                if backend == 'api':
+                    from workflow_task_contract import api_id_transport
+                    scope = [row['id'] for row in value['records']]
+                    transport = api_id_transport(envelope, scope, '0' * 32)
+                    compact_tokens = max(compact_tokens, count_tokens(self.render_batch_input(
+                        db, envelope, scope, path, '0' * 32, api=True, id_transport=transport)))
+            elif backend == 'api':
+                compact_tokens = count_tokens(render_protocol_input(envelope, path, api=True))
+            if glossary_stage:
+                content_tokens = sum(record_tokens(row, stage) for row in group)
+            else:
+                content_tokens = sum(record_tokens({**row, 'source':
+                    bridge.restore(row['source'], row.get('protection', []))}, stage) for row in group)
             output_ok = (stage not in ('review', 'pilot_review', 'final_review') or
-                         sum(self.estimate_review_output(r, stage) for r in value['records']) <= self.review_output_budget(config, stage, backend))
-            if max(raw_chars, compact_chars) <= config['task_input_chars'] and output_ok and len(group) <= record_limit:
-                planned.append((value, raw_chars, compact_chars))
+                         sum(self.estimate_review_output(r, stage, config) for r in value['records']) <= self.review_output_budget(config, stage, backend))
+            # Like AINiee, a source item larger than the content budget stands
+            # alone. The complete input and estimated-output limits stay strict.
+            if (max(raw_tokens, compact_tokens) <= config.get('task_input_tokens', 16384) and output_ok
+                    and (cap is None or len(group) <= cap)
+                    and (len(group) == 1 or content_tokens <= batch_limit(config, stage))):
+                planned.append((value, raw_tokens, compact_tokens))
                 return
             if len(group) < 2:
                 label = group[0].get('ref', group[0].get('id')) if group else 'shared instructions'
                 raise ValueError(f'Task allocation exceeds input/output budget for {label}: '
-                                 f'{max(raw_chars, compact_chars)} input characters, limit {config["task_input_chars"]}; '
+                                 f'{max(raw_tokens, compact_tokens)} input tokens, limit {config.get("task_input_tokens", 16384)}; '
                                  'single item and required evidence cannot be split; no tasks allocated or evidence truncated')
             middle = len(group) // 2
             for part in (group[:middle], group[middle:]):
@@ -207,15 +261,15 @@ class AllocationMixin:
         from translation_workflow import encoded
         planned = planned if planned is not None else self.plan_task_allocation(db, payload, backend)
         self.allocation_tables(db)
-        limit = self.config(db)['task_input_chars']
+        limit = self.config(db).get('task_input_tokens', 16384)
         ids = []
-        for value, raw_chars, compact_chars in planned:
+        for value, raw_tokens, compact_tokens in planned:
             task_id = value['task_id']
             db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) VALUES (?,?,?,?,?,?,?,"pending",?)',
                        (task_id, value['stage'], value['revision'], encoded([r['id'] for r in value['records']]),
                         encoded(value), value['input_hash'], backend, attempt))
-            db.execute('INSERT OR REPLACE INTO task_allocations VALUES (?,?,?,?,1)',
-                       (task_id, raw_chars, compact_chars, limit))
+            db.execute('INSERT OR REPLACE INTO task_allocations(task_id,input_tokens,compact_tokens,token_limit,contract_version) VALUES (?,?,?,?,4)',
+                       (task_id, raw_tokens, compact_tokens, limit))
             ids.append(task_id)
         return ids
 
@@ -223,20 +277,20 @@ class AllocationMixin:
         """Prepare upgrades untouched legacy tasks; completed/in-flight tasks stay intact."""
         self.allocation_tables(db)
         tasks = db.execute('SELECT t.* FROM tasks t LEFT JOIN task_allocations a ON a.task_id=t.id '
-                           'WHERE t.stage=? AND t.revision=? AND t.status="pending" AND t.attempt=0 AND (a.task_id IS NULL OR a.contract_version<1)',
+                           'WHERE t.stage=? AND t.revision=? AND t.status="pending" AND t.attempt=0 AND (a.task_id IS NULL OR a.contract_version<4)',
                            (stage, self.meta(db, 'revision'))).fetchall()
         for task in tasks:
             payload = json.loads(task['payload'])
             planned = self.plan_task_allocation(db, payload, task['backend'])
             if len(planned) == 1:
-                value, raw_chars, compact_chars = planned[0]
+                value, raw_tokens, compact_tokens = planned[0]
                 from translation_workflow import encoded
                 db.execute('UPDATE tasks SET ids=?,payload=?,input_hash=? WHERE id=?',
                            (encoded([r['id'] for r in value['records']]), encoded(value), value['input_hash'], task['id']))
-                db.execute('INSERT OR REPLACE INTO task_allocations VALUES (?,?,?,?,1)',
-                           (task['id'], raw_chars, compact_chars, self.config(db)['task_input_chars']))
+                db.execute('INSERT OR REPLACE INTO task_allocations(task_id,input_tokens,compact_tokens,token_limit,contract_version) VALUES (?,?,?,?,4)',
+                           (task['id'], raw_tokens, compact_tokens, self.config(db).get('task_input_tokens', 16384)))
                 self.event(db, 'allocate_legacy_pending', {'task': task['id'], 'replacement_tasks': [task['id']],
-                                                          'input_chars': max(raw_chars, compact_chars)})
+                                                          'input_tokens': max(raw_tokens, compact_tokens)})
             else:
                 db.execute('UPDATE tasks SET status="obsolete" WHERE id=?', (task['id'],))
                 # Planning is deterministic in content; child IDs do not encode progress.

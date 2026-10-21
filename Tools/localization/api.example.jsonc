@@ -1,0 +1,79 @@
+// 自定义 API 统一配置：支持中文注释和尾随逗号。
+// 可定义多个 API；default_api 指定默认项，单次运行可用
+// `run-api --api <名称>`（或 run_api_round.py --api <名称>）临时切换。
+// Token 计数复用 AINiee 的 o200k_base；不代表服务端账单的精确用量。
+// 修改后下次启动 run-api 生效；在途交接不改写。
+{
+  // 默认使用 apis 中的哪一项；只定义一个条目时可省略。
+  "default_api": "primary",
+  // 名称可自定义，仅作标记；每项至少填写 api_url、api_key、model_name。
+  "apis": {
+    "primary": {
+      // API 服务地址，例如 https://api.deepseek.com；使用 OpenAI 兼容接口。
+      "api_url": "",
+      // API 密钥，仅保存在本机；不要分享此文件或提交到 Git。
+      "api_key": "",
+      // API 模型名称，填写服务商实际提供的模型 ID。
+      "model_name": "",
+      // 先用小样本确认服务兼容；JSON 模式约束语法，不替代逐条字段及语义验收。
+      // 不支持时应明确配置并排查，不在失败后静默降级或重复付费试探。
+      "extra_body": {"response_format": {"type": "json_object"}}
+      // 其余传输字段（target_platform、stream、think_switch、temperature、
+      // concurrency、requests_per_minute、max_requests、request_timeout、
+      // max_completion_tokens、tls_switch）同在条目内填写时覆盖下面的公共值。
+    }
+    // "backup": {
+    //   "api_url": "https://relay.example.com/v1",
+    //   "api_key": "",
+    //   "model_name": "example-model",
+    //   "stream": true
+    // }
+  },
+  // 拆批设置：按内容 Token、完整输入 Token 和预计输出预算拆分；审校另保留条数上限。
+  "batching": {
+    // 正文翻译和润色仅按 Token 拆批，null 表示不限制条数；不影响试译固定上限。
+    "batch_records": null,
+    // 独立语义审校每批最多 80 条，并叠加输入 Token 和预计输出预算。
+    "review_batch_records": 80,
+    // 术语提取仅按 Token 拆批，null 表示不限制原文条数。
+    "extract_batch_records": null,
+    // 术语语义审校每批最多 60 项，并叠加 Token 预算。
+    "glossary_review_batch_records": 60,
+    // 审校预计输出的 Token 总预算；程序还会扣除下面的预留比例。
+    "review_output_tokens": 16384,
+    // 输出预算预留百分比；20 表示只用 80% 安排批次。
+    "review_output_reserve_percent": 20,
+    // 回复长度粗估：固定开销 + 原文 + 译文倍数 × 译文 + 例外信息；不限制审校证据。
+    "review_estimate": {
+      // 正式与试译审校共用每条固定预留 Token 数，用于字段、证据和理由。
+      "full_base_tokens": 420,
+      // 多少个 ASCII 字符粗估为 1 Token，向上取整；不是精确分词。
+      "ascii_chars_per_token": 3,
+      // 每个非 ASCII 字符（如汉字）粗估的 Token 数。
+      "non_ascii_tokens_per_char": 2,
+      // 已有译文的估算倍数，预留译文及修改前后重复输出的空间。
+      "translation_multiplier": 3
+    },
+    // 正文翻译、试译和润色的原文 Token 预算；对齐 AINiee 当前 1024。
+    "batch_tokens": 1024,
+    // 术语提取的原文 Token 预算；对齐 AINiee 当前 10000。
+    "extract_batch_tokens": 10000,
+    // 术语审校的候选条目 Token 预算；参考 AINiee 第二阶段 10000，并保留条数限制。
+    "glossary_review_batch_tokens": 10000,
+    // 独立审校的任务内容 Token 预算，计入原文、译文和问题描述；对齐 AINiee 校对当前 1024。
+    "review_batch_tokens": 1024,
+    // 完整输入包的额外安全预算，含背景、术语和模板；默认 16384，不等同于原文批量。
+    "task_input_tokens": 16384
+  },
+  // 与具体服务无关的公共传输设置；API 条目内的同名值优先。
+  // 同时在途请求上限；不是官方并发额度。
+  "concurrency": 5,
+  // 服务端速率上限，0 表示不限制。
+  "requests_per_minute": 0,
+  // 本项目运行累计 API 请求上限，跨阶段累计，重启不清零。
+  "max_requests": 10000,
+  // 单次 API 请求超时，单位：秒。
+  "request_timeout": 120,
+  // 单次回复最大 Token 数；不得低于 batching.review_output_tokens。
+  "max_completion_tokens": 32768
+}

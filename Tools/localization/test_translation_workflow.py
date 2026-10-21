@@ -19,9 +19,31 @@ import translation_workflow as workflow
 from workflow_quality import REVIEW_CHECKS, GLOSSARY_CHECKS
 
 
+def model_input(text, *, include_term_map=False):
+    """Decode prepared model data for deterministic mock replies, not production."""
+    if '```jsonl\n' not in text:
+        return json.loads(text.split('```json\n', 1)[1].split('\n```', 1)[0])
+    template = json.loads(text.rsplit('```json\n', 1)[1].split('\n```', 1)[0])
+    rows = text.split('```jsonl\n', 1)[1].split('\n```', 1)[0]
+    records = [json.loads(line) for line in rows.splitlines()]
+    terms = next((json.loads(line)['shared_terms'] for line in text.splitlines()
+                  if line.startswith('{"shared_terms":')), {})
+    for row in records:
+        if 'term_refs' in row:
+            row['terms'] = [terms[key] for key in row.pop('term_refs')]
+        row.setdefault('terms', [])
+        row.setdefault('protection', [])
+    result = {**template, 'records': records}
+    if include_term_map:
+        result['shared_terms'] = terms
+    return result
+
+
 class WorkflowTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix='shh_workflow_')
+        local_api = patch.object(workflow, 'API_CONFIG_FILE', Path(self.temp.name) / 'api.local.jsonc')
+        local_api.start(); self.addCleanup(local_api.stop)
         self.project = Path(self.temp.name) / 'Sample'
         self.project.mkdir()
         self.source = self.project / 'sample_text.csv'
@@ -34,6 +56,7 @@ class WorkflowTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+        self.doCleanups()  # Fixtures are also used manually by other test suites.
 
     def test_context_replacement_preserves_extraction_and_updates_new_tasks(self):
         self.extract(True)
@@ -101,6 +124,10 @@ class WorkflowTests(unittest.TestCase):
                 'checks': {k: {'status': 'pass', 'evidence': row['source'] or '原文与译文均为空。'} for k in REVIEW_CHECKS}}
 
     def approve(self, kind):
+        if kind == 'pilot':
+            report = self.flow.pilot_report()
+            return self.flow.pilot_decide({'report_hash': report['report_hash'], 'reviewer': 'main',
+                'decision': 'accept', 'summary': 'Synthetic calibration: pipeline and style are suitable; isolated errors belong to production review.'})
         result = self.flow.quality_report(kind)
         report = workflow.read_json(result['report_file'])
         self.flow.approve_quality(kind, {'report_hash': report['report_hash'], 'reviewer': 'sol',
@@ -109,7 +136,7 @@ class WorkflowTests(unittest.TestCase):
 
     def pilot(self):
         self.translate('pilot_translate')
-        self.review('pilot_review')
+        self.approve('pilot')
 
     def freeze(self, analysis=False, pilot=True):
         self.extract(analysis)
@@ -146,7 +173,7 @@ class WorkflowTests(unittest.TestCase):
             rows = [{'id': r['id'], 'translation': r['translation'], 'reviewed': True,
                      'reason': '对照原文核对称谓、动作、变量及含义。', **self.review_evidence(r)} for r in claim['payload']['records']]
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'records': rows})
-        if stage in ('review', 'final_review'):
+        if stage in ('pilot_review', 'review', 'final_review'):
             self.assertTrue(self.flow.review_scan(stage)['clean'])
         with self.flow.db() as db:
             config = self.flow.config(db)
@@ -155,19 +182,18 @@ class WorkflowTests(unittest.TestCase):
         elif stage == ('final_review' if config['polish'] else 'review'):
             self.approve('final')
 
-    def test_fixed_pilot_count_retains_context_and_partial_progress(self):
+    def test_pilot_uses_production_batching_and_preserves_input_order(self):
         rows = [{'id': str(i), 'source': 'text', 'metadata': {'group': str(i)}} for i in range(150)]
-        groups = workflow.Workflow.fixed_pilot_batches(rows, rows, 5)
+        config = {**workflow.DEFAULT, 'batch_records': 30}
+        groups = list(self.flow.batches(rows, config, respect_groups=False, stage='pilot_translate'))
         self.assertEqual([len(g) for g in groups], [30] * 5)
-        self.assertEqual([r for g in groups for r in g], rows)
-        partial = workflow.Workflow.fixed_pilot_batches(rows, rows[39:], 5)
-        self.assertEqual([len(g) for g in partial], [0, 21, 30, 30, 30])
+        self.assertEqual(groups, list(self.flow.batches(rows, config, respect_groups=False, stage='translate')))
+        partial = list(self.flow.batches(rows[39:], config, respect_groups=False, stage='pilot_translate'))
         self.assertEqual([r for g in partial for r in g], rows[39:])
-        self.assertEqual(workflow.Workflow.fixed_pilot_batches([], [], 5), [])
 
     def test_pilot_rebatch_preserves_accepted_translation_and_authorship(self):
         self.freeze(pilot=False)
-        self.flow.pause(True); self.flow.configure({'pilot_batch_count': 2}, 'Two toy batches'); self.flow.pause(False)
+        self.flow.pause(True); self.flow.configure({'batch_records': 2}, 'Two toy batches'); self.flow.pause(False)
         self.flow.prepare('pilot_translate')
         claim = self.flow.claim('pilot_translate', self.fresh_worker('pilot_translate'))
         result = {**self.envelope(claim), 'records': [
@@ -176,7 +202,7 @@ class WorkflowTests(unittest.TestCase):
         with self.flow.db() as db:
             before = [tuple(r) for r in db.execute('SELECT * FROM quality_authors')]
         self.flow.pause(True)
-        self.assertFalse(self.flow.configure({'pilot_batch_count': 2}, 'explicit pilot cost limit')['semantic_reset'])
+        self.assertFalse(self.flow.configure({'batch_records': 2}, 'explicit pilot cost limit')['semantic_reset'])
         self.flow.pause(False)
         tasks = self.flow.prepare('pilot_translate')['tasks']
         self.assertEqual(len(tasks), 1)
@@ -184,7 +210,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(before, [tuple(r) for r in db.execute('SELECT * FROM quality_authors')])
         self.assertEqual(self.flow.status()['records']['pilot_translate'], 2)
         self.translate('pilot_translate')
-        self.assertEqual(len(self.flow.prepare('pilot_review')['tasks']), 2)
+        self.assertEqual(self.flow.pilot_report()['statistics']['translated_records'], 4)
 
     def test_end_to_end_and_csv_alignment(self):
         self.freeze(True)
@@ -449,7 +475,8 @@ class WorkflowTests(unittest.TestCase):
             def log_message(self, *args): pass
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers['Content-Length'])))
-                payload = json.loads(body['messages'][-1]['content'])
+                payload = model_input(body['messages'][-1]['content'])
+                assert not body.get('tools')
                 with counter_lock:
                     count[0] += 1
                     first = count[0] == 1
@@ -520,7 +547,7 @@ class WorkflowTests(unittest.TestCase):
         self.flow.pause(False); self.flow.prepare('extract')
         class Mock:
             def request(self, system, user):
-                payload = json.loads(user)
+                payload = model_input(user)
                 return json.dumps({'task_id': payload['task_id'], 'input_hash': payload['input_hash'],
                                    'analysis': {'characters': [], 'terms': [], 'non_translate': []}}), {'prompt_tokens': 10, 'completion_tokens': 10}
             def close(self): pass
@@ -552,20 +579,13 @@ class WorkflowTests(unittest.TestCase):
         changed = self.flow.revise_glossary(snapshot, decision_path, '角色译名调整')
         self.assertEqual(len(changed['affected_records']), 1)
         self.flow.pause(False)
-        self.flow.prepare('pilot_review')
-        claim = self.flow.claim('pilot_review', self.fresh_worker('pilot_review'))
-        self.assertEqual(len(claim['payload']['records']), 1)
-        row = claim['payload']['records'][0]
-        value = row['translation'].replace('爱丽丝', '艾丽丝')
-        evidence = self.review_evidence(row)
-        evidence['checks']['terminology']['status'] = 'corrected'
-        evidence['changes'] = [{'category': 'terminology', 'severity': 'minor', 'source_excerpt': row['source'],
-            'before': row['translation'], 'after': value, 'reason': 'Apply revised name'}]
-        self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'records': [
-            {'id': row['id'], 'translation': value, 'reviewed': True, 'reason': 'Apply revised name',
-             'issues': [], 'exceptions': [], **evidence}]})
-        report = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
-        self.assertEqual([r['id'] for r in report['records_to_check']], changed['affected_records'])
+        calibration = self.flow.pilot_report()
+        self.assertEqual(calibration['statistics']['mechanical_failed_records'], 1)
+        self.flow.pilot_retry(changed['affected_records'], 'Verify the revised name on the affected sample')
+        self.translate('pilot_translate')
+        report = workflow.read_json(self.flow.pilot_report()['report_file'])
+        target = next(r for r in report['records'] if r['id'] in changed['affected_records'])
+        self.assertIn('艾丽丝', target['translation'])
         self.approve('pilot')
         scan = self.flow.draft_scan(prepare_repairs=True)
         self.assertEqual(scan['phase'], 'issue_recheck')
@@ -595,9 +615,11 @@ class WorkflowTests(unittest.TestCase):
             target = db.execute('SELECT id FROM records WHERE ordinal=1').fetchone()['id']
         result = self.flow.configure({'style': '澄清这一处角色口吻'}, 'One sentence affected', impact='ids', record_ids=[target])
         self.assertFalse(result['semantic_reset'])
-        self.assertEqual(self.flow.status()['records'], {'pilot_translate': 1, 'pilot_review': 3})
-        self.flow.pause(False); self.flow.prepare('pilot_review')
-        claim = self.flow.claim('pilot_review', self.fresh_worker('pilot_review'))
+        self.assertEqual(self.flow.status()['records'], {'pilot_translate': 4})
+        self.flow.pause(False)
+        self.flow.pilot_retry([target], 'Verify the scoped style adjustment')
+        self.flow.prepare('pilot_translate')
+        claim = self.flow.claim('pilot_translate', self.fresh_worker('pilot_translate'))
         self.assertEqual([r['id'] for r in claim['payload']['records']], [target])
 
     def test_minor_prompt_during_pilot_keeps_completed_work(self):
@@ -605,8 +627,8 @@ class WorkflowTests(unittest.TestCase):
         self.flow.pause(True)
         self.flow.configure({'style': '忠实自然，提示说明更清楚。'}, 'Clarification without changing prior meaning')
         self.assertEqual(self.flow.status()['records'], {'pilot_translate': 4})
-        self.assertEqual(self.flow.pilot_plan()['executions_used'], 1)
-        self.flow.pause(False); self.review('pilot_review')
+        self.assertEqual(self.flow.pilot_plan()['executions_used'], 2)
+        self.flow.pause(False); self.approve('pilot')
         self.assertEqual(self.flow.status()['records'], {'source': 4})
 
     def test_language_change_still_requires_full_scope(self):

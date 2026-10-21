@@ -1,0 +1,45 @@
+{
+  "provenance": "Actual historical replay API response, 2026-10-19; unchanged model record",
+  "record": {
+    "id": "1",
+    "reason": "译文准确：saw 为 see 的过去式，译“看出”；沿河交易与沿海至里伯两条路线完整，位置评价清楚。保留既有 saw 语境例外。",
+    "source_excerpt": "",
+    "source_ref": "whole",
+    "checks": {
+      "accuracy": [
+        "pass",
+        "“我一眼就看出”对应 I saw at once，“位置极好”对应 well situated，主体与判断准确。"
+      ],
+      "completeness": [
+        "pass",
+        "trade along the river 与 along the coast to Ribe 两条路线均译出，无漏译。"
+      ],
+      "terminology": [
+        "pass",
+        "trade 译“交易”、Ribe 译“里伯”符合术语；saw 此处为动词，例外 x1 适用，不套“锯子”。"
+      ],
+      "tone": [
+        "pass",
+        "口语自然的叙述口吻，符合题材。"
+      ],
+      "logic": [
+        "pass",
+        "“无论……还是……”完整保留两条并列路线，无关系增删。"
+      ],
+      "placeholders": [
+        "not_applicable",
+        "原文无变量、标签或占位符。"
+      ]
+    },
+    "changes": [],
+    "issues": [],
+    "exceptions": [
+      {
+        "term_ref": "t1",
+        "reason": "此处 saw 是动词 see 的过去式“看出”，非名词“锯子”；现译准确，不套用术语译名。"
+      }
+    ],
+    "keep": true
+  },
+  "bound_source": "I saw at once that this town is well situated, both when it comes to trade along the river and along the coast to Ribe."
+}

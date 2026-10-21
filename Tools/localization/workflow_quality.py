@@ -8,7 +8,9 @@ import hashlib
 import json
 from pathlib import Path, PurePosixPath
 import re
+import random
 import uuid
+from workflow_tokens import count_tokens, record_limit, record_tokens, batch_limit
 
 REVIEW_CHECKS = ('accuracy', 'completeness', 'terminology', 'tone', 'logic', 'placeholders')
 GLOSSARY_CHECKS = ('source', 'translation', 'category', 'consistency')
@@ -22,6 +24,20 @@ def signature(value):
 
 def nonempty(value):
     return isinstance(value, str) and bool(value.strip())
+
+
+def quote_matches(excerpt, text):
+    """A citation must be contiguous source text, ignoring only whitespace layout.
+
+    Re-wrapped lines and collapsed spaces do not change the quoted words, so the
+    same sentence copied across a line break still verifies as evidence;
+    paraphrases, joins and omissions remain rejected.
+    """
+    if not nonempty(excerpt) or not isinstance(text, str):
+        return False
+    if excerpt in text:
+        return True
+    return re.sub(r'\s+', ' ', excerpt).strip() in re.sub(r'\s+', ' ', text).strip()
 
 
 class ReviewContractError(ValueError):
@@ -123,9 +139,18 @@ def validate_glossary_reviews(decisions, payload):
         excerpt = review.get('source_excerpt')
         entry = refs[review['ref']]['row']
         if (not isinstance(rows, list) or not rows or any(type(n) is not int or n not in entry.get('evidence_rows', []) for n in rows)
-                or not nonempty(excerpt) or not any(excerpt in contexts.get(n, '') for n in rows)
+                or not nonempty(excerpt) or not any(quote_matches(excerpt, contexts.get(n, '')) for n in rows)
                 or not nonempty(review.get('reason'))):
-            raise ValueError('Glossary review requires cited source context and specific reason')
+            available = sorted(set(entry.get('evidence_rows', [])).intersection(contexts))
+            invalid = [n for n in rows if type(n) is not int or n not in available] if isinstance(rows, list) else rows
+            matches = ([n for n in rows if type(n) is int and quote_matches(excerpt, contexts.get(n, ''))]
+                       if isinstance(rows, list) else [])
+            raise ValueError('Glossary review requires cited source context and specific reason; '
+                f'ref={review["ref"]}; available_evidence_rows={available}; '
+                f'invalid_or_unprovided_rows={invalid}; excerpt_matches_cited_rows={matches}; '
+                f'reason_missing={not nonempty(review.get("reason"))}. '
+                'source_excerpt must be one exact contiguous excerpt from a cited, provided source; '
+                'do not join paraphrases or insert ellipses.')
 
 
 def risk_reasons(row):
@@ -180,64 +205,110 @@ class QualityMixin:
     @staticmethod
     def review_output_budget(config, stage, backend=None):
         limit = config.get('review_output_tokens', 16384)
-        backend = backend or config.get('stage_backends', {}).get(stage, config.get('backend', 'codex'))
-        if backend == 'api':
-            limit = min(limit, config['api']['max_completion_tokens'])
-        return max(1, limit * 4 // 5)  # Reserve 20% for variation and the envelope.
+        return max(1, limit * (100 - config.get('review_output_reserve_percent', 20)) // 100)
 
     @staticmethod
-    def estimate_review_output(row, stage):
+    def estimate_review_output(row, stage, config=None):
         """Planning estimate, not an exact tokenizer or a semantic evidence limit."""
+        from translation_workflow import DEFAULT
+        estimate = (config or {}).get('review_estimate', DEFAULT['review_estimate'])
         def tokens(text):
             text = str(text or '')
             ascii_chars = sum(ord(c) < 128 for c in text)
-            return (ascii_chars + 2) // 3 + (len(text) - ascii_chars) * 2
+            divisor = estimate['ascii_chars_per_token']
+            return (ascii_chars + divisor - 1) // divisor + (len(text) - ascii_chars) * estimate['non_ascii_tokens_per_char']
         source = tokens(row.get('source'))
         translation = tokens(row.get('translation')) or source
         # Full correction may repeat source excerpts, before/after and six checks.
-        return (120 if stage == 'pilot_review' else 420) + source + 3 * translation + tokens(row.get('exceptions', ''))
+        return estimate['full_base_tokens'] + source + estimate['translation_multiplier'] * translation + tokens(row.get('exceptions', ''))
 
     def review_batches(self, rows, config, stage, backend=None):
         limit = self.review_output_budget(config, stage, backend)
-        batch, output, chars = [], 0, 0
-        record_limit = 40 if stage == 'pilot_review' else config.get('review_batch_records', 80)
-        if stage != 'pilot_review':
-            record_limit = min(record_limit, config.get('batch_records', 80))
+        batch, output, tokens = [], 0, 0
+        cap = record_limit(config, stage)
         for row in rows:
-            estimate = self.estimate_review_output(row, stage)
+            estimate = self.estimate_review_output(row, stage, config)
             if estimate > limit:
                 raise ValueError(f'Review output budget too small for {row["id"]}: estimated {estimate} tokens, budget {limit}; increase output allowance or design an aligned split; no text truncated')
-            size = len(row.get('source', '')) + len(row.get('translation') or '')
-            if batch and (len(batch) >= record_limit or output + estimate > limit or chars + size > config.get('batch_chars', 12000)):
+            size = record_tokens(row, stage)
+            if batch and ((cap is not None and len(batch) >= cap) or output + estimate > limit or tokens + size > batch_limit(config, stage)):
                 yield batch
-                batch, output, chars = [], 0, 0
-            batch.append(row); output += estimate; chars += size
+                batch, output, tokens = [], 0, 0
+            batch.append(row); output += estimate; tokens += size
         if batch:
             yield batch
 
     def pilot_review_batches(self, scope, eligible, config):
-        return [batch for group in self.fixed_pilot_batches(scope, eligible, config.get('pilot_batch_count') or 1)
-                for batch in self.review_batches(group, config, 'pilot_review')]
+        return list(self.review_batches(eligible, config, 'pilot_review'))
 
-    def pilot_claim_limit(self, db, task, default_limit):
-        grant = self.meta(db, 'pilot_repair_grant', {})
-        if grant and task['id'] in grant.get('task_ids', []):
-            if (grant.get('additional_calls') != 2 or not grant.get('authorization', {}).get('human_answer')
-                    or set(json.loads(task['ids'])) != set(grant['record_ids'])):
-                raise ValueError('Repair task exceeds human-authorized record scope/budget')
-            return grant['baseline_spent'] + grant['additional_calls']
-        return default_limit
+    @staticmethod
+    def pilot_exclusion_table(db):
+        db.execute("CREATE TABLE IF NOT EXISTS pilot_attempt_exclusions (task_id TEXT, token TEXT, session_id TEXT, instance TEXT, reason TEXT, evidence TEXT, authorization TEXT, original_failure TEXT, created_at TEXT, PRIMARY KEY(task_id,token))")
+        for operation in ('UPDATE', 'DELETE'):
+            db.execute(f"CREATE TRIGGER IF NOT EXISTS pilot_exclusions_no_{operation.lower()} BEFORE {operation} ON pilot_attempt_exclusions BEGIN SELECT RAISE(ABORT, 'Pilot exclusion ledger is append-only'); END")
 
-    def pilot_spent(self, db):
-        # Retries and obsolete revisions count. Scheduling/style changes do not refresh
-        # the calibration budget. Legacy runs start counting when this policy is enabled.
+    def pilot_usage(self, db):
+        # Legacy policy boundary remains unchanged; revisions never reset usage.
         start = self.meta(db, 'pilot_budget_start')
         if start is None:
             legacy = 'pilot_call_limit' not in self.meta(db, 'config')
             start = db.execute('SELECT coalesce(max(rowid),0) FROM quality_attempts').fetchone()[0] if legacy else 0
             self.put(db, 'pilot_budget_start', start)
-        return db.execute('SELECT count(*) FROM quality_attempts a JOIN tasks t ON t.id=a.task_id '
-                          'WHERE a.rowid>? AND t.stage IN ("pilot_translate","pilot_review")', (start,)).fetchone()[0]
+        self.pilot_exclusion_table(db)
+        counts = db.execute('SELECT count(*) raw,count(e.token) exempt FROM quality_attempts a '
+            'JOIN tasks t ON t.id=a.task_id LEFT JOIN pilot_attempt_exclusions e '
+            'ON e.task_id=a.task_id AND e.token=a.token '
+            'WHERE a.rowid>? AND t.stage IN ("pilot_translate","pilot_review")', (start,)).fetchone()
+        return {'raw': counts['raw'], 'exempt': counts['exempt'], 'effective': counts['raw'] - counts['exempt']}
+
+    def pilot_spent(self, db):
+        return self.pilot_usage(db)['effective']
+
+    def exclude_pilot_attempt(self, entry):
+        """Register an explicit human-authorized program-error credit, retaining history."""
+        from datetime import datetime, timezone
+        required = ('task_id', 'token', 'session_id', 'instance', 'reason', 'authorization')
+        if not isinstance(entry, dict) or any(not nonempty(entry.get(k)) for k in required):
+            raise ValueError('Explicit task/token/session/instance, reason and human authorization required')
+        if entry.get('classification') != 'program_error' or entry.get('human_authorized') is not True:
+            raise ValueError('Only explicitly human-authorized program errors may be excluded')
+        evidence = entry.get('evidence')
+        if not isinstance(evidence, list) or not evidence:
+            raise ValueError('Preserved original failure evidence required')
+        verified = []
+        for item in evidence:
+            path = Path(item['path']).resolve()
+            if not path.is_relative_to(self.root.resolve()) or not path.is_file():
+                raise ValueError('Evidence must be an existing project TranslateFiles artifact')
+            digest = hashlib.sha256(path.read_bytes()).hexdigest()
+            excerpt = item.get('excerpt')
+            if digest != item.get('sha256') or not nonempty(excerpt) or excerpt not in path.read_text(encoding='utf-8'):
+                raise ValueError('Evidence hash/excerpt mismatch')
+            verified.append(dict(item, path=str(path)))
+        with self.db() as db:
+            if list((self.root / 'state').glob('*.lock')) or db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone() or db.execute('SELECT 1 FROM api_calls WHERE status="reserved"').fetchone():
+                raise ValueError('Stop all in-flight work before registering a budget exclusion')
+            attempt = db.execute('SELECT a.*,t.stage FROM quality_attempts a JOIN tasks t ON t.id=a.task_id WHERE a.task_id=? AND a.token=?', (entry['task_id'], entry['token'])).fetchone()
+            run = db.execute('SELECT * FROM batch_runs WHERE id=?', (entry['session_id'],)).fetchone()
+            if (not attempt or attempt['stage'] not in ('pilot_translate', 'pilot_review')
+                    or attempt['instance'] != entry['instance'] or not run or run['task_id'] != entry['task_id']
+                    or run['worker'] != attempt['instance'] or run['round'] < 1
+                    or run['status'] not in ('needs_attention', 'repair_required', 'failed')):
+                raise ValueError('Exclusion must identify the exact failed pilot repair attempt and real owner')
+            # Batch lease token is intentionally distinct from repair attempt token.
+            original = Path(run['result_file'])
+            if not original.is_file() or not any(entry['session_id'] in x['excerpt'] for x in verified):
+                raise ValueError('Retained result and session-specific original failure evidence required')
+            self.pilot_exclusion_table(db)
+            if db.execute('SELECT 1 FROM pilot_attempt_exclusions WHERE task_id=? AND token=?', (entry['task_id'], entry['token'])).fetchone():
+                raise ValueError('Attempt already excluded; ledger cannot be overwritten')
+            failure = {'batch_run': dict(run), 'attempt': dict(attempt), 'result_sha256': hashlib.sha256(original.read_bytes()).hexdigest()}
+            created = datetime.now(timezone.utc).isoformat()
+            db.execute('INSERT INTO pilot_attempt_exclusions VALUES (?,?,?,?,?,?,?,?,?)',
+                (entry['task_id'], entry['token'], entry['session_id'], entry['instance'], entry['reason'],
+                 json.dumps(verified, ensure_ascii=False), entry['authorization'], json.dumps(failure, ensure_ascii=False), created))
+            return {'registered': True, 'task_id': entry['task_id'], 'token': entry['token'],
+                    'session_id': entry['session_id'], 'created_at': created, 'usage': self.pilot_usage(db)}
 
     def pilot_plan(self):
         from translation_workflow import prompt
@@ -246,40 +317,40 @@ class QualityMixin:
             rows = self.quality_rows(db)
             selected = self.pilot_ids(db, rows, config)
             scope = [r for r in rows if r['id'] in selected]
-            count = config.get('pilot_batch_count') or 1
             approved = self.pilot_approved(db, config)
             untranslated = [] if approved else [r for r in scope if r['stage'] not in ('pilot_translate', 'pilot_review')]
             unreviewed = [] if approved else [r for r in scope if r['stage'] != 'pilot_review']
-            translate = sum(bool(g) for g in self.fixed_pilot_batches(scope, untranslated, count))
-            review = len(self.pilot_review_batches(scope, unreviewed, config))
+            # Active claims already consume pilot_spent. Estimate only future
+            # claims, while keeping the accepted-record counts below unchanged.
+            claimed = {'pilot_translate': set(), 'pilot_review': set()}
+            for task in db.execute('SELECT id,stage,ids FROM tasks WHERE revision=? AND status="running" '
+                                   'AND stage IN ("pilot_translate","pilot_review")', (self.meta(db, 'revision'),)):
+                if db.execute('SELECT 1 FROM quality_attempts WHERE task_id=?', (task['id'],)).fetchone():
+                    claimed[task['stage']].update(json.loads(task['ids']))
+            future_translate = [r for r in untranslated if r['id'] not in claimed['pilot_translate']]
+            future_review = [r for r in unreviewed if r['id'] not in claimed['pilot_review']]
+            translate = sum(1 for batch in self.batches(future_translate, config, respect_groups=False, stage='pilot_translate'))
+            review = 0  # Calibration is assessed by the main AI, with no independent API review.
             pending = db.execute('SELECT stage,payload FROM tasks WHERE revision=? AND status IN ("pending","failed") '
                                  'AND stage IN ("pilot_translate","pilot_review")', (self.meta(db, 'revision'),)).fetchall()
             translate = max(translate, sum(t['stage'] == 'pilot_translate' for t in pending))
-            review = max(review, sum(t['stage'] == 'pilot_review' for t in pending))
+            review = 0
             self.allocation_tables(db)
-            maximum = db.execute('SELECT coalesce(max(max(a.input_chars,a.compact_chars)),0) '
+            maximum = db.execute('SELECT coalesce(max(max(a.input_tokens,a.compact_tokens)),0) '
                                  'FROM task_allocations a JOIN tasks t ON t.id=a.task_id '
                                  'WHERE t.revision=? AND t.status IN ("pending","failed") '
                                  'AND t.stage IN ("pilot_translate","pilot_review")',
                                  (self.meta(db, 'revision'),)).fetchone()[0]
             running = db.execute('SELECT count(*) FROM tasks WHERE status="running" AND stage IN ("pilot_translate","pilot_review")').fetchone()[0]
-            spent = self.pilot_spent(db); limit = config.get('pilot_call_limit', 6)
-            grant = self.meta(db, 'pilot_repair_grant', {})
-            if grant:
-                limit = grant['baseline_spent'] + grant['additional_calls']
-                repair_tasks = [db.execute('SELECT stage,status FROM tasks WHERE id=?', (i,)).fetchone()
-                                for i in grant['task_ids']]
-                translate = int(not any(t['stage'] == 'pilot_translate' and t['status'] == 'done' for t in repair_tasks))
-                review = int(not any(t['stage'] == 'pilot_review' and t['status'] == 'done' for t in repair_tasks))
-                # In-flight leases already count as spent; reserve only future calls.
-                translate -= int(any(t['stage'] == 'pilot_translate' and t['status'] == 'running' for t in repair_tasks))
-                review -= int(any(t['stage'] == 'pilot_review' and t['status'] == 'running' for t in repair_tasks))
+            usage = self.pilot_usage(db)
+            spent = usage['effective']
             return {'sample_records': len(scope), 'translated_records': len(scope) - len(untranslated),
-                    'reviewed_records': len(scope) - len(unreviewed), 'translation_batches': translate,
-                    'review_batches': review, 'executions_used': spent, 'execution_limit': limit,
-                    'running_tasks': running, 'maximum_prepared_input_chars': maximum,
-                    'within_budget': spent + translate + review <= limit and maximum <= config.get('task_input_chars', 48000),
-                    'note': 'No agent spawned; all claims/retries count across revisions. Explicit repair grant, if present, applies only to its tasks.'}
+                    'reviewed_records': 0, 'translation_batches': translate,
+                    'review_batches': review, 'executions_used': spent, 'executions_raw': usage['raw'],
+                    'executions_exempt': usage['exempt'], 'executions_effective': spent, 'execution_limit': None,
+                    'running_tasks': running, 'maximum_prepared_input_tokens': maximum,
+                    'within_budget': maximum <= config.get('task_input_tokens', 16384),
+                    'note': 'Random calibration sample; production translation batching and task retries apply. No independent pilot review or automatic quality repair loop. Main AI chooses accept, targeted retry, or stop.'}
 
     def reduce_pilot(self, count, reason):
         """Adopt a smaller calibration sample without discarding its accepted work."""
@@ -309,7 +380,7 @@ class QualityMixin:
             self.put(db, 'pilot_prior', [r for r in prior if r['id'] in selected] if prior else None)
             new = merge_config({**DEFAULT, **config}, {'pilot_records': count,
                                'pilot_ordinals': [r['ordinal'] for r in rows if r['id'] in selected],
-                               'pilot_batch_count': 1, 'pilot_call_limit': 6})
+                               'pilot_batch_count': None, 'pilot_call_limit': None})
             # Activate once for legacy work. Further scope/config changes preserve spent calls.
             self.pilot_spent(db)
             revision = self.meta(db, 'revision') + 1
@@ -322,7 +393,7 @@ class QualityMixin:
             reused = sum(r['id'] in selected for r in complete)
             self.event(db, 'reduce_pilot', {'reason': reason, 'old_count': len(original), 'new_count': count, 'reused': reused})
             return {'sample_records': count, 'reused_translations': reused, 'revision': revision,
-                    'executions_used': self.pilot_spent(db), 'execution_limit': 6}
+                    'executions_used': self.pilot_spent(db), 'execution_limit': None}
     def restore_pilot_baseline(self, db):
         for row in self.meta(db, 'pilot_prior', []) or []:
             db.execute('UPDATE records SET stage=?,translation=?,exceptions=? WHERE id=?',
@@ -343,30 +414,10 @@ class QualityMixin:
             if any(n > len(records) for n in ordinals):
                 raise ValueError('pilot_ordinals exceeds source record count')
             picks = [r for r in records if r['ordinal'] in ordinals]
+        elif len(records) <= config['pilot_records']:
+            picks = records
         else:
-            # Round robin across text types, speakers, scenes and risk dimensions.
-            buckets = defaultdict(list)
-            for row in records:
-                metadata = row.get('metadata', {})
-                keys = [('type', str(metadata.get('text_type', 'unknown'))),
-                        ('speaker', str(metadata.get('speaker', 'unknown'))),
-                        ('scene', str(metadata.get('scene', metadata.get('group', 'unknown'))))]
-                keys.extend(('risk', flag) for flag in risk_reasons(row))
-                keys.append(('length', 'long' if len(row['source']) >= 300 else 'short'))
-                if not row['source'].strip():
-                    keys.append(('special', 'empty'))
-                for key in keys:
-                    buckets[key].append(row)
-            queues = [evenly(rows, config['pilot_records']) for _, rows in sorted(buckets.items())]
-            picks, seen = [], set()
-            for offset in range(config['pilot_records']):
-                for queue in queues:
-                    if offset < len(queue) and queue[offset]['id'] not in seen:
-                        picks.append(queue[offset]); seen.add(queue[offset]['id'])
-                        if len(picks) >= config['pilot_records']:
-                            break
-                if len(picks) >= config['pilot_records']:
-                    break
+            picks = random.sample(records, config['pilot_records'])
         selected = [r['id'] for r in picks]
         self.put(db, 'pilot_selection', selected)
         return set(selected)
@@ -432,15 +483,19 @@ class QualityMixin:
         if pilot and sample.intersection(affected):
             # An accepted pilot restored the production baseline. Recover its reviewed
             # translations from provenance, keeping the baseline for later restoration.
-            reviews = self.latest_reviews(db, 'pilot')
+            if pilot.get('reviewer') == 'main':
+                archived = self.root / f'reports/accepted/pilot_{pilot["report_hash"][:16]}/report.json'
+                reviews = {r['id']: r for r in read_json(archived)['records']}
+            else:
+                reviews = self.latest_reviews(db, 'pilot')
             if any(record_id not in reviews for record_id in sample):
-                raise ValueError('Cannot reuse accepted pilot without its per-record review provenance')
+                raise ValueError('Cannot reuse accepted pilot without its saved translations')
             self.put(db, 'pilot_prior', [{k: row[k] for k in ('id', 'stage', 'translation', 'exceptions')}
                                        for row in rows if row['id'] in sample])
             for record_id in sample:
                 review = reviews[record_id]
                 db.execute('UPDATE records SET translation=?,stage=?,exceptions=? WHERE id=?',
-                           (review['translation'], 'pilot_translate' if record_id in affected else 'pilot_review',
+                           (review['translation'], 'pilot_translate',
                             json.dumps([] if record_id in affected else review.get('exceptions', [])), record_id))
             approvals.pop('pilot', None)
         elif pilot:
@@ -503,15 +558,15 @@ class QualityMixin:
         return reviews
 
     def build_quality_report(self, db, kind, config):
-        if kind not in ('pilot', 'final'):
+        if kind == 'pilot':
+            return self.build_pilot_report(db, config)
+        if kind != 'final':
             raise ValueError('Quality report kind must be pilot or final')
         self.glossary(db)
         all_rows = self.quality_rows(db)
-        pilot = self.pilot_ids(db, all_rows, config)
-        rows = [r for r in all_rows if r['id'] in pilot] if kind == 'pilot' else all_rows
-        required_stage = 'pilot_review' if kind == 'pilot' else ('final_review' if config['polish'] else 'review')
-        if kind == 'final':
-            self.require_review_round_complete(db, required_stage)
+        rows = all_rows
+        required_stage = 'final_review' if config['polish'] else 'review'
+        self.require_review_round_complete(db, required_stage)
         if any(r['stage'] != required_stage for r in rows):
             raise ValueError('Complete the required semantic review before quality report: ' + required_stage)
         if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status IN ("running","pending","failed")', (self.meta(db, 'revision'),)).fetchone():
@@ -522,15 +577,10 @@ class QualityMixin:
             review = reviews.get(row['id'])
             if not review or not review['instance'] or review['translation'] != row['translation']:
                 raise ValueError('Missing current review provenance: ' + row['id'])
-            if kind == 'pilot' and review.get('batch_summary') is not None:
-                validate_pilot_review(review, row['source'], review['before'], row['translation'], review['batch_summary'])
-            elif kind == 'final':
-                proof = self.review_proof_key(review, row['source'], review['before'], row['translation'])
-                if not db.execute('SELECT 1 FROM review_proof_checks WHERE signature=?', (proof,)).fetchone():
-                    validate_review(review, row['source'], review['before'], row['translation'])
-                    db.execute('INSERT OR IGNORE INTO review_proof_checks VALUES (?)', (proof,))
-            else:
+            proof = self.review_proof_key(review, row['source'], review['before'], row['translation'])
+            if not db.execute('SELECT 1 FROM review_proof_checks WHERE signature=?', (proof,)).fetchone():
                 validate_review(review, row['source'], review['before'], row['translation'])
+                db.execute('INSERT OR IGNORE INTO review_proof_checks VALUES (?)', (proof,))
             reasons = risk_reasons(row)
             if review.get('changes'):
                 reasons.append('review_correction')
@@ -540,38 +590,13 @@ class QualityMixin:
                       'translation': row['translation'], 'metadata': row['metadata'],
                       'risk_reasons': reasons, 'review': {k: v for k, v in review.items() if k != 'batch_summary'}}
             (risks if reasons else ordinary).append(record)
-        # Heuristic risk is a reminder for the independent reviewer, not an
-        # unresolved defect and not a reason to purchase another full review.
-        selected = risks + ordinary if kind == 'pilot' else [r for r in risks if r['review'].get('issues')]
-        if kind == 'final':
-            known = self.meta(db, 'sol_pending_findings', {})
-            selected = [r for r in selected if r['id'] not in known]
-        groups = defaultdict(list)
-        speakers = defaultdict(list)
-        for row in rows:
-            groups[row['source']].append(row)
-            if row['metadata'].get('speaker'):
-                speakers[str(row['metadata']['speaker'])].append(row)
-        consistency = []
-        for source, group in sorted(groups.items()) if kind == 'pilot' else []:
-            if len({r['translation'] for r in group}) > 1:
-                consistency.append({'id': 'C:' + signature(source)[:16], 'kind': 'same_source_multiple_translations',
-                                    'source': source, 'records': group})
-        for speaker, group in sorted(speakers.items()) if kind == 'pilot' else []:
-            consistency.append({'id': 'S:' + signature(speaker)[:16], 'kind': 'speaker_voice',
-                                'speaker': speaker, 'record_ids': [r['id'] for r in group],
-                                'examples': evenly(group, 12)})
-        # Include glossary findings and actual semantic changes in the pilot acceptance.
-        glossary_checks = []
+        # Ordinary errors are handled by independent review. Only unresolved
+        # semantic issues enter the final Sol dispute report.
+        known = self.meta(db, 'sol_pending_findings', {})
+        selected = [r for r in risks if r['review'].get('issues') and r['id'] not in known]
+        consistency, glossary_checks = [], []
+        items = selected
         glossary_info = self.meta(db, 'glossary')
-        if kind == 'pilot' and glossary_info:
-            built = (self.root / glossary_info['path']).parent
-            from translation_workflow import read_json
-            changes_path = built / 'glossary_review_changes.json'
-            if changes_path.exists():
-                glossary_checks.append({'id': 'G:review_changes', 'report': read_json(changes_path),
-                                        'reviewed_glossary': glossary_info['path']})
-        items = selected + consistency + glossary_checks
         key = self.meta(db, 'quality_policy_key', self.pilot_key(db, config))
         checkpoints = self.meta(db, 'quality_checkpoints', {}).get(kind, {})
         signatures = {item['id']: signature({'policy': key, 'item': item}) for item in items}
@@ -584,14 +609,13 @@ class QualityMixin:
                                               'polish': config['polish']}),
                   'coverage': {'records': len(rows), 'text_types': dict(Counter(str(r['metadata'].get('text_type', 'unknown')) for r in rows)),
                                'missing_context': sum(not r['metadata'] for r in rows),
-                               'risk_records': len(risks), 'ordinary_sample': len(selected) - len(risks) if kind == 'pilot' else 0,
+                               'risk_records': len(risks), 'ordinary_sample': 0,
                                'sol_records': len(selected)},
                   'risk_detection': 'Heuristic candidates plus reviewer findings; absence of flags is not proof of correctness.',
                   'records_to_check': [r for r in selected if r['id'] not in reused],
                   'consistency': [r for r in consistency if r['id'] not in reused],
                   'glossary_checks': [r for r in glossary_checks if r['id'] not in reused],
-                  'pilot_batch_summaries': {reviews[r['id']]['task_id'] + ':' + str(reviews[r['id']]['instance']) + ':' + signature(reviews[r['id']]['batch_summary'])[:12]: reviews[r['id']]['batch_summary'] for r in rows
-                                           if kind == 'pilot' and r['id'] not in reused and reviews[r['id']].get('batch_summary') is not None},
+                  'pilot_batch_summaries': {},
                   'check_signatures': signatures, 'reused_decisions': reused,
                   'required_decisions': required}
         if kind == 'final':
@@ -606,6 +630,8 @@ class QualityMixin:
 
     def checkpoint_quality(self, kind, decisions):
         """Record Sol's passed checks before repair without approving the whole stage."""
+        if kind == 'pilot':
+            raise ValueError('Pilot uses an overall main assessment; use pilot-decide')
         with self.db() as db:
             if kind == 'final':
                 self.sol_tables(db)
@@ -630,6 +656,8 @@ class QualityMixin:
             return {'status': 'checks_saved', 'saved_checks': len(entries), 'stage_approved': False}
 
     def quality_report(self, kind):
+        if kind == 'pilot':
+            return self.pilot_report()
         from translation_workflow import read_json, write_json
         with self.db() as db:
             config = self.config(db)
@@ -640,11 +668,6 @@ class QualityMixin:
             saved = {}
             next_input = None
             inspection_manifest = None
-            if kind == 'pilot':
-                inspection_manifest = self.write_sol_inputs(report, None, config, kind='pilot')
-                packets = read_json(inspection_manifest)
-                if packets:
-                    next_input = packets[0]['file']
             if round_id is not None:
                 saved = json.loads(db.execute('SELECT decisions FROM sol_review_rounds WHERE id=?', (round_id,)).fetchone()[0])
                 # A compact view of the fixed round scope; its canonical complete
@@ -679,6 +702,8 @@ class QualityMixin:
                     'inspection_manifest': str(inspection_manifest) if inspection_manifest else None}
 
     def approve_quality(self, kind, decisions):
+        if kind == 'pilot':
+            return self.pilot_decide(decisions)
         from translation_workflow import write_json
         with self.db() as db:
             config = self.config(db)
@@ -719,11 +744,12 @@ class QualityMixin:
         if kind == 'final' and report.get('carried_findings'):
             raise ValueError('Unresolved carried Sol findings; use sol-round-finish to dispatch targeted repairs')
         receipt = {'report_hash': report['report_hash'], 'snapshot_hash': report['snapshot_hash'],
-                   'pilot_key': report['pilot_key'], 'reviewer': 'sol', 'decisions': decisions}
+                   'pilot_key': report['pilot_key'], 'reviewer': decisions.get('reviewer', 'sol'), 'decisions': decisions}
         approvals = self.meta(db, 'quality_approvals', {}); approvals[kind] = receipt
         self.put(db, 'quality_approvals', approvals)
         folder = self.root / f'reports/accepted/{kind}_{report["report_hash"][:16]}'
-        write_json(folder / 'report.json', report); write_json(folder / 'sol_decisions.json', decisions)
+        write_json(folder / 'report.json', report)
+        write_json(folder / ('main_assessment.json' if kind == 'pilot' else 'sol_decisions.json'), decisions)
         if kind == 'pilot':
             self.restore_pilot_baseline(db)
         self.event(db, 'approve_quality', {'kind': kind, 'report_hash': report['report_hash']})
@@ -731,7 +757,7 @@ class QualityMixin:
 
     def require_final_approval(self, db, config):
         if not self.pilot_approved(db, config):
-            raise ValueError('Sol pilot approval required')
+            raise ValueError('Main pilot approval required')
         report = self.build_quality_report(db, 'final', config)
         receipt = self.meta(db, 'quality_approvals', {}).get('final', {})
         if receipt.get('report_hash') != report['report_hash']:
@@ -743,74 +769,30 @@ class QualityMixin:
         with self.db() as db:
             config = self.config(db)
             task = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
+            if task and task['stage'] == 'pilot_review':
+                raise ValueError('Pilot independent review retired; use pilot-retry for calibration')
             if not nonempty(reason) or not task or task['status'] != 'done' or task['stage'] not in ('pilot_review', 'review', 'final_review') or task['revision'] != self.meta(db, 'revision'):
                 raise ValueError('Only completed current body review tasks can be reopened with reason')
+            self.require_review_round_complete(db, task['stage'])
             if task['stage'] != 'pilot_review':
-                self.require_review_round_complete(db, task['stage'])
                 self.guard_sol_dispatch(db)
             if db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone():
                 raise ValueError('Finish/recover in-flight tasks before reopening a review')
             if task['stage'] == 'pilot_review' and self.pilot_approved(db, config):
                 raise ValueError('Accepted pilot is immutable; revise configuration/glossary and run a new pilot')
-            if task['stage'] == 'pilot_review' and task['attempt'] >= config['max_attempts']:
-                raise ValueError('Attempt limit reached')
             original_ids = set(json.loads(task['ids']))
             ids = original_ids if record_ids is None else set(record_ids)
             if not ids or not ids.issubset(original_ids) or (record_ids is not None and len(ids) != len(record_ids)):
                 raise ValueError('Repair IDs must be a nonempty unique subset of the assigned records')
-            prior_attempts = max((t['attempt'] for t in db.execute('SELECT attempt,ids FROM tasks WHERE stage=? AND revision=?',
-                                  (task['stage'], task['revision'])) if ids.intersection(json.loads(t['ids']))), default=task['attempt'])
-            if task['stage'] == 'pilot_review' and prior_attempts >= config['max_attempts']:
-                raise ValueError('Attempt limit reached for selected repair records')
             # Later stage tasks touching these records must not override the repair.
             order = {'pilot_review': 0, 'review': 1, 'polish': 2, 'final_review': 3}
             for other in db.execute('SELECT * FROM tasks WHERE revision=?', (task['revision'],)).fetchall():
                 if other['id'] != task_id and order.get(other['stage'], -1) > order[task['stage']] and ids.intersection(json.loads(other['ids'])):
                     db.execute('UPDATE tasks SET status="obsolete" WHERE id=?', (other['id'],))
-            if task['stage'] != 'pilot_review':
-                tasks, blocked = self.plan_review_repairs(db, config, task['stage'], {i: reason for i in ids}, 'reopen-body')
-                self.event(db, 'reopen_body', {'repair_tasks': tasks, 'record_ids': sorted(ids), 'reason': reason})
-                return {'task_id': tasks[0] if tasks else None, 'repair_tasks': tasks, 'needs_attention_ids': blocked,
-                        'repair_records': len(ids) - len(blocked), 'preserved_records': len(original_ids - ids)}
-            payload = json.loads(task['payload'])
-            partial = ids != original_ids
-            if partial:
-                # Keep the old completed result as provenance for every untouched record.
-                payload['records'] = [r for r in payload['records'] if r['id'] in ids]
-                payload['repair_of'] = task_id
-                task_id = task['stage'] + '-repair-' + uuid.uuid4().hex[:16]
-                payload['task_id'] = task_id
-            for row in payload['records']:
-                current = db.execute('SELECT translation,locked,exceptions FROM records WHERE id=?', (row['id'],)).fetchone()
-                row.update(translation=current['translation'], locked=bool(current['locked']), exceptions=json.loads(current['exceptions']))
-                previous = {'pilot_review': 'pilot_translate', 'review': 'translate', 'final_review': 'polish'}[task['stage']]
-                db.execute('UPDATE records SET stage=? WHERE id=?', (previous, row['id']))
-            payload['revision_request'] = reason
-            payload.pop('input_hash', None)
-            input_hash = signature(payload)
-            payload['input_hash'] = input_hash
-            planned = self.plan_task_allocation(db, payload, task['backend'])
-            if partial:
-                allocated = self.allocate_task(db, payload, task['backend'], prior_attempts, planned)
-            else:
-                if len(planned) == 1:
-                    value, raw_chars, compact_chars = planned[0]
-                    db.execute('UPDATE tasks SET payload=?,input_hash=?,status="pending",lease_token=NULL,lease_until=NULL,ready_at=0,result=NULL,attempt=? WHERE id=?',
-                               (json.dumps(value, ensure_ascii=False), value['input_hash'], prior_attempts, task_id))
-                    self.allocation_tables(db)
-                    db.execute('INSERT OR REPLACE INTO task_allocations VALUES (?,?,?,?,1)',
-                               (task_id, raw_chars, compact_chars, config['task_input_chars']))
-                    allocated = [task_id]
-                else:
-                    db.execute('UPDATE tasks SET status="obsolete" WHERE id=?', (task_id,))
-                    allocated = self.allocate_task(db, payload, task['backend'], prior_attempts, planned)
-            approvals = self.meta(db, 'quality_approvals', {})
-            approvals.pop('final', None)
-            if task['stage'] == 'pilot_review':
-                approvals.pop('pilot', None)
-            self.put(db, 'quality_approvals', approvals)
-            self.event(db, 'reopen_body', {'task': task_id, 'reason': reason, 'record_ids': sorted(ids)})
-            return {'task_id': allocated[0], 'repair_tasks': allocated, 'repair_records': len(ids), 'preserved_records': len(original_ids - ids)}
+            tasks, blocked = self.plan_review_repairs(db, config, task['stage'], {i: reason for i in ids}, 'reopen-body')
+            self.event(db, 'reopen_body', {'repair_tasks': tasks, 'record_ids': sorted(ids), 'reason': reason})
+            return {'task_id': tasks[0] if tasks else None, 'repair_tasks': tasks, 'needs_attention_ids': blocked,
+                    'repair_records': len(ids) - len(blocked), 'preserved_records': len(original_ids - ids)}
 
     def reopen_body_ids(self, reason, record_ids):
         """Reopen an explicit, cross-batch set after the prior review round is complete."""
@@ -825,15 +807,22 @@ class QualityMixin:
                 'SELECT id,stage FROM records WHERE id IN (' + ','.join('?' for _ in ids) + ')', ids)}
             if set(rows) != set(ids):
                 raise ValueError('Unknown review ID')
-            if any(row['stage'] != 'review' for row in rows.values()):
-                raise ValueError('Only records with completed full review can be reopened')
+            stages = {row['stage'] for row in rows.values()}
+            if len(stages) != 1 or not stages.issubset({'pilot_review', 'review'}):
+                raise ValueError('Only records with completed review in the same phase can be reopened')
+            stage = next(iter(stages))
+            if stage == 'pilot_review':
+                raise ValueError('Pilot independent review retired; use pilot-retry for calibration')
+            if stage == 'pilot_review' and self.pilot_approved(db, config):
+                raise ValueError('Accepted pilot is immutable; revise configuration/glossary and run a new pilot')
             if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status="running"',
                           (self.meta(db, 'revision'),)).fetchone():
                 raise ValueError('Finish/recover in-flight tasks before reopening a review')
-            self.require_review_round_complete(db, 'review')
-            self.guard_sol_dispatch(db)
+            self.require_review_round_complete(db, stage)
+            if stage != 'pilot_review':
+                self.guard_sol_dispatch(db)
             tasks, blocked = self.plan_review_repairs(
-                db, config, 'review', {record_id: reason for record_id in ids}, 'reopen-body')
+                db, config, stage, {record_id: reason for record_id in ids}, 'reopen-body')
             self.event(db, 'reopen_body_ids', {'repair_tasks': tasks, 'record_ids': sorted(ids), 'reason': reason})
             return {'repair_tasks': tasks, 'repair_records': len(ids) - len(blocked),
                     'needs_attention_ids': blocked,

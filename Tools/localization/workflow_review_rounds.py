@@ -44,8 +44,8 @@ class ReviewRoundMixin:
             return dict(item)
         return {**item, 'exceptions': list(merged.values())}
 
-    def repair_constraints(self, source, translation, exceptions, glossary, config):
-        terms = bridge.matched_terms(glossary, [source], config)
+    def repair_constraints(self, source, translation, exceptions, glossary, config, *, rules=None):
+        terms = bridge.matched_terms(glossary, [source], config, rules=rules)
         exceptions = exceptions if isinstance(exceptions, list) else []
         exempt = {e['source'].casefold() for e in exceptions if isinstance(e, dict) and isinstance(e.get('source'), str)}
         return {'satisfied_terms': [{'src': t['src'], 'dst': t['dst']} for t in terms
@@ -58,9 +58,10 @@ class ReviewRoundMixin:
         """Called only by whole-round checks, never by batch saving."""
         from translation_workflow import encoded
         before = original.get('repair_constraints')
+        rules = self.rules(db, config)
         if not before:
-            before = self.repair_constraints(original['source'], original.get('translation'), original.get('exceptions', []), glossary, config)
-        after = self.repair_constraints(original['source'], translation, exceptions, glossary, config)
+            before = self.repair_constraints(original['source'], original.get('translation'), original.get('exceptions', []), glossary, config, rules=rules)
+        after = self.repair_constraints(original['source'], translation, exceptions, glossary, config, rules=rules)
         lost = sorted(set(after['missing_terms']) & {t['src'] for t in before['satisfied_terms']})
         if not lost:
             return []
@@ -84,6 +85,10 @@ class ReviewRoundMixin:
         counts, floors, global_floors, sol_counts = {}, {}, {}, {}
         for task in prior:
             task = dict(task)
+            if (db is not None and not stage.startswith('pilot_') and task.get('revision', 0) < self.meta(db, 'body_restart_revision', 0)):
+                continue
+            if task.get('stage', stage).startswith('pilot_') != stage.startswith('pilot_'):
+                continue
             if task['status'] != 'done' and not task.get('result'):
                 continue
             payload = json.loads(task['payload'])
@@ -97,23 +102,26 @@ class ReviewRoundMixin:
                 if bucket == 'global':
                     global_floors[record_id] = max(global_floors.get(record_id, 0), payload.get('repair_counts', {}).get(record_id, 0))
                 else:
-                    legacy = max(0, task['attempt'] - (task_stage != 'translate'))
+                    legacy = max(0, task['attempt'] - (task_stage not in ('translate', 'pilot_translate')))
                     floors[key] = max(floors.get(key, 0), payload.get('repair_counts', {}).get(record_id, legacy))
                 if payload.get('repair_tier') == 'sol':
                     sol_counts[record_id] = sol_counts.get(record_id, 0) + 1
-        for record_id, count in self.meta(db, 'draft_repair_attempts', {}).items():
+        draft_stage = 'pilot_translate' if stage.startswith('pilot_') else 'translate'
+        draft_key = 'pilot_draft_repair_attempts' if stage.startswith('pilot_') else 'draft_repair_attempts'
+        for record_id, count in self.meta(db, draft_key, {}).items():
             if record_id in global_floors:
                 global_floors[record_id] = max(global_floors[record_id], count)
             else:
-                floors[(record_id, 'translate')] = max(floors.get((record_id, 'translate'), 0), count)
+                floors[(record_id, draft_stage)] = max(floors.get((record_id, draft_stage), 0), count)
         used = {}
         for key in set(counts) | set(floors):
             record_id, _ = key
             used[record_id] = used.get(record_id, 0) + max(counts.get(key, 0), floors.get(key, 0))
         for record_id, count in global_floors.items():
             used[record_id] = max(used.get(record_id, 0), count)
-        forced = {i for ids in self.meta(db, 'repair_sol_ids', {}).values() for i in ids}
-        stopped = self.repair_stops(db, config, sol_counts) if db is not None else {}
+        forced = {i for key, ids in self.meta(db, 'repair_sol_ids', {}).items()
+                  if key.startswith('pilot_') == stage.startswith('pilot_') for i in ids}
+        stopped = self.repair_stops(db, config, sol_counts, stage=stage) if db is not None else {}
         return {i: (used.get(i, 0), 'stopped' if i in stopped else
                     'sol' if i in forced or i in sol_counts or used.get(i, 0) >= config.get('body_repair_round_limit', 6) else 'standard')
                 for i in set(used) | forced | set(stopped)}
@@ -129,11 +137,15 @@ class ReviewRoundMixin:
         db.execute('INSERT OR IGNORE INTO repair_outcomes VALUES (?,?,?)',
                    (task['id'], record_id, encoded(diagnostic)))
 
-    def repair_stops(self, db, config, sol_counts=None):
+    def repair_stops(self, db, config, sol_counts=None, stage='translate'):
         if sol_counts is None:
             sol_counts = {}
             if db.execute("SELECT 1 FROM sqlite_master WHERE name='tasks'").fetchone():
                 for task in db.execute('SELECT * FROM tasks'):
+                    if not stage.startswith('pilot_') and task['revision'] < self.meta(db, 'body_restart_revision', 0):
+                        continue
+                    if task['stage'].startswith('pilot_') != stage.startswith('pilot_'):
+                        continue
                     if task['status'] != 'done' and not task['result']:
                         continue
                     payload = json.loads(task['payload'])
@@ -145,7 +157,11 @@ class ReviewRoundMixin:
         if not db.execute("SELECT 1 FROM sqlite_master WHERE name='repair_outcomes'").fetchone():
             return stops
         history = {}
-        for row in db.execute('SELECT * FROM repair_outcomes ORDER BY rowid'):
+        for row in db.execute('SELECT o.*,t.stage,t.revision FROM repair_outcomes o JOIN tasks t ON t.id=o.task_id ORDER BY o.rowid'):
+            if not stage.startswith('pilot_') and row['revision'] < self.meta(db, 'body_restart_revision', 0):
+                continue
+            if row['stage'].startswith('pilot_') != stage.startswith('pilot_'):
+                continue
             history.setdefault(row['record_id'], []).append(row['diagnostic'])
         limit = config.get('sol_no_progress_limit', 2)
         for record_id, outcomes in history.items():
@@ -173,7 +189,7 @@ class ReviewRoundMixin:
 
     @staticmethod
     def is_deferred_review(task):
-        return task['stage'] in ('review', 'final_review') and not json.loads(task['payload']).get('strict_review')
+        return task['stage'] in ('pilot_review', 'review', 'final_review') and not json.loads(task['payload']).get('strict_review')
 
     def review_tables(self, db):
         db.execute('CREATE TABLE IF NOT EXISTS review_candidates(record_id TEXT,stage TEXT,task_id TEXT,item TEXT,original TEXT,instance TEXT,status TEXT,diagnostic TEXT,PRIMARY KEY(record_id,stage))')
@@ -210,6 +226,7 @@ class ReviewRoundMixin:
         print(f'repair-plan progress: start; stage={stage}; origin={origin}; records={total_records}', flush=True)
         contexts = self.meta(db, 'contexts', {})
         glossary = self.glossary(db)
+        rules = self.rules(db, config)
         prior = [dict(t) for t in db.execute('SELECT * FROM tasks WHERE stage=? AND revision=?',
                                             (stage, self.meta(db, 'revision')))]
         round_number = 1 + max((json.loads(t['payload']).get('review_round', 1) for t in prior), default=0)
@@ -244,7 +261,7 @@ class ReviewRoundMixin:
                        'repair_counts': {r['id']: r['used'] + 1 for r in group}, 'language': {'source': config['source_language'], 'target': config['target_language']},
                        'style': config['style'], 'context': [], 'game_background': config.get('game_background', ''),
                        'glossary_version': self.meta(db, 'glossary'), 'records': [],
-                       'terms': bridge.matched_terms(glossary, [r['source'] for r in group], config),
+                       'terms': bridge.matched_terms(glossary, [r['source'] for r in group], config, rules=rules),
                        'revision_request': '整轮检查已结束；只修复本批诊断及审校证据，不重写无关表达。保存后等待全轮统一复查。'}
             item_interval = max(1, min(10, len(group) // 4 or 1))
             for item_index, row in enumerate(group, 1):
@@ -258,25 +275,28 @@ class ReviewRoundMixin:
                     'translation': row['translation'], 'exceptions': context_exceptions,
                     'locked': bool(row['locked']), 'metadata': row['metadata'],
                     'protection': [],  # Review source/translation use original variables, not SHH translation markers.
-                    'repair_constraints': self.repair_constraints(row['source'], candidate_item.get('translation', row['translation']), context_exceptions, glossary, config),
+                    'repair_constraints': self.repair_constraints(row['source'], candidate_item.get('translation', row['translation']), context_exceptions, glossary, config, rules=rules),
                     'diagnostic': row['diagnostic'],
                     'diagnostic_detail': (diagnostic_details or {}).get(row['id'], review_failure_detail(row['diagnostic'])),
                     'candidate': candidate_item if candidate else None})
-                db.execute('UPDATE records SET stage=? WHERE id=?', ('translate' if stage == 'review' else 'polish', row['id']))
+                db.execute('UPDATE records SET stage=? WHERE id=?',
+                           ({'pilot_review': 'pilot_translate', 'review': 'translate', 'final_review': 'polish'}[stage], row['id']))
                 if item_index % item_interval == 0 or item_index == len(group):
                     print(f'repair-plan progress: task {task_index}/{len(batch_groups)}; records {item_index}/{len(group)}', flush=True)
             value = fingerprint(payload); payload['input_hash'] = value
             tasks.extend(self.allocate_task(db, payload,
                 'codex' if group[0]['tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
-        approvals = self.meta(db, 'quality_approvals', {}); approvals.pop('final', None)
+        approvals = self.meta(db, 'quality_approvals', {}); approvals.pop('pilot' if stage == 'pilot_review' else 'final', None)
         self.put(db, 'quality_approvals', approvals)
         print(f'repair-plan progress: complete; tasks={len(tasks)}; ready={len(rows)}; locked={len(blocked)}', flush=True)
         return tasks, blocked
 
     def review_scan(self, stage='review', prepare_repairs=False):
+        if stage == 'pilot_review':
+            raise ValueError('Pilot independent review retired; use pilot-report and main pilot-decide')
         from translation_workflow import encoded, write_json
-        if stage not in ('review', 'final_review'):
-            raise ValueError('Review rounds support review and final_review; pilot remains strict')
+        if stage not in ('pilot_review', 'review', 'final_review'):
+            raise ValueError('Unknown review stage')
         with self.db() as db:
             config = self.config(db); self.review_tables(db)
             unfinished = self.unfinished_reviews(db, stage)
@@ -340,10 +360,14 @@ class ReviewRoundMixin:
                         diagnostic_details[check['id']] = check['diagnostic_detail']
             diagnostic_details.update({r['id']: r['diagnostic_detail'] for r in checked if r['diagnostic_detail']})
             tasks, blocked = self.plan_review_repairs(db, config, stage, problems, 'review-scan', diagnostic_details) if prepare_repairs and problems else ([], [])
-            stop_reasons = self.repair_stops(db, config)
+            stop_reasons = self.repair_stops(db, config, stage=stage)
             blocked = sorted(set(blocked) | (set(problems) & set(stop_reasons)))
-            required = {'review': ('review', 'polish', 'final_review'), 'final_review': ('final_review',)}[stage]
-            complete = all(r['stage'] in required for r in db.execute('SELECT stage FROM records'))
+            required = {'pilot_review': ('pilot_review',), 'review': ('review', 'polish', 'final_review'), 'final_review': ('final_review',)}[stage]
+            scope = self.quality_rows(db)
+            if stage == 'pilot_review':
+                selected = self.pilot_ids(db, scope, config)
+                scope = [r for r in scope if r['id'] in selected]
+            complete = all(r['stage'] in required for r in scope)
             report = {'stage': stage, 'phase': 'round_checked' if checked else 'cached',
                       'scope': 'review_round', 'checked_records': len(checked), 'checks': checked,
                       'passed_ids': passed,

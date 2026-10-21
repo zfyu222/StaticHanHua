@@ -1,8 +1,74 @@
 # 翻译流程工具
 
+## 已停止 API 运行器的执行次数恢复
+
+旧 API 任务达到 `max_attempts` 时，`--resume` 会按原上限拒绝重派。确认旧执行器已退出并调查具体错误后，可在暂停状态通过 `configure --file <仅含max_attempts的补丁> --reason <具体原因> --impact none` 显式提高执行上限。仅当全部在途任务均为 API、没有 reserved 请求、没有 `api_round.lock` 时允许此路径；不改变 revision、任务ID、原尝试次数或成功结果。它是有记录的定向恢复，不是自动循环追加预算；服务连通恢复也不能豁免来源证据、格式或语义校验。存在运行器锁、请求在途、Codex任务或降低上限时拒绝此路径。
+
+## 术语疑问与有理由的通过结论
+
+共用术语匹配器使用项目实际的占位符/禁翻规则排除保护区域内的局部命中，例如 `[Player:man/woman]` 不再拆出 Player、man 或 woman；完整标记本身作为明确术语/禁翻项时仍可命中，标签包围的正文仍正常匹配。先过滤无效区域，再沿用 AINiee 的最长跨度优先规则。保护规则及其覆盖项参与内存缓存键；正文准备、输入渲染、扫描、修复和导出使用同一规则。
+
+启用 whole_word 时，英文直/弯撇号中的缩写片段不算独立词：Don 不匹配 don't/don’t；Don、引号内的 Don、Don's/Don’s 等所有格仍匹配。显式正则及关闭 whole_word 的子串匹配继续按用户选择执行。这是词边界规则，不靠大小写推断词义；Rest/rest 等语义歧义仍交给下述有理由的判断。匹配器版本进入草稿验收缓存签名，避免复用旧匹配规则下的误报。
+
+程序继续检查术语，返修及审校包以 `terminology_findings` 列出本句未出现字面译名的术语疑问。子代理完整协议使用 source/expected_translation；API 使用 `term_ref` 指向本批 `shared_terms` 中的 t1/t2，回复 `exceptions=[{term_ref:"t1",reason:"具体原句语境依据"}]` 即可保留正确现译，无需抄写术语原文。撤销用 `exception_changes=[{term_ref:"t1",action:"remove",reason:"具体反证"}]`。编号只允许取本条 `term_refs`，禁止未知、跨条目、重复编号，理由必须为非空字符串；输入包与对应 session 的 `api_id_transport.v2.json` 一起绑定逐记录 `record_terms`，程序恢复为原有 source/reason 后再验收和持久保存。模板显式展示 exceptions，不要求模型强行把同形普通词译成专名。没有新增模型阶段或通过缓存表。
+
+沿用现有记录及作者历史保存理由，无新阶段或缓存表。程序检查理由结构、术语关联及机械规则后接受；重启、重复扫描、后续修复和审校默认继承，导出也承认该结论，不因同一字面译名缺失反复返修。独立审校仍核对含义，有具体反证时用 exception_changes 显式撤销。空理由、仅返回原译文或只写顶层 reason 不产生术语通过记录；该结论只作用于本句，不豁免标签、占位符等问题。
+
+## 一次调用完成本阶段常规多轮
+
+`run_api_round.py --project <项目> --stage <阶段>` 与 Python `run_api()` 默认自动处理本阶段的普通循环：translate 收齐正式草稿后返回主 AI；单独调用 draft_check 执行草稿扫描及失败项修复，review/final_review 执行整轮验收及失败项下一轮。所有批次收齐后才统一检查，已通过项不重派；同一 Workflow、术语对象、内存匹配缓存和 API 客户端持续复用。无需在每轮之间返回主 AI 再启动程序，也没有新增持久化缓存表。
+
+extract/glossary_review 完成本阶段任务及原有格式重试后交回；pilot_translate 自动生成试译报告，仍由主 AI pilot-decide；polish 仍按配置执行，结束后交回主流程。不会自动串联阶段或导出。遇到暂停、预算用尽、异常交接、无进展及 Sol/其他执行器任务时停止并返回 next_action；原次数限制和质量要求不变。API 配置中途变化也会明确停止。
+
+正式执行顺序为 `run_api_round.py --project <项目> --stage translate` → 主 AI 检查/按需提交 Git → `run_api_round.py --project <项目> --stage draft_check` → 主 AI 决定启动 `review`。`draft_check` 复用原有草稿扫描及 translate 修复任务，不新增数据库任务类型；无问题时不调用 API，必要修复仍在一次调用内复用缓存和客户端。两次调用分别记录日志、耗时及本次 Token，项目累计用量保留；分开启动时内存缓存会重建。`draft-scan --prepare-repairs` 仍可用于仅检查和手工控制；draft_check 不使用调试用的 `--single-round`。
+
+回执的 stage_clean 仅表示 draft_check/review/final_review 本阶段检查通过；translate 的 drafts_complete=true、next_action=draft_check 表示草稿收齐后交回主 AI，api_rounds 列出各轮摘要，last_scan 指向最后检查报告；profile 的 api_cycles 保存同一历史，时间和 Token 跨轮汇总。首轮未缓存数据仍需准备，单独启动下一阶段或重启进程也会重建内存缓存。详细范围见 [自动循环边界](../../.agents/skills/game-translate/references/api_cycles.md)。调试单轮使用 `--single-round`，或 Python `run_api(..., continuous=False)`。
+
+## API 性能、进度与 Token 日志
+
+真实数据准备基准可运行 `benchmark_prepare.py --project <项目绝对路径> --output <新的报告目录> --denominator 4`。程序以只读事务取一致快照，在临时夹具中取原文顺序前四分之一，复用完整冻结术语及实际配置，执行正式 prepare 和首批 API 输入生成，再测一次重复 prepare。它不调用 API、不修改原项目数据库，原 CSV 在夹具中原样复制以保留来源哈希校验；只有抽中的记录进入 prepare。报告只保留数值、配置预算及哈希，不复制游戏文本，夹具结束后清理。
+
+每轮默认启用轻量 profile，无需额外参数，不增加轮询线程或 AI 唤醒。所有时间用单调时钟测量耗时，日志时间戳为 UTC ISO 时间。
+
+- `TranslateFiles/logs/api_runs/<run_id>.profile.jsonl`：结构化事件流，每次请求开始/返回、失败尝试、阶段开始/结束、进度及最终总结即时落盘。
+- 同目录 `<run_id>.stderr.log`：runner 保存的控制台阶段与进度日志，末尾 `[api-summary]` 一行汇总总用时、首请求等待、成功批次、失败尝试、请求数、输入/输出/总 Token、未知用量请求数及项目累计 Token。
+- `TranslateFiles/reports/api_runs/<run_id>.profile.json`：最终性能与用量报告；原 runner 回执也包含路径、总用时及 performance 汇总。异常退出尽量保存失败总结；强制杀进程时以已落盘事件为准。
+
+准备和执行阶段每推进 10 个工作单位，或有处理事件且距离上次进度超过 30 秒时输出进度，阶段开始/结束也会记录。准备按原始批组计数（另列实际 prepared_batches），执行按任务批次计数；恢复前已经完成的批次计入总体进度。单次长请求期间不另设定时心跳。
+
+计时包含 setup/prepare/execute 阶段、术语匹配、Token 计算、输入生成、任务分配、配置校验、数据库锁等待、派发锁等待、限流等待、API 请求、结果收集及重试等待；timings 保存调用数、累计耗时和最大单次耗时，counters 包含术语缓存命中/未命中次数。嵌套计时存在重叠，并发请求累计耗时可能超过总墙钟用时，不能相加当总用时。
+
+`run_tokens` 为本轮真正发出的请求用量，包含格式错误、空回复及重试中服务已报告的用量；离线恢复旧回复不重复计入本轮。`project_tokens` 汇总数据库中整个项目各阶段的历史请求，包含本轮，不应再与本轮相加。用量以服务返回为准，未返回的统计为 unknown_requests，日志中的已知 Token 合计可能低于实际消耗。缓存输入及推理 Token 单独列示，但属于输入/输出 Token 子集，不重复加到总量。profile 不记录原文、译文、请求正文或密钥；运行日志与回执不作为正式交付文件提交。
+
+## 简化 API 协议与接续
+
+正文 API 输入使用批内短 ID `1`、`2`…（JSON 字符串），模型只返回 records 和阶段所需内容，程序补齐任务 ID 与哈希；编号映射保存在 `api_id_transport.v2.json`。占位符使用 `[P1]` 等短标记，原文碰撞时自动换前缀。未知、重复编号仍拒收，正式审校证据仍须完整。
+
+术语提取仅返回 `analysis`；术语审校仅返回 `decisions`，任务及来源/快照哈希由对应 session 绑定。审校条目使用 `e1` 等短引用，冲突使用 `f1` 等短引用；`edits/quarantine/allow_no_match` 引用分配条目，关联条目只读。程序从完整且不重复的 `entry_reviews` 恢复 `reviewed_refs`，不代填四维证据、完成声明或冲突确认。输入保留候选、提案次数、出处与语义审校理由，过滤提取任务 ID 等追踪字段。新增术语仍须给出实际类别、完整内容及依据。
+
+独立审校、润色和润色后复审未改译文时返回 `keep:true`，无需重抄原译；修改时只输出一次完整 `translation`。审校的 `changes` 只需分类、严重度、摘录和原因，程序绑定原译与新译补齐 `before/after` 及审校标记。`keep` 不是语义通过结论：六维检查、理由、原文摘录和问题仍由模型真实提供，并通过共用验收；缺字段不等于保留，错误的显式前后文仍拒收。原始回复和还原后的完整结果分别保存，中断恢复使用同一 session 映射，不重调已完成请求。
+
+程序每轮只执行一次任务准备；缓存已规范化的冻结术语、逐句匹配结果及未变化文件的来源校验。缓存仅驻留内存且有容量上限，重启可重新准备；已完成任务按数据库状态跳过，不重新翻译。未增加本地工作线程，保留已有 API 并发。
+
+旧执行器停止后，接续命令：
+
+```powershell
+& $python Tools/localization/run_api_round.py --project '<项目绝对路径>' --stage translate --resume
+```
+
+`--resume` 检查遗留 runner 的父子进程均已结束，先收集保存的完整回复，再重试没有可用回复的未完成批次；保留原尝试预算。已成功提交的批次不重做。旧版在途协议不兼容，勿对旧交接直接使用新映射；重开项目应由正常初始化入口执行，不直接改库。尚未保存回复的请求可能需要重发。
+
+局部性能对比（2026-10-18）：Expeditions Viking 冻结术语 3,529 项、分散抽样 80 条，原逐句匹配 3.437 秒，新首次匹配 2.588 秒、缓存复用 0.0017 秒，逐项结果一致。该数据不代表全文启动或 API 服务耗时。
+
 自定义工作流的程序入口是 `translation_workflow.py`。原 AINiee GUI 工作流保留；入口选择及子代理派发由 `game-translate` 技能管理。所有翻译中间产物放在游戏汉化项目 `TranslateFiles/`，正式原文/译文保持项目根目录的单列 CSV 格式。
 
+API 和 SubAgent 共用一套流程与程序，以既有 SubAgent 规范为准。唯一流程见 [自定义流程](../../.agents/skills/game-translate/references/custom_workflow.md)，统一输入产出和修复见 [批次交接](../../.agents/skills/game-translate/references/batch_execution.md)。两种方式均由 batch-open 生成 input.md 和模板、由 batch-finish 接收 result.json；API 只将相同输入包发送为单次请求，程序解析回复并落盘，不启用 agent 工具循环。升级修复保留 Sol SubAgent。修改共同模块即同时作用于两种方式，无需维护第二份实现。
+
+API 正文展示使用 `shared_terms` + 每条 `term_refs`，术语内容同批只传一次；省略无用途的 `ordinal` 及空保护/元数据/锁定字段。各阶段仅附输出结构示例，完整范围由输入记录 ID 或 `entries.ref` 定义，回复仍须全部覆盖。审校模板不再逐条重复原译文和空证据，试译不设置独立审校；正式审校回复须提供逐条六维证据，术语审校提供逐项四维证据。`reason` 简述结论、`checks.evidence` 分维举证、`changes.reason` 解释改动，避免重复整段说明。术语阶段过滤调度及无用空字段，保留原文序号、候选、出处及关联冲突信息。原文/保护映射、锁定和修复约束保持完整。任务存储、完整结果模板、哈希、结果协议、验收和既有在途文件不变；预算仍沿用共用的保守输入估算。
+
 ## 运行
+
+API 新交接使用精简提示词，去掉子代理工具/文件操作、轮询、调度和重复协议说明；保留游戏背景与文体、本批数据、相关术语、保护和语义审校要求、输出模板。与 SubAgent 共用数据与结果协议、保守拆批预算和质量门槛；已生成的在途输入包不改写。精简的是执行说明，不截断背景、原文或审校证据。
 
 自定义术语提取结果在首次生成审校快照时，按英文原词忽略大小写及首尾空白合并。一个原词即使有多个译名或分类，也只占一个审校名额；全部出处去重汇总，候选及各自出处保存在 extraction_candidates。暂定译名按提取提案次数最多者选择，同票取首个，仍需语义审校确认。任务输入包含每个候选的代表性出处；单个合并条目超限时分配阶段报错，不拆成多个审校任务。既有审校快照及在途任务不自动改写。
 
@@ -25,10 +91,12 @@ selection.json 为配置补丁。例如：
   "model": "gpt-6-luna",
   "source_language": "英语",
   "target_language": "简体中文",
-  "batch_records": 80,
+  "batch_records": null,
   "review_batch_records": 80,
   "review_output_tokens": 16384,
-  "batch_chars": 12000,
+  "batch_tokens": 1024,
+  "extract_batch_tokens": 10000,
+  "task_input_tokens": 16384,
   "context_records": 0,
   "polish": false
 }
@@ -36,7 +104,7 @@ selection.json 为配置补丁。例如：
 
 已有配置恢复时不重新 init。`--context` 可读取提取时的上下文映射：JSON 对象按源文逻辑记录号索引，值可包含 group、speaker、resource、scene、text_type、note；各字段为字符串。术语提取按 group 分批；正文翻译与审校可跨 group 合批，每条保留已核实元数据。speaker 可让程序补充相关人物术语。context_records 仅为兼容字段，即使旧值为 2 也不附带相邻 CSV 记录。
 
-术语语义审校默认每批最多 60 个条目（glossary_review_batch_records=60），同时受 batch_records 和 task_input_chars 限制。既有配置保留显式旧值；调整时使用 pause/configure/resume，不直接修改运行配置或在途任务。
+术语语义审校默认每批最多 60 个条目（glossary_review_batch_records=60），同时受 glossary_review_batch_tokens=10000 和 task_input_tokens=16384 限制。既有配置保留显式旧值；调整时使用 pause/configure/resume，不直接修改运行配置或在途任务。
 
 词族候选由 glossary_families.py 在本地生成：识别英文书写/部分单复数变体、保守派生词根及完整词组件，尽量同族同批，保存 glossary/r{revision}/family_candidates.json。不新增模型请求阶段，不自动改译名，也不回扫全文补提取。每批 term_families 最多 120 条关系提示、12 个跨批精简关联词（不重复附带其原文出处）；原有自动 finding 关联证据保留。审校在既有 consistency 证据中判断核心译名统一及语境差异，无须额外词族报告。候选可能误报或漏报，非同义结论，非通用词形分析器；已有任务及冻结表不自动变更。
 
@@ -55,9 +123,10 @@ AINiee 选择为 `workflow=ainiee`；init 只生成准备文件，不调用翻�
 | claim --stage ... --worker ... | 事务领取任务、生成独立任务文件与租约 |
 | prompt --task-file ... | 为已领取任务生成协议提示词文件 |
 | submit --task ... --token ... --result ... | 按阶段协议保存结果；正文和独立审校候选需在整轮结束后统一验收 |
-| batch-open / batch-finish / batch-repair | 正文任务单文件交接、集中保存；batch-repair 仅用于试译或保存可靠性问题 |
+| batch-open / batch-finish / batch-repair / batch-retry | 两种执行器共用全部阶段交接；batch-repair 用于条目可靠性问题，batch-retry 重发传输/整体协议错误 |
 | batch-split --task ... | 拆分未尝试、无交接的首轮或修复审校任务，同时检查输入和输出预算 |
-| pilot-plan / quality-report / approve-quality | 试译预算规划、质量报告及实际验收 |
+| pilot-plan / pilot-report / pilot-decide / pilot-retry | 随机试译、诊断报告、主 AI 整体判断与指定范围重试 |
+| quality-report / approve-quality | 正式译文质量报告和最终验收；kind=pilot 兼容转入校准协议 |
 | draft-scan / review-scan | 整轮草稿或审校完成后统一验收，失败 ID 跨批合并修复 |
 | sol-round-record / sol-round-finish | 固定范围裁决，全部结论齐备后统一派修或批准 |
 | record-game-check / release-check | 保存回填实测及核对发布载荷 |
@@ -70,29 +139,77 @@ AINiee 选择为 `workflow=ainiee`；init 只生成准备文件，不调用翻�
 | run-api --stage ... | 程序执行 API 任务；并发、限流、延迟重试及请求预算 |
 | export | 必需阶段和最终检查通过后原子导出，并备份已有正式译文 |
 
-阶段依次为 extract → glossary_review → freeze-glossary → pilot_translate → pilot_review → Sol 试译验收 → translate → draft-scan 及定向修复 → review → review-scan 及定向修复 →（可选 polish → final_review → review-scan）→ Sol 遗留争议闭环 → export。回填实测后再 record-game-check → release-check。每个阶段内部任务可并行，由 AI 读取相关任务、术语和上下文。正文子代理不负责新增术语。
+阶段顺序及质量门槛统一维护在 [自定义流程的固定阶段](../../.agents/skills/game-translate/references/custom_workflow.md#固定阶段及质量门槛)，本文件仅列程序入口和配置，不复制 API 或 SubAgent 流程。
 
 Codex 子代理由主代理通过平台工具调用，普通 Python 不负责调用聊天内的 spawn_agent。API 执行复用 AINiee 的客户端工厂、平台思考参数和 SSE 解析；本版支持 OpenAI 兼容接口。原 AINiee 的其他原生接口仍可用，尚未接入新程序。
 
-API 配置示例（仅示例，不会自动执行）：
+API 地址、密钥和模型统一填写本地文件 `Tools/localization/api.local.jsonc`（已排除 Git）。首次可复制 `api.example.jsonc`；所有自定义 API 项目共用，下一次 run-api 启动读取，不改写在途请求。项目仍需选择 backend=api，不再逐项目重复填写连接信息。
+
+配置采用 JSONC，支持中文 `//` 行注释、`/* */` 块注释和尾随逗号；本地文件及示例已逐项写明参数用途、单位和默认含义。字符串中的网址、斜杠和注释样式文本保持原样。
+
+同一文件可定义多个 API：`apis` 下每个键是一个可切换的 API 名称，`default_api` 指定默认使用哪一项，单次运行可用 `run-api --api <名称>`（或 `run_api_round.py --api <名称>`）临时改用它项。名称仅作标记，不能为空；`default_api` 指到未定义的名称时报错并列出已定义名称。
 
 ```json
 {
-  "backend": "api",
-  "api": {
-    "target_platform": "deepseek",
-    "api_url": "https://api.deepseek.com",
-    "model_name": "填写用户选择的模型",
-    "api_key_env": "SHH_TRANSLATION_API_KEY",
-    "concurrency": 3,
-    "requests_per_minute": 30,
-    "max_requests": 100,
-    "request_timeout": 120
+  "default_api": "relay",
+  "apis": {
+    "relay": {
+      "api_url": "填写服务地址",
+      "api_key": "填写密钥",
+      "model_name": "填写模型名称"
+    },
+    "official": {
+      "api_url": "填写服务地址",
+      "api_key": "填写密钥",
+      "model_name": "填写模型名称"
+    }
   }
 }
 ```
 
-凭据只从对应环境变量读取。请求预算累计跨阶段，不因重启清零；达到预算暂停。SDK 隐式重试关闭，程序按可重试错误及 max_attempts 控制。没有选择 API 时不得自动切换。代码测试不使用真实 API 凭据。
+每个 API 条目内可写 api_url、api_key、model_name、extra_body、target_platform、stream、think_switch、temperature、concurrency、requests_per_minute、max_requests、request_timeout、max_completion_tokens、tls_switch；与具体服务无关的字段也可写在顶层作公共值，条目内同名值优先。`batching` 与 `default_api`/`apis` 只在本机解析，不并入请求参数。未填写的参数沿用项目配置。只定义一个条目时可省略 `default_api`，定义多个又未指定默认项则报错，不随机挑选。
+
+不需要设置环境变量；为兼容旧项目，本地文件不存在或三项连接信息全部为空时，仍沿用原项目设置与 api_key_env；旧版平铺写法（顶层直接写 api_url/api_key/model_name）继续有效。选中条目缺字段则报错，不混用另一来源的密钥或地址。密钥仅在内存中用于请求，不写入项目配置、任务或历史；报错信息只列字段名，不回显密钥。不要提交或分享 api.local.jsonc。
+
+请求预算累计跨阶段，不因重启清零；达到预算暂停。SDK 隐式重试关闭，程序按可重试错误及 max_attempts 控制。没有选择 API 时不得自动切换。代码测试不使用真实 API 凭据。
+
+同一 api.local.jsonc 的 `batching` 对象集中设置拆批参数，完整示例见 api.example.jsonc：
+
+| 字段 | 含义 | 默认值 |
+|------|------|--------|
+| batch_records / review_batch_records | 正文翻译、润色 / 独立审校条数上限 | null（不限） / 80 |
+| extract_batch_records / glossary_review_batch_records | 术语提取 / 术语审校条数上限 | null（不限） / 60 |
+| batch_tokens | 正文翻译、试译、润色的原文 Token 预算 | 1024 |
+| extract_batch_tokens | 术语提取的原文 Token 预算 | 10000 |
+| glossary_review_batch_tokens | 术语审校候选条目的 Token 预算 | 10000 |
+| review_batch_tokens | 独立审校原文、译文及问题描述的 Token 预算 | 1024 |
+| task_input_tokens | 完整输入包的额外 Token 安全预算 | 16384 |
+| review_output_tokens | 审校预计输出 Token 总预算 | 16384 |
+| review_output_reserve_percent | 输出预算预留百分比 | 20 |
+| review_estimate.full_base_tokens | 正式审校每条固定开销（pilot_base_tokens 仅兼容保留） | 420 |
+| review_estimate.ascii_chars_per_token | 每多少 ASCII 字符估作一个 Token | 3 |
+| review_estimate.non_ascii_tokens_per_char | 每个非 ASCII 字符估作多少 Token | 2 |
+| review_estimate.translation_multiplier | 译文长度的估算倍数 | 3 |
+
+Token 计数复用 AINiee CacheItem 的 o200k_base 及其降级估算，不是 MiMo 专属 tokenizer。正文和润色的 1024、提取的 10000 对齐当前 AINiee；完整输入包的 16384 是自定义流程额外安全预算。batch_chars/task_input_chars 仅兼容旧项目，不再参与拆批；当前配置文件已移除它们。试译只复用正文翻译拆批和草稿保存，固定随机 150 条，由主 AI 整体校准；pilot_batch_count/pilot_call_limit 停用，旧值不限制任务或执行次数。单条原文超过内容 Token 预算时完整保留、单独成批；完整输入或预计输出单项超限仍报错。
+
+run-api 在拆批前同步 batching，通过现有 configure 修订机制只更新调度参数，保留已完成译文和质量结论，未完成任务按新预算准备；存在在途任务时拒绝变更，先结束或恢复它们。程序只持久化 batching 中的非敏感字段，密钥不进入修订记录。改文件不改变正在运行的请求；下一次 run-api 启动生效。省略字段沿用项目配置。review_output_tokens 仍不得超过 API 的 max_completion_tokens。估算系数不改变审校证据要求，也不保证实际回复一定不超限。
+
+最大并发只配置 `api.concurrency`；默认值、请求速率与修改方式统一见 [API 并发配置](../../.agents/skills/game-translate/references/custom_workflow.md#api-执行)。`test_api_concurrency.py` 用阻塞式模拟请求验证实际并发峰值、项目覆盖值和并发下的累计请求预算。
+
+术语提取与术语审校的 API 输入只列出本批随附原文的证据行号：`compact_term_input` 会按 `records` 裁剪 `evidence_rows`，条目自身若一条都不可见则保留原样，只读关联项和候选列表裁空不留。程序侧 payload、任务哈希与验收门槛不变，因此无需重开任务；被隐藏的行号本来也无法引用或核验。出处比对在 `quote_matches` 中忽略空白与换行差异，引文文字仍须逐字连续，改写、拼接和省略号照旧拒绝。`test_glossary_input_fixes.py` 覆盖这两项。
+
+## API 阶段执行与等待
+
+API 自动执行统一通过 `run_api_round.py`，由新的 Luna 执行代理管理一个阶段的常规多轮；主代理用原生 `wait_agent` 等待终结事件，不轮询进程或运行日志。具体派发模板及边界见 [API 阶段执行与等待](../../.agents/skills/game-translate/references/api_execution_wait.md)。
+
+```powershell
+& $python D:/StaticHanHua/Tools/localization/run_api_round.py --project $project --stage translate
+```
+
+包装器只启动一次 run-api，阻塞等待本阶段普通循环结束，日志留在 TranslateFiles/logs/api_runs，回执留在 TranslateFiles/reports/api_runs；工具只收到一次 JSON。translate 只保存正式草稿并交回主 AI，单独启动 draft_check 后才开始程序审校；draft_check/review/final_review 的整轮检查和常规修复由程序自动推进，阶段切换和升级由主流程决定。completed 代表程序正常交回，stage_clean 表示这些阶段相应检查通过，不代表项目可以发布。执行代理只返回状态、计数、停止原因和回执路径，不把全文日志加入主对话。
+
+state/api_round.lock 防止重复启动；异常遗留锁及未知在途交接必须先核实旧进程停止，不自动回收或重放。等待超时只续用原生等待，不追加状态查询；收到用户新指令时按其要求处理。原生完成通知来自执行代理，回执文件本身不会唤醒 Codex；不承诺绝对零唤醒或零 Token。
 
 ## Sol 只处理遗留争议和升级难题
 
@@ -121,31 +238,59 @@ AINiee 基线、模块 hash 和来源记录在各运行的 source/manifest.json�
 
 Sol 修复默认累计最多 3 轮（sol_repair_round_limit），同一条目连续 2 轮 Sol 检查得到相同的未解决诊断（sol_no_progress_limit）也停止该条自动派发。停止按条目生效，其他条目继续；通过项不返工。报告返回 needs_attention_ids、repair_stop_reasons（sol_round_limit / sol_no_progress），保留候选、证据及计数，不能批准或导出未解决问题。主流程应核对原文、术语语境和校验规则根因，不通过改任务 ID 或调整配置重置预算。配置修改不清除停止历史；确有规则缺陷应修正规则并复核保存的候选，通过后再继续，不能机械追加模型轮次。
 
-## 审校输出预算
+## 共用批次预算与执行职责
 
-review_batch_records=80 是独立条数上限，审校不再按翻译条数直接合批。review_output_tokens 默认 16384；API 阶段取其与 api.max_completion_tokens（默认 8192）的较小值，再预留 20%。程序根据原译文、可能的完整前后修订、摘录和六维证据估计输出，按预算提前拆批。估算不是精确 tokenizer，不保证模型绝不截断；不得为满足预算截断原文或审校证据。
+审校输出估算与拆批规则统一维护在 [审校输出预算](../../.agents/skills/game-translate/references/review_rounds.md#审校输出预算)。API 与 SubAgent 使用相同预算和批次算法；API 容量配置见 [自定义流程](../../.agents/skills/game-translate/references/custom_workflow.md#api-执行)。
 
-正文审校、复审及其修复采用相同预算；试译审校按精简协议单独估算，仍最多 40 条且总领取预算保持 12 次，pilot-plan 计入拆分后的审校批数。单条超限时在创建任务前明确报错，需调整输出额度或设计保留 ID 对齐的切分。完整输入和预计输出预算统一在分配阶段检查并自动拆批，claim/batch-open 领取时不再重算或校验字符/输出预算。prepare 会按同一规则重新分配尚未尝试的旧待办任务；可用 batch-split 显式拆分当前 revision 中尚未尝试、无交接的 pilot_review/review/final_review 任务（首轮和修复均支持），同时满足输入与输出预算，保留 ID、修复计数及证据。已领取的任务不能拆分。
+`workflow_allocation.py` 是统一任务分配入口，`workflow_batches.py` 负责两种执行器共用的交接、收集和可靠性修复。输入准备、输出模板、真实语义工作及程序验收的分工统一见 [准备与验收职责](../../.agents/skills/game-translate/references/custom_workflow.md#程序准备任务子代理专注本职)，不在工具说明中复制规范。
 
-## 完整输入在分配时拆批
+试译执行顺序：`prepare --stage pilot_translate` → 执行本轮全部翻译 → `pilot-report` → 主 AI `pilot-decide --file <JSON>`。决定只需 report_hash、reviewer=main、decision=accept/retry/stop 和 summary，retry_ids 可选。评估流程是否稳定、风格是否合适及是否存在共性错误，不要求逐句六维证据或错误清零。没有 API 独立试译审校、额外 Sol 验收或自动 6 轮逐句返修。
 
-workflow_allocation.py 是初始任务、草稿修复和独立审校修复的统一分配入口。先组成完整输入，再检查 task_input_chars；同时满足提示词 + JSON 和 Codex input.md 两种交接的长度限制，预留实例身份、租约及尝试数字段。超限递归拆分，并按拆后的任务重新筛选术语；术语审校同时重算自动 finding 必需的关联项、原文出处及有限词族提示。单项及必要证据超限则回滚本次分配并明确报错，不能截断证据。
+需要改进时通过配置入口调整，再用 `pilot-retry --ids <ID...> --reason <原因>` 验证受影响样本；省略 --ids 表示同批全部。旧译文、作者与报告保留，不重抽样。每轮报告位于 reports/pilot_rounds/，主 AI 判断位于 reports/pilot_feedback/，当前报告为 reports/pilot_calibration.json。
 
-预算检查仅发生在分配阶段，claim 和正常 batch-open 不再渲染、计算或拒绝超限输入；回执字符数直接读取 task_allocations 分配记录。版本、租约、独立身份、修复停止条件及执行次数检查仍按原协议执行。prepare 对当前修订中未尝试的旧待办任务补做分配，保留已完成、已尝试及在途任务。旧的已尝试任务若确需调整，先结束在途任务再按已有配置变更流程重新准备。试译按拆后的实际任务数检查剩余次数预算。
+接受试译后恢复生产状态，正式正文重新翻译并完成完整独立审校；试译接受不放宽最终导出或实机门槛。旧已接受试译继续有效；旧在途请求先结束或核实恢复。pilot_review 派发入口已停用，兼容 draft-scan --stage pilot_translate 只生成诊断，不自动创建修复任务。
+# API 格式可靠性
 
+各自定义阶段共用相同传输、收集与恢复入口，具体覆盖如下：
 
-## 程序准备任务，子代理专注本职
+| 阶段 | 无损编号规范化 | 格式重试输出约定 | 回复诊断 |
+|---|---|---|---|
+| extract | 输出 analysis，无记录编号；出处序号不改 | analysis | 共用 metadata、usage、结束原因及日志 |
+| glossary_review | 已绑定 e/f 编号；只读/未知/重复仍拒收 | decisions 与真实四维证据 | 同上 |
+| pilot_translate、translate | 记录 ID 与本条 t 编号 | 每条完整 translation，不使用 keep | 同上 |
+| draft_check | 修复复用 translate；无问题时不请求 | 同 translate | 同上 |
+| review、final_review | 记录 ID 与本条 t 编号 | keep 或 translation，真实六维证据 | 同上 |
+| polish | 记录 ID 与本条 t 编号 | keep 或 translation，真实修订理由 | 同上 |
+| resume | 只使用原 session 映射，不猜当前全表 | 先收完整回复；确需重发时带恢复诊断，保留累计次数 | 恢复 parsed 与缺失 metadata；未知保持未知 |
 
-所有阶段统一遵循：程序准备合格输入 → 子代理完成本阶段工作并写出结果 → 程序收集、合并、验收 → 程序生成下一轮任务。适用于术语提取、术语审校、试译、正文翻译、独立审校、润色、复审、所有定向修复、Sol 裁决与 API 路线。
+整数转换仅适用于明确命名空间、已绑定范围内的正整数（e/f/t 分别依据 ref、finding、term_ref 字段）；布尔、浮点、未知值及重复仍拒收，不转换语义文本或 evidence_rows。格式反馈按阶段选择输出约定；错误中的长标识仅按完整边界还原成本批短编号，避免 terms:1 被误匹配到 terms:12。
 
-程序在分配前负责：来源与修订绑定、ID/逻辑记录号一致性、原文完整性和保护映射、字段类型、已有译文/锁定约束、继承例外与修复计数、相关术语和必要出处筛选、完整输入及预计输出预算、自动拆批。坏输入在分配阶段报错，不交给子代理修包。新分配记录保存 input_contract_version=1；prepare 自动更新未尝试的旧待办任务，已完成和在途任务保留。
+隔离真实验证入口：`verify_api_stage_reliability.py --directory <全新验证目录> --phase prelude`，执行提取、术语审校和试译后等待主 AI 实际阅读并接受试译；随后 `--phase body` 执行翻译、draft_check、review、polish 和 final_review。总请求上限 12，保留原回复和真实验收，不使用验证结果覆盖生产项目。各阶段不会因此在正常生产流程自动串联；该入口仅用于明确授权的开发验证。
 
-程序提供 output_template / result.template.json，预填任务 ID、版本、记录 ID、术语 ref 和必要字段骨架。语义状态仍是 false/null/pending，证据和理由留空；不得由程序自动填 pass、编造证据或代替语义审校。子代理只填本阶段的实际译文、术语决定、审校证据或疑难裁决。
+- API 正文短编号可以返回字符串，或范围内的正整数；程序只无损转为已绑定的字符串编号。布尔值、浮点数、越界编号及规范化后的重复编号拒收，不按输出顺序猜测。
+- 格式重试将上一交接的具体错误、JSON 行列及有限回复片段作为诊断数据附入新输入，仍受原任务次数和完整输入预算约束；超预算明确停止，不截断源文或证据。旧输入、原回复、映射和真实作者不改写。
+- 原始回复旁保存 `response.metadata.json`，记录服务端 usage、finish_reason 及返回模型。SSE 回退无法取得结束原因时保存 null，不编造 stop；未知用量不记零。
+- 已确认接口兼容后，可在本机配置的 `extra_body` 中设置 `"response_format":{"type":"json_object"}`。JSON 模式只保证服务端承诺的语法形式，不保证 ID、引用、keep 或语义证据正确，所有共同验收仍运行；不支持时明确报错，不静默切换模式重发。
+- 不用通用“修 JSON”算法补写证据、keep 或译文。普通语法损坏仍走带具体诊断的有限重试；持久化的失败回复优先审计恢复，避免重复请求。
 
-主代理派发 input_file 和 result_file 即可。术语阶段 claim 后调用 prompt，同样返回包含任务材料及模板的单文件 input_file；prompt_file/task_file 仅保留兼容，不再把它们重复发送给实例。正文阶段继续 batch-open。task_ready=true 表示本次交接已由程序准备；false/旧合约应由主流程处理，不让子代理补做校验。
+## 2026-10-19：回复可靠性与失败隔离
 
-子代理不执行任务预算、版本、ID 集合、字段结构、占位符统计或 JSON 合规检查，不运行 validate/check/audit 脚本，不重分批、不扫描全库、不修任务文件/数据库。翻译实例只翻译；审校实例逐条做语义核对并填写证据；润色实例只作必要润色；Sol 实例只裁决或修复分配的难题。语义核对属于审校本职，不能因机械检查前置而省略。
+- review/final_review 统一执行收集前协议检查，分配契约为 4；本次不增加旧任务兼容分支。收集时逐条检查 ID、译文字段、六维状态/非空证据、连续摘录及修改字段关系；它只是协议验收，术语、保护结构、blocking 与语义问题仍在整轮边界验收。通过协议的候选不算语义通过。
+- API 六维/四维 checks 可以使用每维 [status,evidence]，两项均由模型真实填写；程序仅恢复字段名，共同持久协议仍为 status/evidence 对象。非空原文的 accuracy/completeness/logic 只允许 pass/corrected，不能自动把 not_applicable 改成通过。模板明确保留 keep:true 与完整 translation 两条路径，issues 只列当前未解决问题，已修正项记 changes/checks。
+- 明确引用完整原文时可用 source_ref:"whole"（顶层和 changes 中均可），程序从本 session 绑定的完整原文恢复 source_excerpt。API 模板直接示范此路径，不再同时示范空摘录；模型明确选择 whole 时附带的空字符串摘录可忽略。非空摘录与 whole 冲突、未知引用仍拒收；局部引用仍须模型给连续原文。Codex 收集器也支持同一便利引用。
+- 新增语境例外仍用本条 t编号；撤销已有例外改用本条 existing_exceptions 的 x编号，即使该术语当前不命中也可具证撤销。x编号绑定独立的 record_exceptions，不允许跨记录、不允许拿撤销引用新增例外。历史 t编号撤销与完整 source 协议继续恢复，不改冻结表。
+- API 对可解析的正文回复先严格校验整包任务/范围/未知或重复 ID，再逐条转换；字段转换失败保留原条目和程序诊断，有效条目通过共用 batch_items 保存，缺失/失败条目进入共用 batch-repair。保留实际作者、付费历史和尝试次数，不自动补 keep、译文或证据。
+- 单个整体格式重试耗尽后，API 槽位继续处理本轮其他独立待办，轮末统一交回异常；不在异常未处理时启动下一语义修复轮。不可重试的认证/服务故障仍暂停。局部可靠性修复在已重试或明确输出截断时缩小失败范围的分包上限；分包仍算同一次修复、不刷新累计预算，其他情况按正常预算分包。
+- API 与批次结果解析均拒绝重复 JSON 字段和非标准 NaN/Infinity；允许移除已知代码围栏及字符串外的尾逗号，尾逗号编辑只在严格解析成功后写哈希/偏移审计。缺括号、引号、缺值等不猜修，不丢弃未知或重复 ID。原回复保持。
+- 分配时同时检查完整 Codex 输入和实际 API 展示输入预算；短编号、例外视图及提示增加均计入，不截断原文或证据。
+- 术语匹配沿用原有冻结表、最长匹配、词边界和保护区间规则；进程内按冻结对象及大小写/词边界选项准备一次正常/保留原文条目的匹配计划，减少逐句重复分类；不增加持久通过表。
 
-发现文件缺失、字段损坏或源文不对应时，只简短报告 input_problem，由主流程定位输入生成问题。原文本身的歧义按本阶段 issues/语境例外处理。程序负责产出后的解析、ID 对齐、占位符/结构/术语校验、结果合并和整轮验收；实际执行次数及真实产出身份仍完整记账。租约、实际 worker 独立性和执行次数等运行状态由程序管理，不能要求子代理自行证明。
+## 2026-10-21：保留思考的无损输入压缩与耗尽停止
 
-试译验收也由 quality-report --kind pilot 提前生成 inspection_manifest 和 next_input_file，包含按包筛选的批总结、文体背景、覆盖统计及输出模板；按包 checkpoint-quality 后重新获取下一包，最终完整覆盖仍由 approve-quality 判定。单个不可拆检查超过预算时在分配阶段报错。Sol 是验收/升级任务模型角色；主对话不是 Sol 时创建新的 Sol 子代理执行这些任务，不要求切换主对话模型。
+- 后续恢复验证：可选api.stream=true使用SDK流式接收，stream_options.include_usage=true；只拼接content，推理不混入正文，usage取最后累计值而非逐chunk相加，缺失用量仍未知。必须收到终止chunk，断流或缺终止时拒收，即使现有片段恰为合法JSON。默认保持非流式。旧项目API配置可使用新增可选字段，无需改写已绑定任务。HTTP200 HTML页面按不可自动重试的unexpected_html_response报告，不再当空回复重复调用。
+- 公共Python入口Workflow.split_extract_recovery(task_id,record_limit=12,worker_stopped=True)：仅用于已暂停、明确旧worker停止且无活跃runner/reserved调用的未完成API提取。按完整记录分包，原文/元数据/出处不截断；继承父任务已用attempt、保存extract_split_lineage和父批次旧交接，成功批次不可拆。须有明确剩余预算；不重置历史。glossary_review准备只合并非obsolete的完成提取，并严格检查全部源ID恰覆盖一次，父批次过期不绕过覆盖门槛。短批真实生产验证66/66接收、0次失败；不代表术语已完成语义审校。
+
+- 新生成的 API 展示包将重复的长 metadata 字段集中在 shared_metadata，以每条 metadata_refs 明确关联；资源地址重复的文件前缀放 shared_metadata_text，resource.prefix_ref 与 suffix 原样拼接还原。未出现字段不继承，独有值保留，既有命名空间不覆盖。原文、ordinal、保护映射、语义证据和未知上下文字段不删，canonical 任务及已有交接不改写；Codex 输入仍用完整数据。完整输入与输出预算检查不变。
+- 这项改动不关闭思考、不改变模型和接口，也不把思考 Token 全部视为无效消耗。提取提示明确 source 为所引原文的连续片段并保留标点，不限制必要出处数量，不因节省而省略歧义。
+- 无正文且 length 结束并报告 reasoning 时，返回不可自动重试的 reasoning_budget_exhausted；有正文但结果拒收且 length 结束时，保留回复/usage/拒收原因，暂停为 rejected_length_terminated_response。完整有效结果仍正常接收。恢复须检查批量和输出预算，不能关闭质量检查、接受截断、重置次数或原样盲重试；其他错误仍沿用有限重试。
+- 本次游戏100批本地对照输入807,835→625,187 Token（减少22.61%），逐字段还原一致；这是本地估算，不能据此宣称全部服务端Token同幅降低。小样本真实链路验证遇401认证失败后停止，无生产状态改动；真实语义效果尚待接口恢复验证。

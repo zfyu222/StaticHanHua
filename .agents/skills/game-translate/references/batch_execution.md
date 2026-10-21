@@ -1,8 +1,26 @@
-# Codex 批次交接与局部修复
+# 自定义流程共用批次交接与局部修复
 
-适用于已经冻结术语的正文阶段。继续现有项目与已完成草稿，不重新 init，不重置配置，不为接入入口重译。术语提取/审校仍使用各自的条目证据协议。
+正常 API 执行现在由一个阶段调用连续推进常规多轮，见 [自动循环边界](api_cycles.md)。下文 batch-open/batch-finish、draft-scan、review-scan 的手工命令继续用于 Codex 路线及 API 单轮调试；普通 API runner 在本阶段内自动调用同样的入口，不需要主 AI 每轮读报告再启动一次。试译决定、阶段切换和升级边界不变。
+
+正式翻译 `--stage translate` 收齐草稿即返回主 AI，不自动调用 draft-scan；主 AI 可在此检查产出或提交版本库。之后单独调用 `--stage draft_check`，才由同一程序进程推进程序审校、必要的 API 修复及整轮复查；完成后再次交回主 AI，再决定何时启动独立语义审校。两次调用各自生成日志和性能汇总。
+
+本文件是 API 与 SubAgent 共用的批次规范，以既有 SubAgent 行为为基准。所有阶段均可使用同一 batch-open/batch-finish 入口；术语提取/审校保留 analysis/decisions 及条目证据协议，下文正文规则在术语冻结后适用。继续现有项目与已完成草稿，不重新 init，不重置配置，不为接入入口重译。
+
+API 适配器调用同一入口领取任务，逐字发送生成的 input.md，每次独立请求只返回一个 JSON 对象，由程序解析并保存到 result_file，再调用 batch-finish。提示词、术语筛选、模板、收集、保留通过项、局部修复、整轮验收和作者记录均使用本文件所述的同一实现。API 限流、认证、服务额度属于传输适配；不改变批次或质量规则。下文创建实例、发送文件与等待完成通知的操作仅是 SubAgent 适配方式。
+
+API 路线的外层执行统一按 [API 整轮执行与等待](api_execution_wait.md)：一个新的 Luna 执行代理负责一整轮 runner，主代理使用原生代理等待，只收终结通知；执行代理不承担正文或语义审校，不计作批次作者。下面逐批创建/等待实例的步骤只适用于 Codex 翻译执行器。
 
 ## 两次程序交接
+
+新 API 正文交接的编号映射保存在 `api_id_transport.v2.json`：每批输入 ID 从字符串 `1` 开始，模型返回 `{records:[{id,translation,...}]}`；task_id/input_hash 由程序按请求绑定，不要求模型复制。短编号只在当前 session 内有效，未知、重复编号拒收，缺失条目进入原可靠性处理，不按输出顺序猜测。保护标记使用句内 `[P1]` 等短形式，先检查原文碰撞。
+
+API 每轮只准备一次任务，领取阶段直接取已准备队列。冻结术语按文件版本加载复用，规范化术语和匹配结果使用有容量上限的进程内缓存，大小写及词边界选项隔离。缓存不落盘，重启允许重新准备，完成任务依旧由 SQLite 持久化状态排除。
+
+旧执行器停止后，使用 runner 的 `--resume` 接续。完整 canonical 回复或保存的 response.raw.txt 优先收集，成功批次不重译；没有可收集回复的 running 批次退回 pending，保留原尝试数和历史，超限仍明确报告。部分收集结果沿用现有 repair 路径。旧进程仍存在时拒绝恢复；崩溃前未保存的回复可能需重新请求。
+
+API 交接使用同一生成器的精简指令包装，省略子代理文件操作和调度说明；语义任务、原文/术语/证据、输出模板及质量门槛保持共用。程序仍原样发送该 API 交接的 input.md，发送时不删改内容，也不改写既有交接。
+
+API 正文包采用无损精简展示：不发送 ordinal 与空 protection/metadata/locked；shared_terms 仅存本批实际命中的术语，每条 term_refs 引用其对应项，不因共享表而把其他句的术语套用本句。同一 src 的不同译名/状态/说明不合并。所有阶段的 API 模板只示范输出结构，不再逐项复制原译文、ID 清单和空证据；完整范围由输入 records/entries 定义，必须逐项返回，术语提取无术语时可为空。试译只执行翻译并由主 AI 整体评估；六维证据用于正式审校。独立审校六维证据、术语审校四维证据仍逐条真实填写，完整模板仍保存在 result.template.json；reason、checks.evidence、changes.reason 分别承担结论、分维证据、改动解释，避免全文重复。术语阶段不发送协议版本、配置哈希和租约等调度字段，省略无用空字段；原文 ordinal、全部候选和出处、冲突与关联提示均保留。正式结果仍为原 task_id/input_hash/analysis/decisions/records 协议，语义证据、完整原文及保护映射不删减。仅新生成的交接受影响，不修改已存在 input.md、任务版本或验收状态。
 
 主代理创建实际 Luna 实例，取得真实 ID 后，一次调用程序领取并生成输入包；可同时为多个空闲槽位领取：
 
@@ -11,6 +29,8 @@
 ```
 
 返回 session_id、input_file、result_file、条数与简短摘要。直接把 input_file 和 result_file 发送给实例；实例只读一个 input.md，完成后只通知 session_id、完成状态，不输出整批译文。不可把旧协议、指针文件、完整任务 JSON、全表术语和日志再发送一遍。输入含一次协议、一次背景/文体、完整原文/保护文本与标记映射、逐条元数据和实际命中的 src/dst；不复制 evidence_rows 等术语审校字段。
+
+batch-open 优先领取本阶段同一执行器队列中尚未派发的可靠性修复包，随后领取普通待办任务；任务选择及修复边界同样由共用程序维护。也可按明确 session_id 调用 batch-repair。正文与独立审校的质量问题仍只在整轮复查后生成普通修复任务。
 
 主代理以完成通知驱动处理，不使用 sleep、反复 status、tail 日志或定时读取结果文件。等待使用代理结束通知或事件等待；主代理只在完成、明确失败、需要语义判断时工作，不创建额外 Sol 调度实例。
 
@@ -32,7 +52,7 @@
 & $python $flow --project $project draft-scan --prepare-repairs
 ```
 
-reports/full_draft_scan.json 列出所有失败 ID、完整原文、当前译文和具体诊断。程序保留其余译文，跨原批次、跨场景合并失败 ID 为同一轮 translate 修复任务（draft_scan_key、draft_repair_round），沿用正文条数及字符上限。strict_translation 是历史兼容字段，带 draft_scan_key 的整轮修复批次不即时质量验收，而是保存候选并等待全轮复查。通过 batch-open --stage translate 领取这些任务，输入仅包含失败句、当前译文、诊断、必要元数据和相关术语。
+reports/full_draft_scan.json 列出所有失败 ID、完整原文、当前译文和具体诊断。程序保留其余译文，跨原批次、跨场景合并失败 ID 为同一轮 translate 修复任务（draft_scan_key、draft_repair_round），沿用正文 Token 预算（默认不限制条数）。strict_translation 是历史兼容字段，带 draft_scan_key 的整轮修复批次不即时质量验收，而是保存候选并等待全轮复查。通过 batch-open --stage translate 领取这些任务，输入仅包含失败句、当前译文、诊断、必要元数据和相关术语。
 
 一轮是这次复查后生成的全部修复批次。例如第一轮有 10 批：按可用槽位依次完成这 10 批，batch-finish 只做版本、ID、字段类型与锁定检查并保存修复稿，不因术语或占位符问题立即返修。只要有 pending/running/failed 批次，draft-scan 返回 awaiting_round、checked_records=0，不执行质量检查，不生成下一轮；failed 的进程/格式问题需先解决，不能当作该轮完成。最后一批保存回执的 remaining_round_batches=0、next_action=draft-scan --prepare-repairs，才统一复查这 10 批涉及的全部 ID；即使某条提交了相同候选，也在轮末复查。若剩余问题可合为 3 批，则这 3 批组成第二轮，全部完成后再复查。每轮可并发，不要求 10 个实例同时运行。
 
@@ -48,7 +68,19 @@ reports/draft_checks/round_XXXXX.json 与数据库 draft_check_rounds 保存各�
 
 ## 严格阶段与可靠性修复
 
-试译仍即时严格校验。独立审校 review/final_review 已改为 [整轮验收](review_rounds.md)：各批保存候选与证据，全部结束后 review-scan 严格校验，再集中生成下一轮。以下 batch-repair 只用于试译或保存可靠性问题，不用于正文、独立审校或整轮修复的质量返工。正文修复轮末通过 draft-scan 统一严格复查。旧版已被当批检查拒绝的候选，可重新 batch-finish 最新交接保存；有后续或在途交接时不覆盖它，不重置尝试数或真实身份。
+API 的字符串短编号与已绑定范围内的整数编号由程序无损归一化；布尔值、浮点数、未知值和归一化后的重复值仍拒收。格式重试附上上一交接的具体错误及有限 JSON 出错片段（仅作数据），不再原样盲目重发；补充诊断后的完整输入仍受预算约束，超限明确交回。不得自动补 keep、译文或语义证据。服务端结束原因、usage 与原回复分开保存；未知结束原因保留 null。接口已小样本确认兼容时，可通过本机 extra_body 启用 JSON object 模式，字段、来源和语义门槛照常执行，不因语法有效自动通过。
+
+上述机制统一覆盖提取、术语审校、试译、翻译、draft_check 返修、独立审校、润色、复审和已落盘回复的恢复。提取输出 analysis 不含记录编号，不强加编号转换；术语审校的 ref / finding 和正文 term_ref 有明确字段命名空间时，范围内正整数可分别无损转换为已绑定 e/f/t 编号。只读关联项、未知值及转换后重复项仍拒收，evidence_rows 等出处序号不变。重试提示按阶段生成：提取仅 analysis，术语审校仅 decisions，翻译必须 translation，审校/润色才支持 keep:true。不能向所有阶段统一注入 keep 指令。旧回复恢复不新增请求；缺少可绑定的历史 usage 或旧库没有 session_id 时保留未知，不按任务或顺序猜测账单。程序性能日志同步记录真实 finish_reason 与返回模型。
+
+恢复遇到坏回复时，另存 rejection.resume.json 保留本次具体诊断，不覆盖原始回复与原 rejection。确需按原预算重发时，只在相同任务且范围完全一致的后继交接附上该诊断；输入预算、累计尝试及真实作者约束不变，不盲目重发，也不套用其他任务或范围的错误。JSON 行列及片段按与解析器相同的可选代码围栏处理计算。
+
+程序审校及正式修复的译文可能已还原保护标记。接收时允许两种完整表示：本次映射的占位符各一次，或全部映射原字串按原次数完整保留；后者不得混有未知/伪造占位符。此为已知映射的程序处理，不要求模型为正确原标签重新编码。缺失、重复、结构不符仍拒收，原始回复保持不变；检查规则更新需使旧扫描缓存失效。
+
+两种执行器的传输失败或整体 JSON/ID 协议错误统一使用 `batch-retry --session ... --worker <新实例ID> --reason ...` 重发当前交接；格式错误加 `--format-error`，每个任务租约至多一次自动格式重试。保留已收集条目和修复分包范围，累计原任务尝试数；不因此新建语义修复轮。API 适配器为每次请求生成独立身份。达到任务尝试上限后报告 needs_attention。收到回复后的条目级失败继续使用下方 batch-repair；正文和独立审校的质量问题仍等整轮复查，不变成当批返工。
+
+API 运行中断后若存在 waiting 交接，先核实旧请求已结束；已有结果用 batch-finish 收集，确需重发用 batch-retry，再通过 `run-api --stage <阶段> --sessions <返回的新session_id>` 执行明确恢复的未发出交接，保留旧输入和结果。默认 run-api 拒绝自动重放状态不明的在途请求；显式模式也拒绝重复发送已记账的交接。
+
+正式翻译按整轮保存和检查，试译只保存草稿并生成校准报告。独立审校 review/final_review 采用 [整轮验收](review_rounds.md)：各批保存候选与证据，全部结束后 review-scan 严格校验，再集中生成下一轮。以下 batch-repair 只用于保存可靠性问题，不用于正文、独立审校或整轮修复的质量返工。正文修复轮末通过 draft-scan 统一严格复查。旧版已被当批检查拒绝的候选，可重新 batch-finish 最新交接保存；有后续或在途交接时不覆盖它，不重置尝试数或真实身份。
 
 结果中可验收的条目持久暂存在 SQLite batch_items；失败条目保留候选文本及具体诊断。完整任务尚未通过时不把该批标记完成。80 条中 2 条失败，78 条不会重新派发。
 
@@ -58,9 +90,9 @@ reports/draft_checks/round_XXXXX.json 与数据库 draft_check_rounds 保存各�
 & $python $flow --project $project batch-finish --sessions <修复session>
 ```
 
-修复包只含失败 ID、完整原文/保护文本、任务原译文、候选译文、诊断、必要元数据及相关术语，不重复背景、通过样例或其他条目。审校修订的 before 对应任务原译文，不是错误候选稿。程序按 ID 合并并执行完整验收；修复后仍失败返回 needs_attention，停止自动重派，交 Sol 判断。每批只自动集中修复一次，仍受原任务/实例/试译预算和租约限制；不能改 ID 或新建任务刷新次数。语法损坏、未知 ID、过期租约等整体错误明确报错，不猜测或丢弃其余内容。
+修复包只含失败 ID、完整原文/保护文本、任务原译文、候选译文、诊断、必要元数据及相关术语，不重复背景、通过样例或其他条目。审校修订的 before 对应任务原译文，不是错误候选稿。程序按 ID 合并并执行完整验收；修复后仍失败返回 needs_attention，停止自动重派，交 Sol 判断。每批只自动集中修复一次，仍受原任务/实例尝试和租约限制；不能改 ID 或新建任务刷新次数。语法损坏、未知 ID、过期租约等整体错误明确报错，不猜测或丢弃其余内容。
 
-Sol 已判断出具体原因、给出明确处理依据后，可对 needs_attention 的 session 再调用 batch-repair --reason <Sol判断与定向验收要求>。这是有记录的人工主流程判断，不能用于机械循环；仍只携带未解决 ID，保留全部通过项，并消耗原任务剩余尝试次数（默认总共 3 次）及试译预算。无明确原因不允许自动再派。
+Sol 已判断出具体原因、给出明确处理依据后，可对 needs_attention 的 session 再调用 batch-repair --reason <Sol判断与定向验收要求>。这是有记录的人工主流程判断，不能用于机械循环；仍只携带未解决 ID，保留全部通过项，并消耗原任务剩余尝试次数（默认总共 3 次）。无明确原因不允许自动再派。
 
 正文后的程序验收、独立审校及 Sol 最终验收所产生的修复链，按条目累计最多 6 轮常规修复（body_repair_round_limit 默认 6，最多 6）；首次翻译/首次审校不计入，任务格式或传输重试仍受 max_attempts=3 单任务限制。第 6 轮统一复查后仍失败，程序自动生成 repair_tier=sol、required_model=sol_repair_model（默认 gpt-6-sol）、automatic_escalation=true 的失败项任务；直接创建对应模型的新 Sol 子代理（fork_turns=none）执行，不请求用户批准追加轮次。batch-open 回执和输入包携带模型要求，必须按 required_model 派发，不能继续交给 Luna。Sol 修复继续整轮保存、整轮复查及失败 ID 定向处理；相同诊断持续失败时由 Sol 排查原文、术语例外或校验规则根因，不机械重复同一修改，也不借此放宽验收。主对话只调度与检查，不代写译文。Sol 任务使用 codex 后端，API 路线也转交 Sol 子代理，不用原 API 模型冒充升级。既有已完成修复轮及历史计数保留，不重置译文/审校证据，不修改在途任务。锁定冲突及执行故障仍须明确处理，但不得把常规修复超限当作向用户申请追加轮次的理由。
 
@@ -88,7 +120,7 @@ source 必须指向本条实际命中的 src；reason 要解释原句依据及�
 
 保存操作只按 ID 落盘，不触发模型审查。全部片段保存后直接通知完成，无需再写一份重复的完整结果；主流程 batch-finish 合并并一次检查。重复 ID、批次外 ID、版本不符会拒绝，不按输出顺序对齐。原文不能截断；输入预算不足时明确缩小尚未派发的批次，不动已有草稿。
 
-原 claim/prompt/submit 保留给历史脚本和术语阶段兼容。新正文执行默认使用上述入口，不能混用旧 single_task.py 的 check 循环。
+原 claim/prompt/submit 保留兼容历史脚本。两种执行器的新任务在所有阶段默认使用上述共用入口，不能混用旧 single_task.py 的 check 循环。
 
 派发前读取扫描/sol-round-finish 回执的 repair_dispatch，先按 required_model 创建真实的新实例，再用 batch-open --stage <对应阶段> --worker-model <该模型> --workers <真实实例ID> 领取匹配模型的任务。标准任务使用 gpt-6-luna，Sol 任务使用回执中的精确模型；混合任务池必须传 --worker-model，防止模型领错批次。程序不自行创建代理。
 
@@ -108,4 +140,18 @@ source 必须指向本条实际命中的 src；reason 要解释原句依据及�
 
 格式/传输可靠性修复同样前置准备：batch-repair 在派发前组成失败 ID、当前候选及完整诊断，按统一输入合约自动拆成独立小包。回执含 repair_parent_session、repair_part、repair_parts、pending_repair_parts。每个新实例只处理自己的一个 input_file。
 
-有剩余分包时，用新的实际实例 ID 再调用 batch-repair --session <同一个 repair_parent_session> --worker <新实例ID>，领取已准备的下一包。各包完成后 batch-finish；尚有其他包未完成时返回 repair_part_saved，仅保存产出，不提前验收整批或插入下一轮。全部包收齐后程序统一按 ID 合并并验收，保留其他通过记录及每条真实作者。分包沿用同一修复轮，不通过拆分刷新任务尝试数；试译每个实际实例的领取仍计入试译执行预算。
+有剩余分包时，用新的实际实例 ID 再调用 batch-repair --session <同一个 repair_parent_session> --worker <新实例ID>，领取已准备的下一包。各包完成后 batch-finish；尚有其他包未完成时返回 repair_part_saved，仅保存产出，不提前验收整批或插入下一轮。全部包收齐后程序统一按 ID 合并并验收，保留其他通过记录及每条真实作者。分包沿用同一修复轮，不通过拆分刷新任务尝试数；试译只沿用任务执行重试限制，不进入逐条质量修复链。
+
+试译复用正文翻译的拆批与交接，固定随机 150 条；全部任务完成后 pilot-report 保存真实译文与机械诊断，主 AI 用 pilot-decide 记录整体 accept/retry/stop。没有 API 独立试译审校和自动逐句修复；需要验证方案变更时由主 AI 明确 pilot-retry 同批或指定 ID，详见 [试译校准](quality_workflow.md#随机样本试译)。
+
+## 2026-10-19：回复可靠性与失败隔离
+
+- review/final_review 统一执行收集前协议检查，分配契约为 4；本次不增加旧任务兼容分支。收集时逐条检查 ID、译文字段、六维状态/非空证据、连续摘录及修改字段关系；它只是协议验收，术语、保护结构、blocking 与语义问题仍在整轮边界验收。通过协议的候选不算语义通过。
+- API 六维/四维 checks 可以使用每维 [status,evidence]，两项均由模型真实填写；程序仅恢复字段名，共同持久协议仍为 status/evidence 对象。非空原文的 accuracy/completeness/logic 只允许 pass/corrected，不能自动把 not_applicable 改成通过。模板明确保留 keep:true 与完整 translation 两条路径，issues 只列当前未解决问题，已修正项记 changes/checks。
+- 明确引用完整原文时可用 source_ref:"whole"（顶层和 changes 中均可），程序从本 session 绑定的完整原文恢复 source_excerpt。显式摘录与 whole 冲突、未知引用拒收；局部引用仍须模型给连续原文。Codex 收集器也支持同一便利引用。
+- 新增语境例外仍用本条 t编号；撤销已有例外改用本条 existing_exceptions 的 x编号，即使该术语当前不命中也可具证撤销。x编号绑定独立的 record_exceptions，不允许跨记录、不允许拿撤销引用新增例外。历史 t编号撤销与完整 source 协议继续恢复，不改冻结表。
+- API 对可解析的正文回复先严格校验整包任务/范围/未知或重复 ID，再逐条转换；字段转换失败保留原条目和程序诊断，有效条目通过共用 batch_items 保存，缺失/失败条目进入共用 batch-repair。保留实际作者、付费历史和尝试次数，不自动补 keep、译文或证据。
+- 单个整体格式重试耗尽后，API 槽位继续处理本轮其他独立待办，轮末统一交回异常；不在异常未处理时启动下一语义修复轮。不可重试的认证/服务故障仍暂停。局部可靠性修复在已重试或明确输出截断时缩小失败范围的分包上限；分包仍算同一次修复、不刷新累计预算，其他情况按正常预算分包。
+- API 与批次结果解析均拒绝重复 JSON 字段和非标准 NaN/Infinity；允许移除已知代码围栏及字符串外的尾逗号，尾逗号编辑只在严格解析成功后写哈希/偏移审计。缺括号、引号、缺值等不猜修，不丢弃未知或重复 ID。原回复保持。
+- 分配时同时检查完整 Codex 输入和实际 API 展示输入预算；短编号、例外视图及提示增加均计入，不截断原文或证据。
+- 术语匹配沿用原有冻结表、最长匹配、词边界和保护区间规则；进程内按冻结对象及大小写/词边界选项准备一次正常/保留原文条目的匹配计划，减少逐句重复分类；不增加持久通过表。

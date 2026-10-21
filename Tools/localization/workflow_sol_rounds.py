@@ -1,6 +1,7 @@
 """Collect the entire Sol inspection before dispatching any semantic repairs."""
 import json
 from workflow_quality import SOL_SCOPE_POLICY
+from workflow_tokens import count_tokens
 
 
 class SolRoundMixin:
@@ -31,13 +32,14 @@ class SolRoundMixin:
                 value['coverage'] = report.get('coverage', {})
             return value
         def size(batch):
-            return len(json.dumps(packet(batch), ensure_ascii=False, indent=2) + '\n')
+            return count_tokens(json.dumps(packet(batch), ensure_ascii=False, indent=2) + '\n')
         groups, group = [], []
         for item in items:
             candidate = group + [item]
-            if group and (len(candidate) > config['review_batch_records'] or size(candidate) > config['task_input_chars']):
+            if group and ((config.get('review_batch_records') is not None and len(candidate) > config['review_batch_records'])
+                          or size(candidate) > config.get('task_input_tokens', 16384)):
                 groups.append(group); group = []
-            if size([item]) > config['task_input_chars']:
+            if size([item]) > config.get('task_input_tokens', 16384):
                 raise ValueError('Sol task allocation exceeds input budget for single check ' + item['id'])
             group.append(item)
         if group:
@@ -48,7 +50,7 @@ class SolRoundMixin:
             value = packet(batch)
             write_json(path, value)
             manifest.append({'file': str(path), 'check_ids': [i['id'] for i in batch],
-                             'input_chars': size(batch), 'over_budget': False})
+                             'input_tokens': size(batch), 'over_budget': False})
         manifest_path = self.root / f'{prefix}.inputs.json'
         write_json(manifest_path, manifest)
         return manifest_path

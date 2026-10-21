@@ -13,6 +13,8 @@
 
 # Local configuration can contain machine-specific paths and credentials.
 /.mcp.json
+/Tools/localization/api.local.json
+/Tools/localization/api.local.jsonc
 
 # Root-level runtime artifacts
 *.log
@@ -41,5 +43,6 @@ Desktop.ini
 /Tools/REA/node_modules/
 /Tools/REA/runtime/
 /Tools/REA/verification/
+/Tools/localization/verification/
 /Tools/Ghidra/
 /Tools/Java/

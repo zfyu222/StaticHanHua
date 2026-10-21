@@ -19,6 +19,9 @@ class QualityTests(unittest.TestCase):
         self.fixture.freeze(True, pilot=False)
 
     def decisions(self, kind):
+        if kind == 'pilot':
+            return {'report_hash': self.flow.pilot_report()['report_hash'], 'reviewer': 'main',
+                    'decision': 'accept', 'summary': 'Synthetic overall calibration is suitable.'}
         result = self.flow.quality_report(kind)
         report = workflow.read_json(result['report_file'])
         return {'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': '已核对证据。',
@@ -56,14 +59,14 @@ class QualityTests(unittest.TestCase):
         self.flow.prepare(stage)
         while claim := self.flow.claim(stage, stage + '-' + uuid.uuid4().hex):
             self.flow.submit(claim['task_id'], claim['lease_token'], self.review_result(claim))
-        if stage in ('review', 'final_review'):
+        if stage in ('pilot_review', 'review', 'final_review'):
             self.assertTrue(self.flow.review_scan(stage)['clean'])
 
     def test_full_translation_waits_for_pilot_acceptance(self):
         with self.assertRaisesRegex(ValueError, 'pilot approval'):
             self.flow.prepare('translate')
         self.fixture.translate('pilot_translate')
-        self.raw_review('pilot_review')
+        self.flow.pilot_report()
         with self.assertRaisesRegex(ValueError, 'pilot approval'):
             self.flow.prepare('translate')
         self.flow.approve_quality('pilot', self.decisions('pilot'))
@@ -72,15 +75,15 @@ class QualityTests(unittest.TestCase):
         self.assertTrue(payload['approved_pilot_examples'])
         self.assertEqual(self.flow.status()['records'], {'source': 4})
 
-    def test_producer_cannot_review_own_pilot(self):
+    def test_pilot_review_is_replaced_by_main_calibration(self):
         self.fixture.translate('pilot_translate')
-        self.flow.prepare('pilot_review')
-        with self.assertRaisesRegex(ValueError, 'Independent reviewer|Fresh agent context'):
-            self.flow.claim('pilot_review', self.fixture.worker_ids['pilot_translate'][0])
-        self.assertIsNotNone(self.flow.claim('pilot_review', 'another-instance'))
+        with self.assertRaisesRegex(ValueError, 'retired'):
+            self.flow.prepare('pilot_review')
+        self.flow.pilot_decide(self.decisions('pilot'))
+        self.assertEqual(self.flow.status()['quality']['pilot']['reviewer'], 'main')
 
     def test_scheduling_revision_retains_partial_pilot_and_only_prepares_remaining(self):
-        self.flow.pause(True); self.flow.configure({'pilot_batch_count': 2}, 'Two toy batches'); self.flow.pause(False)
+        self.flow.pause(True); self.flow.configure({'batch_records': 2}, 'Two toy batches'); self.flow.pause(False)
         self.flow.prepare('pilot_translate')
         claim = self.flow.claim('pilot_translate', 'pilot-before-scheduling')
         result = {**self.fixture.envelope(claim), 'records': [
@@ -131,38 +134,44 @@ class QualityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Independent reviewer'):
             flow.claim('glossary_review', 'same-instance')
 
+    def strict_review_item(self, claim, item):
+        with self.flow.db() as db:
+            task = dict(db.execute('SELECT * FROM tasks WHERE id=?', (claim['task_id'],)).fetchone())
+            payload = json.loads(task['payload']); payload['strict_review'] = True
+            task['payload'] = json.dumps(payload)
+            config = self.flow.config(db)
+            return self.flow.validate_body_item(db, task, {}, item, payload['records'][0],
+                                               config, self.flow.rules(db, config), self.flow.glossary(db))
+
     def test_review_requires_dimensions_and_real_source_excerpt(self):
-        self.fixture.translate('pilot_translate'); self.flow.prepare('pilot_review')
-        claim = self.flow.claim('pilot_review', 'independent')
+        self.fixture.pilot(); self.fixture.translate(); self.flow.prepare('review')
+        claim = self.flow.claim('review', 'independent')
         result = self.review_result(claim)
         result['records'][0].pop('checks')
         with self.assertRaisesRegex(ValueError, 'Structured review'):
-            self.flow.submit(claim['task_id'], claim['lease_token'], result)
+            self.strict_review_item(claim, result['records'][0])
         result = self.review_result(claim)
         result['records'][0]['source_excerpt'] = 'invented source'
         with self.assertRaisesRegex(ValueError, 'source_excerpt'):
-            self.flow.submit(claim['task_id'], claim['lease_token'], result)
+            self.strict_review_item(claim, result['records'][0])
 
     def test_correction_requires_before_after_evidence(self):
-        self.fixture.translate('pilot_translate'); self.flow.prepare('pilot_review')
-        claim = self.flow.claim('pilot_review', 'independent')
+        self.fixture.pilot(); self.fixture.translate(); self.flow.prepare('review')
+        claim = self.flow.claim('review', 'independent')
         result = self.review_result(claim)
         item = result['records'][0]; before = item['translation']; item['translation'] = before + '！'
         with self.assertRaisesRegex(ValueError, 'correction requires'):
-            self.flow.submit(claim['task_id'], claim['lease_token'], result)
+            self.strict_review_item(claim, result['records'][0])
         item['checks']['tone']['status'] = 'corrected'
         item['changes'] = [{'category': 'tone', 'severity': 'minor', 'source_excerpt': item['source_excerpt'],
                            'before': before, 'after': item['translation'], 'reason': '修正语气标点。'}]
-        self.flow.submit(claim['task_id'], claim['lease_token'], result)
+        self.strict_review_item(claim, result['records'][0])
 
-    def test_pilot_acceptance_rejects_pending_and_incomplete_decisions(self):
-        self.fixture.translate('pilot_translate'); self.raw_review('pilot_review')
-        decisions = self.decisions('pilot'); decisions['decisions'][0]['disposition'] = 'pending'
-        with self.assertRaisesRegex(ValueError, 'Unresolved Sol'):
-            self.flow.approve_quality('pilot', decisions)
-        decisions = self.decisions('pilot'); decisions['decisions'].pop()
-        with self.assertRaisesRegex(ValueError, 'every requested check'):
-            self.flow.approve_quality('pilot', decisions)
+    def test_pilot_acceptance_requires_main_judgment_and_summary(self):
+        self.fixture.translate('pilot_translate')
+        for change in ({'decision': 'pending'}, {'reviewer': 'sol'}, {'summary': ''}):
+            with self.assertRaisesRegex(ValueError, 'Main pilot assessment'):
+                self.flow.pilot_decide({**self.decisions('pilot'), **change})
 
     def test_export_requires_closure_but_heuristics_do_not_trigger_sol_reading(self):
         self.fixture.pilot(); self.fixture.translate(); self.raw_review('review')
@@ -238,7 +247,7 @@ class QualityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Frozen glossary modified'):
             self.flow.release_check()
 
-    def test_pilot_sample_spans_types_and_corpus(self):
+    def test_pilot_sample_does_not_force_type_or_corpus_coverage(self):
         other = self.flow.project / 'Sampling'; other.mkdir()
         source = other / 'sampling_text.csv'
         with source.open('w', encoding='utf-8', newline='') as handle:
@@ -247,11 +256,15 @@ class QualityTests(unittest.TestCase):
         context = other / 'context.json'; workflow.write_json(context, contexts)
         flow = workflow.Workflow(other); flow.init(source, {'pilot_records': 20}, context)
         with flow.db() as db:
-            rows = flow.quality_rows(db); selected = flow.pilot_ids(db, rows, flow.config(db))
+            rows = flow.quality_rows(db)
+            from unittest.mock import patch
+            with patch('workflow_quality.random.sample', return_value=rows[:20]) as sampler:
+                selected = flow.pilot_ids(db, rows, flow.config(db))
+                sampler.assert_called_once_with(rows, 20)
             picked = [r for r in rows if r['id'] in selected]
         self.assertEqual(len(picked), 20)
-        self.assertEqual({r['metadata']['text_type'] for r in picked}, {'ui', 'dialogue'})
-        self.assertGreater(max(r['ordinal'] for r in picked), 95)
+        self.assertEqual({r['metadata']['text_type'] for r in picked}, {'dialogue'})
+        self.assertEqual(max(r['ordinal'] for r in picked), 20)
 
     def test_duplicate_source_variants_do_not_automatically_trigger_sol(self):
         self.complete()
@@ -319,7 +332,7 @@ class QualityTests(unittest.TestCase):
         project = fixture.project / 'Regroup'; project.mkdir()
         source = project / 'regroup_text.csv'; source.write_text('text\n' * 4, encoding='utf-8')
         fixture.flow = flow = workflow.Workflow(project)
-        flow.init(source, {'polish': True, 'batch_records': 4, 'batch_chars': 35})
+        flow.init(source, {'polish': True, 'batch_records': 4, 'review_batch_tokens': 70})
         fixture.freeze(); flow.prepare('translate')
         while claim := flow.claim('translate', 'long-translation-instance-' + uuid.uuid4().hex):
             flow.submit(claim['task_id'], claim['lease_token'], {**fixture.envelope(claim),

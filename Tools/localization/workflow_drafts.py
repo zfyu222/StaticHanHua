@@ -35,12 +35,22 @@ class DraftMixin:
     @staticmethod
     def is_round_repair(task):
         payload = json.loads(task['payload'])
-        return task['stage'] == 'translate' and bool(payload.get('draft_scan_key'))
+        return task['stage'] in ('pilot_translate', 'translate') and bool(payload.get('draft_scan_key'))
 
     @staticmethod
     def is_draft_task(task):
         payload = json.loads(task['payload'])
-        return task['stage'] == 'translate' and (not payload.get('strict_translation') or bool(payload.get('draft_scan_key')))
+        return task['stage'] in ('pilot_translate', 'translate') and (not payload.get('strict_translation') or bool(payload.get('draft_scan_key')))
+
+    @staticmethod
+    def draft_key(config, key):
+        return 'pilot_' + key if config.get('_draft_stage') == 'pilot_translate' else key
+
+    def draft_meta(self, db, config, key, default=None):
+        return self.meta(db, self.draft_key(config, key), default)
+
+    def draft_put(self, db, config, key, value):
+        self.put(db, self.draft_key(config, key), value)
 
     @staticmethod
     def best_effort_restore(text, protection):
@@ -48,57 +58,66 @@ class DraftMixin:
             text = text.replace(item['placeholder'], item['original'])
         return text
 
-    def draft_tables(self, db):
-        db.execute('CREATE TABLE IF NOT EXISTS draft_candidates(record_id TEXT PRIMARY KEY,raw_item TEXT,protection TEXT,translation TEXT,source_hash TEXT,instance TEXT,task_id TEXT)')
-        db.execute('CREATE TABLE IF NOT EXISTS draft_checks(record_id TEXT PRIMARY KEY,policy_key TEXT,signature TEXT,finding TEXT)')
-        db.execute('CREATE TABLE IF NOT EXISTS draft_check_rounds(id INTEGER PRIMARY KEY,report TEXT)')
+    def draft_tables(self, db, stage='translate'):
+        prefix = 'pilot_' if stage == 'pilot_translate' else ''
+        db.execute(f'CREATE TABLE IF NOT EXISTS {prefix}draft_candidates(record_id TEXT PRIMARY KEY,raw_item TEXT,protection TEXT,translation TEXT,source_hash TEXT,instance TEXT,task_id TEXT)')
+        db.execute(f'CREATE TABLE IF NOT EXISTS {prefix}draft_checks(record_id TEXT PRIMARY KEY,policy_key TEXT,signature TEXT,finding TEXT)')
+        db.execute(f'CREATE TABLE IF NOT EXISTS {prefix}draft_check_rounds(id INTEGER PRIMARY KEY,report TEXT)')
 
     def remember_draft(self, db, task, item, original, translation, instance):
         from translation_workflow import encoded, fingerprint
-        self.draft_tables(db)
+        self.draft_tables(db, task['stage'])
+        prefix = 'pilot_' if task['stage'] == 'pilot_translate' else ''
+        config = {'_draft_stage': task['stage']}
         source = db.execute('SELECT source FROM records WHERE id=?', (item['id'],)).fetchone()['source']
-        db.execute('INSERT OR REPLACE INTO draft_candidates VALUES (?,?,?,?,?,?,?)',
+        db.execute(f'INSERT OR REPLACE INTO {prefix}draft_candidates VALUES (?,?,?,?,?,?,?)',
                    (item['id'], encoded(item), encoded(original.get('protection', [])), translation,
                     fingerprint(source), instance, task['id']))
         if self.is_round_repair(task):
-            pending = set(self.meta(db, 'draft_repair_pending_check', []))
+            pending = set(self.draft_meta(db, config, 'draft_repair_pending_check', []))
             pending.add(item['id'])
-            self.put(db, 'draft_repair_pending_check', sorted(pending))
-            attempts = self.meta(db, 'draft_repair_attempts', {})
+            self.draft_put(db, config, 'draft_repair_pending_check', sorted(pending))
+            attempts = self.draft_meta(db, config, 'draft_repair_attempts', {})
             attempts[item['id']] = max(attempts.get(item['id'], 0),
                                         json.loads(task['payload']).get('repair_counts', {}).get(item['id'], task['attempt']))
-            self.put(db, 'draft_repair_attempts', attempts)
+            self.draft_put(db, config, 'draft_repair_attempts', attempts)
 
     def draft_audit_key(self, db, config, generation=None):
         from translation_workflow import fingerprint
         keys = ('source_language', 'target_language', 'case_sensitive', 'whole_word', 'protect_named_curly',
                 'placeholder_family_overrides', 'exclusions')
-        return fingerprint({'revision': self.meta(db, 'revision'), 'generation': self.meta(db, 'draft_generation', 0) if generation is None else generation,
+        return fingerprint({'revision': self.meta(db, 'revision'), 'generation': self.draft_meta(db, config, 'draft_generation', 0) if generation is None else generation,
                             'source': self.meta(db, 'source_hash'), 'glossary': self.meta(db, 'glossary'),
+                            'term_match_version': bridge.TERM_MATCH_VERSION, 'draft_validator': 3,
                             'rules': {k: config[k] for k in keys}})
 
-    def draft_snapshot(self, db):
-        self.draft_tables(db)
+    def draft_snapshot(self, db, stage='translate'):
+        prefix = 'pilot_' if stage == 'pilot_translate' else ''
+        self.draft_tables(db, stage)
         rows = [dict(r) for r in db.execute('SELECT * FROM records ORDER BY ordinal')]
-        if any(r['stage'] not in ('translate', 'review', 'polish', 'final_review') or r['translation'] is None for r in rows):
+        if stage == 'pilot_translate':
+            selected = self.pilot_ids(db, rows, self.config(db))
+            rows = [r for r in rows if r['id'] in selected]
+        allowed = ('pilot_translate', 'pilot_review') if stage == 'pilot_translate' else ('translate', 'review', 'polish', 'final_review')
+        if any(r['stage'] not in allowed or r['translation'] is None for r in rows):
             raise ValueError('Complete all production drafts before the full draft scan')
         if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status="running"', (self.meta(db, 'revision'),)).fetchone():
             raise ValueError('Finish in-flight work before the full draft scan')
-        originals = {r['record_id']: dict(r) for r in db.execute('SELECT * FROM draft_candidates')}
+        originals = {r['record_id']: dict(r) for r in db.execute(f'SELECT * FROM {prefix}draft_candidates')}
         return rows, originals
 
     @staticmethod
     def draft_candidate(row, journal):
         from translation_workflow import fingerprint
         if (journal and journal['source_hash'] == fingerprint(row['source']) and journal['translation'] == row['translation']
-                and row['stage'] == 'translate'):
+                and row['stage'] in ('pilot_translate', 'translate')):
             return json.loads(journal['raw_item']), json.loads(journal['protection'])
         return {'id': row['id'], 'translation': row['translation'], 'exceptions': json.loads(row['exceptions'])}, []
 
     def collect_draft_issues(self, db, config, record_ids=None):
         """Validate only this explicit scope; None means a full acceptance scan."""
         from translation_workflow import encoded
-        rows, originals = self.draft_snapshot(db)
+        rows, originals = self.draft_snapshot(db, config.get('_draft_stage', 'translate'))
         if record_ids is not None:
             scope = set(record_ids)
             if scope - {r['id'] for r in rows}:
@@ -108,7 +127,7 @@ class DraftMixin:
         workers = config.get('draft_scan_workers', 1)
         if type(workers) is not int or not 1 <= workers <= 32:
             raise ValueError('draft_scan_workers must be between 1 and 32')
-        fake_task = {'stage': 'translate', 'payload': encoded({'strict_translation': True})}
+        fake_task = {'stage': config.get('_draft_stage', 'translate'), 'payload': encoded({'strict_translation': True})}
         failures = []
         show_progress = record_ids is None and len(rows) >= 1000
         total = len(rows)
@@ -119,7 +138,7 @@ class DraftMixin:
             # All report/receipt writes remain on the calling transaction thread.
             item, protection = self.draft_candidate(row, originals.get(row['id']))
             errors = []
-            terms = bridge.matched_terms(glossary, [row['source']], config)
+            terms = bridge.matched_terms(glossary, [row['source']], config, rules=rules)
             try:
                 self.validate_body_row(row, fake_task, {}, item, {'protection': protection},
                                        config, rules, glossary, terms=terms)
@@ -156,7 +175,7 @@ class DraftMixin:
 
     def ensure_draft_audit(self, db, config):
         key = self.draft_audit_key(db, config)
-        receipt = self.meta(db, 'draft_audit', {})
+        receipt = self.draft_meta(db, config, 'draft_audit', {})
         if receipt.get('key') == key and receipt.get('clean'):
             return
         report = self.scan_drafts_in_transaction(db, config, prepare_repairs=False)
@@ -165,55 +184,69 @@ class DraftMixin:
                 raise ValueError('Complete all batches in the current repair round before checking or independent review')
             raise ValueError(f'Full draft scan found {report["failed_records"]} affected IDs; run draft-scan --prepare-repairs before independent review. Report: {report["report_file"]}')
 
-    def check_drafts_before_review(self):
-        # Commit a failed scan's receipts before blocking review. Otherwise the
-        # prepare transaction rolls them back and the next call repeats a full scan.
+    def check_drafts_before_review(self, stage='translate'):
+        # Commit failed checks before prepare raises, preserving the scan baseline.
         with self.db() as db:
             config = self.config(db)
-            if db.execute('SELECT 1 FROM records WHERE translation IS NULL OR stage NOT IN '
-                          '("translate","review","polish","final_review")').fetchone():
-                return  # Preserve prepare's existing preceding-stage error.
-            if not self.pilot_approved(db, config):
+            if stage == 'pilot_translate':
+                config = {**config, '_draft_stage': stage}
+                rows = self.quality_rows(db)
+                selected = self.pilot_ids(db, rows, config)
+                rows = [r for r in rows if r['id'] in selected]
+                allowed = ('pilot_translate', 'pilot_review')
+            else:
+                rows = self.quality_rows(db)
+                allowed = ('translate', 'review', 'polish', 'final_review')
+                if not self.pilot_approved(db, config):
+                    return
+            if any(r['translation'] is None or r['stage'] not in allowed for r in rows):
                 return
-            receipt = self.meta(db, 'draft_audit', {})
+            receipt = self.draft_meta(db, config, 'draft_audit', {})
             if receipt.get('key') == self.draft_audit_key(db, config) and receipt.get('clean'):
                 return
             report = self.scan_drafts_in_transaction(db, config, prepare_repairs=False)
         if not report['clean']:
             if report.get('phase') == 'awaiting_round':
                 raise ValueError('Complete all batches in the current repair round before checking or independent review')
-            raise ValueError(f'Full draft scan found {report["failed_records"]} affected IDs; run draft-scan --prepare-repairs before independent review. Report: {report["report_file"]}')
+            raise ValueError(f'Full draft scan found {report["failed_records"]} affected IDs; run draft-scan --stage {stage} --prepare-repairs before independent review. Report: {report["report_file"]}')
 
-    def draft_scan(self, prepare_repairs=False, workers=None):
+    def draft_scan(self, prepare_repairs=False, workers=None, stage='translate'):
+        if stage == 'pilot_translate':
+            return self.pilot_report()  # Compatibility alias; no automatic pilot repair rounds.
+        if stage not in ('pilot_translate', 'translate'):
+            raise ValueError('Unknown draft stage')
         if workers is not None and (type(workers) is not int or not 1 <= workers <= 32):
             raise ValueError('draft_scan_workers must be between 1 and 32')
         with self.db() as db:
             config = self.config(db)
+            if stage == 'pilot_translate':
+                config = {**config, '_draft_stage': stage}
             if workers is not None:
                 config = {**config, 'draft_scan_workers': workers}
             return self.scan_drafts_in_transaction(db, config, prepare_repairs)
 
-    def unfinished_draft_repairs(self, db):
-        return [dict(t) for t in db.execute('SELECT id,payload,status FROM tasks WHERE revision=? AND status IN ("pending","running","failed")',
-                                            (self.meta(db, 'revision'),))
+    def unfinished_draft_repairs(self, db, stage='translate'):
+        return [dict(t) for t in db.execute('SELECT id,payload,status FROM tasks WHERE stage=? AND revision=? AND status IN ("pending","running","failed")',
+                                            (stage, self.meta(db, 'revision')))
                 if json.loads(t['payload']).get('draft_scan_key')]
 
     def adopt_legacy_draft_scan(self, db, config, rows, signatures, policy):
         """Reuse a bound old full scan, even if its strict repair jobs have finished."""
         from translation_workflow import read_json, write_json, encoded
-        if db.execute('SELECT 1 FROM draft_checks').fetchone():
+        prefix = ''
+        if config.get('_draft_stage') == 'pilot_translate' or db.execute(f'SELECT 1 FROM {prefix}draft_checks').fetchone():
             return None
         path = self.root / 'reports/full_draft_scan.json'
         if not path.exists():
             return None
         report = read_json(path)
-        receipt = self.meta(db, 'draft_audit', {})
+        receipt = self.draft_meta(db, config, 'draft_audit', {})
         if report.get('phase') or not report.get('key') or receipt.get('key') != report['key']:
             return None
         completed = [json.loads(t['ids']) for t in db.execute(
             'SELECT ids,payload FROM tasks WHERE stage="translate" AND revision=? AND status="done"',
             (self.meta(db, 'revision'),)) if json.loads(t['payload']).get('draft_scan_key') == report['key']]
-        generation = self.meta(db, 'draft_generation', 0) - len(completed)
+        generation = self.draft_meta(db, config, 'draft_generation', 0) - len(completed)
         if generation < 0 or report['key'] != self.draft_audit_key(db, config, generation):
             return None  # Some other input changed; the old scan cannot prove this baseline.
         ids = set(signatures)
@@ -226,40 +259,43 @@ class DraftMixin:
         findings = {f['id']: f for f in found}
         repaired = {i for group in completed for i in group}
         for record_id in ids:
-            db.execute('INSERT INTO draft_checks VALUES (?,?,?,?)',
+            db.execute(f'INSERT INTO {prefix}draft_checks VALUES (?,?,?,?)',
                        (record_id, policy, '' if record_id in repaired else signatures[record_id],
                         encoded(findings.get(record_id))))
         archived = self.root / f'reports/draft_checks/legacy_initial_{report["key"][:12]}.json'
         write_json(archived, {**report, 'phase': 'initial_full', 'scope': 'full', 'execution': 'reused',
                               'checked_ids': [r['id'] for r in rows], 'recheck_required_ids': sorted(repaired)})
-        self.put(db, 'draft_check_glossary', {'version': self.meta(db, 'glossary'), 'analysis': self.glossary(db)})
-        self.put(db, 'draft_imported_baseline', str(archived))
+        self.draft_put(db, config, 'draft_check_glossary', {'version': self.meta(db, 'glossary'), 'analysis': self.glossary(db)})
+        self.draft_put(db, config, 'draft_imported_baseline', str(archived))
         self.event(db, 'draft_scan_imported', {'key': report['key'], 'report_file': str(archived),
                                               'recheck_required_ids': sorted(repaired)})
         return str(archived)
 
     def scan_drafts_in_transaction(self, db, config, prepare_repairs):
         from translation_workflow import write_json, encoded, fingerprint
-        unfinished = self.unfinished_draft_repairs(db)
+        stage = config.get('_draft_stage', 'translate')
+        prefix = 'pilot_' if stage == 'pilot_translate' else ''
+        unfinished = self.unfinished_draft_repairs(db, stage)
         if unfinished:
             # A round is a fixed set of jobs. Neither quality checks nor another
             # repair round may start while any job in this set is unfinished.
-            path = self.root / 'reports/draft_round_status.json'
+            path = self.root / f'reports/{prefix}draft_round_status.json'
             status = {'phase': 'awaiting_round', 'status': 'needs_attention' if any(t['status'] == 'failed' for t in unfinished) else 'waiting_for_round',
                       'clean': False, 'checked_records': 0, 'failed_records': None,
                       'repair_tasks': [t['id'] for t in unfinished],
                       'repair_round': max(json.loads(t['payload']).get('draft_repair_round', 1) for t in unfinished),
                       'unfinished_batches': {s: sum(t['status'] == s for t in unfinished) for s in ('pending', 'running', 'failed')},
-                      'next_action': 'Finish every batch in this repair round, then run draft-scan --prepare-repairs'}
+                      'next_action': f'Finish every batch in this repair round, then run draft-scan --stage {stage} --prepare-repairs'}
             write_json(path, status)
             return {**status, 'report_file': str(path)}
-        rows, originals = self.draft_snapshot(db)
+        rows, originals = self.draft_snapshot(db, config.get('_draft_stage', 'translate'))
         key = self.draft_audit_key(db, config)
         # Generation changes when a repair is submitted, but must not invalidate
         # the unchanged rows' checks. Policy changes do invalidate their receipts.
         keys = ('source_language', 'target_language', 'case_sensitive', 'whole_word', 'protect_named_curly',
                 'placeholder_family_overrides', 'exclusions')
-        policy = fingerprint({'validator': 2,
+        policy = fingerprint({'validator': 3, 'term_match_version': bridge.TERM_MATCH_VERSION,
+                              **({'scope': 'pilot'} if prefix else {}),
                               'source': self.meta(db, 'source_hash'),
                               'rules': {k: config[k] for k in keys}})
         signatures = {}
@@ -272,20 +308,21 @@ class DraftMixin:
             # signature. Keep raw-marker evidence stable across stage changes.
             signatures[row['id']] = fingerprint([row['source'], row['translation'], row['exceptions'], raw])
         self.adopt_legacy_draft_scan(db, config, rows, signatures, policy)
-        previous = {r['record_id']: dict(r) for r in db.execute('SELECT * FROM draft_checks WHERE policy_key=?', (policy,))}
+        previous = {r['record_id']: dict(r) for r in db.execute(f'SELECT * FROM {prefix}draft_checks WHERE policy_key=?', (policy,))}
         changed = [r['id'] for r in rows if r['id'] not in previous or previous[r['id']]['signature'] != signatures[r['id']]]
-        pending_checks = set(self.meta(db, 'draft_repair_pending_check', []))
+        pending_checks = set(self.draft_meta(db, config, 'draft_repair_pending_check', []))
         pending_checks.update(changed)
         changed = [r['id'] for r in rows if r['id'] in pending_checks]
-        glossary_state = self.meta(db, 'draft_check_glossary', {})
+        glossary_state = self.draft_meta(db, config, 'draft_check_glossary', {})
         glossary_version = self.meta(db, 'glossary')
         if previous and glossary_state.get('version') != glossary_version:
             old, new = glossary_state.get('analysis'), self.glossary(db)
             if old is None:
                 previous = {}  # Legacy receipts do not prove which terms were checked.
             else:
+                matching_rules = self.rules(db, config)
                 def matched(analysis, source):
-                    return sorted((t['src'], t['dst']) for t in bridge.matched_terms(analysis, [source], config))
+                    return sorted((t['src'], t['dst']) for t in bridge.matched_terms(analysis, [source], config, rules=matching_rules))
                 affected = {r['id'] for r in rows if matched(old, r['source']) != matched(new, r['source'])}
                 affected.update(changed)
                 changed = [r['id'] for r in rows if r['id'] in affected]
@@ -313,7 +350,7 @@ class DraftMixin:
                     if task:
                         original = next((r for r in json.loads(task['payload'])['records'] if r['id'] == record_id), None)
                         if original:
-                            regression = self.repair_regression(db, config, 'translate', record_id, original,
+                            regression = self.repair_regression(db, config, stage, record_id, original,
                                 row['translation'], json.loads(row['exceptions']), self.glossary(db), journal['task_id'])
                 if record_id in by_id:
                     by_id[record_id]['regressed_terms'] = regression
@@ -322,12 +359,12 @@ class DraftMixin:
                 findings.pop(record_id, None)
                 if record_id in by_id:
                     findings[record_id] = by_id[record_id]
-                db.execute('INSERT OR REPLACE INTO draft_checks VALUES (?,?,?,?)',
+                db.execute(f'INSERT OR REPLACE INTO {prefix}draft_checks VALUES (?,?,?,?)',
                            (record_id, policy, signatures[record_id], encoded(by_id.get(record_id))))
             checked_ids = {r['id'] for r in checked}
-            self.put(db, 'draft_repair_pending_check', sorted(set(self.meta(db, 'draft_repair_pending_check', [])) - checked_ids))
-            attempts = self.meta(db, 'draft_repair_attempts', {})
-            self.put(db, 'draft_repair_attempts', {i: n for i, n in attempts.items() if i not in checked_ids or i in by_id})
+            self.draft_put(db, config, 'draft_repair_pending_check', sorted(set(self.draft_meta(db, config, 'draft_repair_pending_check', [])) - checked_ids))
+            attempts = self.draft_meta(db, config, 'draft_repair_attempts', {})
+            self.draft_put(db, config, 'draft_repair_attempts', {i: n for i, n in attempts.items() if i not in checked_ids or i in by_id})
             rounds.append({'phase': phase, 'scope': 'issues' if ids is not None else 'full',
                            'checked_ids': [r['id'] for r in checked], 'checked_records': len(checked),
                            'passed_ids': [r['id'] for r in checked if r['id'] not in by_id],
@@ -342,13 +379,13 @@ class DraftMixin:
                 # final full acceptance. Never do this after every repair round.
                 check('final_full', None)
         if glossary_state.get('version') != glossary_version:
-            self.put(db, 'draft_check_glossary', {'version': glossary_version, 'analysis': self.glossary(db)})
+            self.draft_put(db, config, 'draft_check_glossary', {'version': glossary_version, 'analysis': self.glossary(db)})
         failures = [findings[r['id']] for r in rows if r['id'] in findings]
-        existing = [r for r in db.execute('SELECT * FROM tasks WHERE revision=? AND status IN ("pending","failed")', (self.meta(db, 'revision'),))
+        existing = [r for r in db.execute('SELECT * FROM tasks WHERE stage=? AND revision=? AND status IN ("pending","failed")', (stage, self.meta(db, 'revision')))
                     if json.loads(r['payload']).get('strict_translation')]
         tasks = [r['id'] for r in existing]
         blocked_ids = []
-        history_routes = self.repair_routes(db, config, 'translate')
+        history_routes = self.repair_routes(db, config, stage)
         routes = {r['id']: history_routes.get(r['id'], (0, 'standard')) for r in failures}
         blocked_ids = [i for i, (_, tier) in routes.items() if tier == 'stopped']
         if prepare_repairs and failures and not existing:
@@ -365,14 +402,14 @@ class DraftMixin:
             # producer-batch boundaries do not split the repair pool.
             eligible.sort(key=lambda r: (bool(failed_by_id[r['id']]['structural_issues']), bool(failed_by_id[r['id']]['missing_terms']), r['ordinal']))
             glossary, rules = self.glossary(db), self.rules(db, config)
-            history = [json.loads(t['payload']) for t in db.execute('SELECT payload FROM tasks WHERE revision=?', (self.meta(db, 'revision'),))
+            history = [json.loads(t['payload']) for t in db.execute('SELECT payload FROM tasks WHERE stage=? AND revision=?', (stage, self.meta(db, 'revision')))
                        if json.loads(t['payload']).get('draft_scan_key')]
             round_number = 1 + max((t.get('draft_repair_round', 1) for t in history), default=0)
             groups = [group for used, tier in sorted({routes[r['id']] for r in eligible})
-                      for group in self.batches([r for r in eligible if routes[r['id']] == (used, tier)], config, respect_groups=False)]
+                      for group in self.batches([r for r in eligible if routes[r['id']] == (used, tier)], config, respect_groups=False, stage=stage)]
             for group in groups:
-                task_id = 'draft-repair-' + uuid.uuid4().hex[:20]
-                payload = {'task_id': task_id, 'stage': 'translate', 'revision': self.meta(db, 'revision'),
+                task_id = prefix + 'draft-repair-' + uuid.uuid4().hex[:20]
+                payload = {'task_id': task_id, 'stage': stage, 'revision': self.meta(db, 'revision'),
                            'source_hash': self.meta(db, 'source_hash'), 'strict_translation': True, 'draft_scan_key': key,
                            'draft_repair_round': round_number,
                            **self.repair_routing(config, routes[group[0]['id']][1]),
@@ -380,24 +417,24 @@ class DraftMixin:
                            'language': {'source': config['source_language'], 'target': config['target_language']},
                            'style': config['style'], 'game_background': '', 'context': [], 'records': [],
                            'glossary_version': self.meta(db, 'glossary'),
-                           'terms': bridge.matched_terms(glossary, [r['source'] for r in group], config),
+                           'terms': bridge.matched_terms(glossary, [r['source'] for r in group], config, rules=rules),
                            'revision_request': '全文草稿已完成；本批为跨批汇总的失败语句。只修复列出的诊断，保留其他已保存译文。'}
                 for row in group:
                     protected, protection = bridge.protect(row['source'], row['id'], rules)
                     payload['records'].append({'id': row['id'], 'ordinal': row['ordinal'], 'source': protected,
                         'translation': row['translation'], 'protection': protection, 'metadata': row['metadata'],
                         'exceptions': json.loads(row['exceptions']), 'locked': bool(row['locked']),
-                        'repair_constraints': self.repair_constraints(row['source'], row['translation'], json.loads(row['exceptions']), glossary, config),
+                        'repair_constraints': self.repair_constraints(row['source'], row['translation'], json.loads(row['exceptions']), glossary, config, rules=rules),
                         'diagnostic': failed_by_id[row['id']]['diagnostics'],
                         'candidate': {'id': row['id'], 'translation': row['translation']}})
                 signature = fingerprint(payload); payload['input_hash'] = signature
                 tasks.extend(self.allocate_task(db, payload,
-                    'codex' if payload['repair_tier'] == 'sol' else config['stage_backends'].get('translate', config['backend'])))
+                    'codex' if payload['repair_tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
         clean = not failures and not tasks
-        report_file = self.root / 'reports/full_draft_scan.json'
-        task_states = [dict(r) for r in db.execute('SELECT id,status,attempt,ids,payload FROM tasks WHERE revision=?',
-                                                  (self.meta(db, 'revision'),))
-                       if r['id'].startswith('draft-repair-')]
+        report_file = self.root / f'reports/{prefix}full_draft_scan.json'
+        task_states = [dict(r) for r in db.execute('SELECT id,status,attempt,ids,payload FROM tasks WHERE stage=? AND revision=?',
+                                                  (stage, self.meta(db, 'revision')))
+                       if json.loads(r['payload']).get('draft_scan_key')]
         for state in task_states:
             state['ids'] = json.loads(state['ids'])
             state['round'] = json.loads(state.pop('payload')).get('draft_repair_round', 1)
@@ -405,24 +442,24 @@ class DraftMixin:
         for report in rounds:
             report.update({'key': key, 'policy_key': policy, 'repair_status': task_states,
                            'result': 'passed' if not report['remaining_failed_ids'] else 'needs_repair'})
-            cursor = db.execute('INSERT INTO draft_check_rounds(report) VALUES (?)', (encoded(report),))
+            cursor = db.execute(f'INSERT INTO {prefix}draft_check_rounds(report) VALUES (?)', (encoded(report),))
             report['round'] = cursor.lastrowid
-            path = self.root / f'reports/draft_checks/round_{cursor.lastrowid:05d}.json'
+            path = self.root / f'reports/{prefix}draft_checks/round_{cursor.lastrowid:05d}.json'
             write_json(path, report)
-            db.execute('UPDATE draft_check_rounds SET report=? WHERE id=?', (encoded(report), cursor.lastrowid))
+            db.execute(f'UPDATE {prefix}draft_check_rounds SET report=? WHERE id=?', (encoded(report), cursor.lastrowid))
             round_files.append(str(path))
-        summary = {'key': key, 'records': len(rows), 'failed_records': len(failures),
+        summary = {'stage': stage, 'key': key, 'records': len(rows), 'failed_records': len(failures),
                    'clean': clean, 'failures': failures, 'repair_tasks': tasks,
                    'repair_dispatch': self.repair_dispatch(db, tasks),
                    'phase': rounds[-1]['phase'] if rounds else 'cached',
                    'checked_records': sum(r['checked_records'] for r in rounds),
                    'checked_rounds': [{k: r[k] for k in ('round', 'phase', 'scope', 'checked_records', 'result')} for r in rounds],
                    'round_reports': round_files, 'repair_status': task_states,
-                   'imported_baseline': self.meta(db, 'draft_imported_baseline'),
+                   'imported_baseline': self.draft_meta(db, config, 'draft_imported_baseline'),
                    'needs_attention_ids': blocked_ids}
-        summary['repair_stop_reasons'] = {i: reason for i, reason in self.repair_stops(db, config).items() if i in blocked_ids}
+        summary['repair_stop_reasons'] = {i: reason for i, reason in self.repair_stops(db, config, stage=stage).items() if i in blocked_ids}
         summary['status'] = 'needs_attention' if blocked_ids else ('clean' if clean else 'needs_repair')
         write_json(report_file, summary)
-        self.put(db, 'draft_audit', {'key': key, 'clean': clean})
+        self.draft_put(db, config, 'draft_audit', {'key': key, 'clean': clean})
         self.event(db, 'draft_scan', {k: summary[k] for k in ('key', 'phase', 'checked_records', 'failed_records', 'repair_tasks', 'round_reports')})
         return {k: v for k, v in {**summary, 'report_file': str(report_file)}.items() if k not in ('failures', 'repair_status')}

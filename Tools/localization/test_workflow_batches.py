@@ -128,7 +128,7 @@ class BatchTests(unittest.TestCase):
             for row in source_rows:
                 records.append({'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
                     'translation': '候选译文', 'locked': False, 'metadata': {}, 'protection': [],
-                    'repair_constraints': {'diagnostic': '需保留'}, 'diagnostic': '证据' * 7000,
+                    'repair_constraints': {'diagnostic': '需保留'}, 'diagnostic': '证据' * 3000,
                     'candidate': {'translation': '候选译文'}})
             payload = {'task_id': task_id, 'stage': 'review', 'revision': self.flow.meta(db, 'revision'),
                 'source_hash': self.flow.meta(db, 'source_hash'), 'review_round': 1,
@@ -151,7 +151,7 @@ class BatchTests(unittest.TestCase):
         split = self.flow.batch_split(task_id)
         self.assertEqual(split['status'], 'split')
         self.assertEqual(split['records'], 2)
-        self.assertTrue(all(child['input_chars'] <= split['input_limit_chars'] for child in split['children']))
+        self.assertTrue(all(child['input_tokens'] <= split['input_limit_tokens'] for child in split['children']))
         self.assertEqual([i for child in split['children'] for i in child['record_ids']], [r['id'] for r in records])
         self.assertEqual([child['records'] for child in split['children']], [1, 1])
         with self.flow.db() as db:
@@ -163,7 +163,7 @@ class BatchTests(unittest.TestCase):
             payload = json.loads(child['payload'])
             self.assertEqual(json.loads(child['ids']), receipt['record_ids'])
             self.assertEqual(payload['repair_counts'], {receipt['record_ids'][0]: 1})
-            self.assertEqual(payload['records'][0]['diagnostic'], '证据' * 7000)
+            self.assertEqual(payload['records'][0]['diagnostic'], '证据' * 3000)
             self.assertEqual(child['status'], 'pending')
             self.assertEqual(child['attempt'], 0)
 
@@ -176,7 +176,7 @@ class BatchTests(unittest.TestCase):
             for row in source_rows:
                 records.append({'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
                     'translation': '候选译文', 'locked': False, 'metadata': {}, 'protection': [],
-                    'repair_constraints': {}, 'diagnostic': 'Sol遗留问题' * 5000,
+                    'repair_constraints': {}, 'diagnostic': 'Sol遗留问题' * 2500,
                     'candidate': None})
             payload = {'task_id': task_id, 'stage': 'review', 'revision': self.flow.meta(db, 'revision'),
                 'source_hash': self.flow.meta(db, 'source_hash'), 'review_round': 2,
@@ -200,7 +200,7 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(split['status'], 'split')
         self.assertEqual(split['records'], 2)
         self.assertEqual([child['records'] for child in split['children']], [1, 1])
-        self.assertTrue(all(child['input_chars'] <= split['input_limit_chars'] for child in split['children']))
+        self.assertTrue(all(child['input_tokens'] <= split['input_limit_tokens'] for child in split['children']))
 
     def test_old_untouched_initial_review_can_split_on_output_budget_without_spending_attempts(self):
         self.f.translate()
@@ -247,17 +247,17 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(self.flow.batch_finish(session['session_id'])['status'], 'repair_required')
         with self.flow.db() as db:
             db.execute('UPDATE batch_items SET error=? WHERE task_id=? AND valid=0',
-                       ('diagnostic ' * 400, session['task_id']))
+                       ('diagnostic ' * 5000, session['task_id']))
             config = self.flow.config(db)
-        with patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': 16000}):
+        with patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': 16000}):
             first = self.flow.batch_repair(session['session_id'], 'split-fix-a')
             self.assertEqual(first['repair_parts'], 2)
-            self.assertLessEqual(first['input_chars'], 16000)
+            self.assertLessEqual(first['input_tokens'], 16000)
             self.write_result(first, self.result(first))
             receipt = self.flow.batch_finish(first['session_id'])
             self.assertEqual(receipt['status'], 'repair_part_saved')
             second = self.flow.batch_repair(session['session_id'], 'split-fix-b')
-            self.assertLessEqual(second['input_chars'], 16000)
+            self.assertLessEqual(second['input_tokens'], 16000)
             self.write_result(second, self.result(second))
             self.assertEqual(self.flow.batch_finish(second['session_id'])['status'], 'submitted')
         with self.flow.db() as db:
@@ -303,32 +303,12 @@ class BatchTests(unittest.TestCase):
         ambiguous = [{'src': 'Charge', 'dst': '冲锋'}, {'src': 'charge', 'dst': '费用'}]
         self.assertEqual(workflow.bridge.normalize_exception_sources([{'source': 'CHARGE', 'reason': 'ordinary'}], ambiguous, False)[0]['source'], 'CHARGE')
 
-    def test_compact_pilot_repair_keeps_each_reviewers_summary(self):
-        from workflow_quality import REVIEW_CHECKS
+    def test_pilot_report_keeps_producer_identity_without_independent_review(self):
         f = fixtures.WorkflowTests(); f.setUp(); self.addCleanup(f.tearDown)
-        self.flow = f.flow; f.freeze(True, pilot=False)
-        translated = self.flow.batch_open('pilot_translate', 'pilot-writer')
-        self.write_result(translated, self.result(translated))
-        self.flow.batch_finish(translated['session_id'])
-        reviewed = self.flow.batch_open('pilot_review', 'pilot-reviewer')
-        with self.flow.db() as db:
-            task = db.execute('SELECT * FROM tasks WHERE id=?', (reviewed['task_id'],)).fetchone()
-        ids = json.loads(task['ids'])
-        summary = {key: {'status': 'pass', 'evidence': 'Explicit synthetic source comparison'} for key in REVIEW_CHECKS}
-        result = {'task_id': task['id'], 'input_hash': task['input_hash'], 'review_summary': summary,
-                  'records': [{'id': i, 'reviewed': i != ids[0], 'verdict': 'pass'} for i in ids]}
-        self.write_result(reviewed, result); self.flow.batch_finish(reviewed['session_id'])
-        repaired = self.flow.batch_repair(reviewed['session_id'], 'pilot-repair-reviewer')
-        other = {key: {'status': 'pass', 'evidence': 'Explicit repaired sentence source comparison'} for key in REVIEW_CHECKS}
-        self.write_result(repaired, {**result, 'review_summary': other,
-                                    'records': [{'id': ids[0], 'reviewed': True, 'verdict': 'pass'}]})
-        self.assertEqual(self.flow.batch_finish(repaired['session_id'])['status'], 'submitted')
-        report = workflow.read_json(self.flow.quality_report('pilot')['report_file'])
-        self.assertEqual(len(report['pilot_batch_summaries']), 2)
-        with self.flow.db() as db:
-            evidence = self.flow.latest_reviews(db, 'pilot')
-        self.assertEqual(evidence[ids[0]]['batch_summary'], other)
-        self.assertEqual(evidence[ids[1]]['batch_summary'], summary)
+        self.flow = f.flow; f.freeze(True, pilot=False); f.translate('pilot_translate')
+        report = workflow.read_json(self.flow.pilot_report()['report_file'])
+        self.assertTrue(all(r['producer']['instance'] for r in report['records']))
+        self.assertFalse(any(t['stage'] == 'pilot_review' for t in self.flow.status()['tasks']))
         f.approve('pilot')
 
 
@@ -357,13 +337,20 @@ class LargeBatchTest(unittest.TestCase):
         result = {'task_id': task['id'], 'input_hash': task['input_hash'],
                   'records': [{'id': r['id'], 'translation': value} for r, value in zip(rows, values)]}
         workflow.write_json(session['result_file'], result)
-        self.assertEqual(len(flow.batch_finish(session['session_id'])['failed_ids']), 3)
-        repair = flow.batch_repair(session['session_id'], 'ordinary-fixer')
+        self.assertEqual(flow.batch_finish(session['session_id'])['status'], 'submitted')
+        report = workflow.read_json(flow.pilot_report()['report_file'])
+        self.assertEqual(report['statistics']['mechanical_failed_records'], 3)
+        flow.pilot_retry([r['id'] for r in report['failures']], 'Verify context exceptions identified during calibration')
+        repair = flow.batch_open('pilot_translate', 'ordinary-fixer')
+        with flow.db() as db:
+            repair_task = db.execute('SELECT input_hash FROM tasks WHERE id=?', (repair['task_id'],)).fetchone()
+        result.update(task_id=repair['task_id'], input_hash=repair_task['input_hash'])
         reasons = ['原句说搬动椅子，是普通动作，不是移动机制。', '原句说向顾客收费，不是冲锋技能。', '原句指毒药物质蔓延，不是中毒状态。']
         for item, src, reason in zip(result['records'], ['MOVE', 'charge', 'Poison'], reasons):
             item['exceptions'] = [{'src': src, 'reason': reason}]
         workflow.write_json(repair['result_file'], result)
         self.assertEqual(flow.batch_finish(repair['session_id'])['status'], 'submitted')
+        self.assertEqual(flow.pilot_report()['statistics']['mechanical_failed_records'], 0)
         with flow.db() as db:
             self.assertEqual(flow.meta(db, 'glossary'), frozen_before)
 

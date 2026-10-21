@@ -20,7 +20,7 @@ class ReviewRoundTests(unittest.TestCase):
                     'reason': 'Synthetic independent source comparison', **self.f.review_evidence(r)} for r in rows]
         for item in records:
             if item['id'] in bad_ids:
-                item.pop('checks')
+                item['issues'] = [{'severity':'blocking','reason':'Synthetic unresolved meaning dispute.'}]
         return {'task_id': task['id'], 'input_hash': task['input_hash'], 'records': records}
 
     def save(self, session, result):
@@ -43,26 +43,28 @@ class ReviewRoundTests(unittest.TestCase):
         target = result['records'][0]
         target_id, translation = target['id'], target['translation']
         target['checks']['logic']['status'] = 'not_applicable'
-        self.save(first, result)
-        second = self.flow.batch_open('review', 'logic-initial-b')
-        self.save(second, self.result(second))
-        report = self.flow.review_scan(prepare_repairs=True)
-        self.assertEqual(report['failure_summary']['checked_failures'], {'review_record_contract': 1})
+        rejected = self.save(first, result)
+        self.assertEqual(rejected['failed_ids'], [target_id])
+        self.assertEqual(rejected['preserved_records'], 1)
+        self.assertEqual(self.flow.review_scan()['checked_records'], 0)
         repair = self.flow.batch_open('review', 'logic-repair')
         text = workflow.Path(repair['input_file']).read_text(encoding='utf-8')
         self.assertIn('checks.logic.status', text)
         self.assertNotIn('无相关内容时写 not_applicable', text)
         fixed = self.result(repair)
+        fixed['records'] = [row for row in fixed['records'] if row['id'] == target_id]
         self.assertEqual([(r['id'], r['translation']) for r in fixed['records']], [(target_id, translation)])
         self.save(repair, fixed)
+        second = self.flow.batch_open('review', 'logic-initial-b')
+        self.save(second, self.result(second))
         scan = self.flow.review_scan()
-        self.assertEqual(scan['checked_records'], 1)
+        self.assertEqual(scan['checked_records'], 4)
         self.assertTrue(scan['clean'])
 
     def test_six_review_repair_rounds_then_automatic_sol(self):
         first = self.flow.batch_open('review', 'initial-a')
         result = self.result(first); target = result['records'][0]['id']
-        result['records'][0].pop('checks'); self.save(first, result)
+        self.save(first, self.result(first, [target]))
         second = self.flow.batch_open('review', 'initial-b'); self.save(second, self.result(second))
         self.flow.review_scan(prepare_repairs=True)
         for n in range(6):
@@ -82,7 +84,7 @@ class ReviewRoundTests(unittest.TestCase):
     def test_no_partial_acceptance_or_early_repairs_and_cross_batch_regrouping(self):
         first = self.flow.batch_open('review', 'review-a'); one = self.result(first)
         bad_a = one['records'][0]['id']; good_a = one['records'][1]['id']
-        one['records'][0].pop('checks')
+        one['records'][0]['issues'] = [{'severity':'blocking','reason':'Synthetic unresolved meaning dispute.'}]
         corrected = one['records'][1]
         before_text = corrected['translation']; corrected['translation'] += '！'
         corrected['checks']['tone']['status'] = 'corrected'
@@ -98,12 +100,12 @@ class ReviewRoundTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.flow.quality_report('final')
         second = self.flow.batch_open('review', 'review-b'); two = self.result(second)
-        bad_b = two['records'][0]['id']; two['records'][0].pop('checks')
+        bad_b = two['records'][0]['id']; two['records'][0]['issues'] = [{'severity':'blocking','reason':'Synthetic unresolved meaning dispute.'}]
         self.save(second, two)
         checked = self.flow.review_scan(prepare_repairs=True)
         self.assertEqual((checked['checked_records'], checked['failed_records']), (4, 2))
-        self.assertEqual(checked['failure_summary']['checked_failures'], {'review_record_contract': 2})
-        self.assertEqual(checked['failure_summary']['outstanding_failures'], {'review_record_contract': 2})
+        self.assertEqual(checked['failure_summary']['checked_failures'], {'reported_blocking_semantic_issue': 2})
+        self.assertEqual(checked['failure_summary']['outstanding_failures'], {'reported_blocking_semantic_issue': 2})
         self.assertEqual(len(checked['repair_tasks']), 1)
         self.assertEqual(self.flow.status()['records'], {'translate': 2, 'review': 2})
         with self.flow.db() as db:
@@ -114,7 +116,7 @@ class ReviewRoundTests(unittest.TestCase):
         self.assertEqual({r['id'] for r in fixed['records']}, {bad_a, bad_b})
         with self.flow.db() as db:
             payload = json.loads(db.execute('SELECT payload FROM tasks WHERE id=?', (repaired['task_id'],)).fetchone()[0])
-        self.assertTrue(all(r['diagnostic_detail']['category'] == 'review_record_contract' for r in payload['records']))
+        self.assertTrue(all(r['diagnostic_detail']['category'] == 'reported_blocking_semantic_issue' for r in payload['records']))
         self.save(repaired, fixed)
         scan = self.flow.review_scan()
         self.assertEqual(scan['checked_records'], 2); self.assertTrue(scan['clean'])

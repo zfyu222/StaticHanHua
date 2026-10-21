@@ -14,29 +14,29 @@ class AllocationTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.project = Path(self.temp.name)
         self.source = self.project / 'sample_text.csv'
-        self.source.write_text(''.join(f'Item{i} ' + 'x' * 1600 + '\n' for i in range(4)), encoding='utf-8')
+        self.source.write_text(''.join(f'Item{i} ' + ' '.join(f'word{k}' for k in range(700)) + '\n' for i in range(4)), encoding='utf-8')
         self.flow = workflow.Workflow(self.project)
-        self.flow.init(self.source, {'batch_records': 80, 'extract_batch_records': 80, 'batch_chars': 100000})
+        self.flow.init(self.source, {'batch_records': 80, 'extract_batch_records': 80, 'batch_tokens': 100000})
 
     def test_extract_is_split_at_allocation_and_claim_does_not_measure_inputs(self):
         with self.flow.db() as db:
             config = self.flow.config(db)
-        with patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': 5000}):
+        with patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': 5000}):
             tasks = self.flow.prepare('extract')['tasks']
             self.assertGreater(len(tasks), 1)
             with self.flow.db() as db:
                 allocated = list(db.execute('SELECT * FROM task_allocations'))
-                self.assertTrue(all(r['input_chars'] <= r['input_limit'] for r in allocated))
+                self.assertTrue(all(r['input_tokens'] <= r['token_limit'] for r in allocated))
                 covered = [i for t in db.execute('SELECT ids FROM tasks WHERE status="pending"') for i in json.loads(t['ids'])]
                 self.assertEqual(len(covered), 4)
                 self.assertEqual(len(set(covered)), 4)
             with (patch('translation_workflow.prompt', side_effect=AssertionError('claim rendered input')),
                   patch.object(self.flow, 'render_batch_input', side_effect=AssertionError('claim rendered package')),
-                  patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': 1})):
+                  patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': 1})):
                 claim = self.flow.claim('extract', 'actual-worker')
             self.assertIn(claim['task_id'], tasks)
-            self.assertIsNotNone(claim['context_policy']['input_chars'])
-            self.assertEqual(claim['context_policy']['input_limit_chars'], 5000)
+            self.assertIsNotNone(claim['context_policy']['input_tokens'])
+            self.assertEqual(claim['context_policy']['input_limit_tokens'], 5000)
             self.assertEqual(claim['context_policy']['checked_at'], 'allocation')
 
     def glossary_payload(self, db):
@@ -59,7 +59,7 @@ class AllocationTests(unittest.TestCase):
             payload = self.glossary_payload(db)
             config = self.flow.config(db)
             full = self.flow.plan_task_allocation(db, payload, 'codex')[0][1]
-            with patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': full - 100}):
+            with patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': full - 100}):
                 planned = self.flow.plan_task_allocation(db, payload, 'codex')
             self.assertGreater(len(planned), 1)
             self.assertEqual([e['ref'] for p, _, _ in planned for e in p['entries']], [e['ref'] for e in payload['entries']])
@@ -74,7 +74,7 @@ class AllocationTests(unittest.TestCase):
     def test_unsplittable_item_rolls_back_without_pending_tasks(self):
         with self.flow.db() as db:
             config = self.flow.config(db)
-        with patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': 1000}):
+        with patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': 1000}):
             with self.assertRaisesRegex(ValueError, 'single item'):
                 self.flow.prepare('extract')
         with self.flow.db() as db:
@@ -86,7 +86,7 @@ class AllocationTests(unittest.TestCase):
         with self.flow.db() as db:
             config = self.flow.config(db)
             db.execute('DELETE FROM task_allocations')
-        with patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': 5000}):
+        with patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': 5000}):
             replacement = self.flow.prepare('extract')['tasks']
         self.assertNotIn(old, replacement)
         with self.flow.db() as db:
@@ -107,7 +107,7 @@ class AllocationTests(unittest.TestCase):
                        'style': '忠实准确', 'context': []}
             glossary = {'characters': [], 'terms': [], 'non_translate': []}
             with (patch.object(self.flow, 'glossary', return_value=glossary),
-                  patch.object(self.flow, 'config', return_value={**config, 'task_input_chars': 22000})):
+                  patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': 22000})):
                 tasks = self.flow.allocate_task(db, payload, 'codex', attempt=2)
             self.assertGreater(len(tasks), 1)
             covered = []
@@ -118,7 +118,7 @@ class AllocationTests(unittest.TestCase):
                 self.assertEqual(value['repair_counts'], {i: 7 for i in ids})
                 self.assertEqual(task['attempt'], 2)
                 receipt = db.execute('SELECT * FROM task_allocations WHERE task_id=?', (task_id,)).fetchone()
-                self.assertLessEqual(max(receipt['input_chars'], receipt['compact_chars']), 22000)
+                self.assertLessEqual(max(receipt['input_tokens'], receipt['compact_tokens']), 22000)
             self.assertEqual(covered, [r['id'] for r in rows])
 
     def test_corrupted_source_is_rejected_before_worker_dispatch(self):
@@ -158,19 +158,19 @@ class AllocationTests(unittest.TestCase):
 
     def test_sol_packets_are_ready_and_never_marked_over_budget(self):
         with self.flow.db() as db:
-            config = {**self.flow.config(db), 'task_input_chars': 3000}
-        report = {'report_hash': 'real-report', 'records_to_check': [{'id': str(i), 'source': 'x' * 1700} for i in range(2)],
+            config = {**self.flow.config(db), 'task_input_tokens': 3000}
+        report = {'report_hash': 'real-report', 'records_to_check': [{'id': str(i), 'source': 'word ' * 1700} for i in range(2)],
                   'consistency': [], 'glossary_checks': []}
         self.flow.write_sol_inputs(report, 1, config)
         manifest = workflow.read_json(self.flow.root / 'reports/sol_rounds/round_00001.inputs.json')
         self.assertEqual(len(manifest), 2)
         for part in manifest:
             self.assertFalse(part['over_budget'])
-            self.assertLessEqual(part['input_chars'], 3000)
+            self.assertLessEqual(part['input_tokens'], 3000)
             packet = workflow.read_json(part['file'])
             self.assertEqual([i['id'] for i in packet['output_template']['decisions']], part['check_ids'])
             self.assertTrue(all(i['disposition'] == 'pending' for i in packet['output_template']['decisions']))
-        report['records_to_check'][0]['source'] = 'x' * 10000
+        report['records_to_check'][0]['source'] = 'word ' * 10000
         with self.assertRaisesRegex(ValueError, 'single check'):
             self.flow.write_sol_inputs(report, 2, config)
         self.assertFalse((self.flow.root / 'reports/sol_rounds/round_00002.inputs.json').exists())
@@ -181,7 +181,7 @@ class AllocationTests(unittest.TestCase):
             db.execute('UPDATE task_allocations SET contract_version=0')
         self.flow.prepare('extract')
         claim = self.flow.claim('extract', 'old-contract-worker')
-        self.assertEqual(claim['context_policy']['input_contract_version'], 1)
+        self.assertEqual(claim['context_policy']['input_contract_version'], 4)
         with self.flow.db() as db:
             db.execute('UPDATE task_allocations SET contract_version=0 WHERE task_id=?', (claim['task_id'],))
         self.flow.prepare('extract')

@@ -19,7 +19,8 @@ class ReviewContractTests(unittest.TestCase):
         for batch in batches:
             self.assertLessEqual(sum(flow.estimate_review_output(r, 'review') for r in batch),
                                  flow.review_output_budget(config, 'review'))
-        self.assertLess(flow.review_output_budget(config, 'review'), flow.review_output_budget(config, 'review', 'codex'))
+        self.assertEqual(flow.review_output_budget(config, 'review'), flow.review_output_budget(config, 'review', 'codex'))
+        self.assertEqual(batches, list(flow.review_batches(rows, config, 'review', 'codex')))
 
     def test_single_oversized_review_record_stops_before_creating_a_task(self):
         flow = Workflow('.')
@@ -95,11 +96,11 @@ class ReviewContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'source_excerpt'):
             validate_review(item, 'House', '房屋', '房屋')
 
-    def test_pilot_prompt_contains_the_same_evidence_restrictions_as_full_review(self):
+    def test_legacy_pilot_prompt_contains_the_same_evidence_restrictions_as_full_review(self):
         system, _ = prompt({'stage': 'pilot_review'})
-        self.assertIn('review_summary 的 accuracy/completeness/logic 就只允许 pass/corrected', system)
+        self.assertIn('只允许 pass/corrected', system)
         self.assertIn('changes[].source_excerpt 必须', system)
-        self.assertIn('已有术语例外也须详细核对', system)
+        self.assertIn('已有 exceptions 默认继承', system)
         system, _ = prompt({'stage': 'translate'})
         self.assertIn('issues=[{severity:warning,reason:', system)
 
