@@ -2,28 +2,19 @@
 
 每个游戏在术语提取完成后、正文翻译前执行。共享工具只负责机械检查、保存决定和安全应用，不调用 API，也不决定语义译名。原文或分析表重新生成后再次检查；历史译文不会自动改写。
 
-## 冻结与自动检查
+## 快照与自动检查
 
-本地 AINiee 的项目表在缓存 `extra.analysis_v1`，包含 characters、terms、non_translate。程序明确支持此格式；其他版本或全局词典先核对并适配，不能猜测字段或替换整个缓存。输入为正式无表头、单列 UTF-8 CSV；行号按 CSV 逻辑记录计数。
+SubAgent 与 API 使用相同的术语提取、审校和冻结程序。正式输入为项目根目录无表头、单列 UTF-8 CSV，出处按 CSV 逻辑记录编号。先由共用流程完成 `extract`，再 `prepare --stage glossary_review` 生成审校任务；交接方式见 [共用批次](batch_execution.md)。
 
-新产物统一保存在 TranslateFiles/glossary，完整缓存及备份放 TranslateFiles/cache 或 backups。既有缓存不自动搬迁；以下缓存路径按实际位置替换。自定义自动审校由流程程序调用 audit/build，无需操作 AINiee 缓存。
+程序将提取结果转换为 `characters`、`terms`、`non_translate` 分析表，调用 `glossary_tool.audit/build` 保存快照、自动报告、原文出处、审校决定、审校版及 manifest。产物统一在 `TranslateFiles/glossary/`；不读取或写入 GUI 缓存。保留既有快照和轮次记录，不手工覆盖在途任务。
 
-在游戏项目目录执行，替换缓存与源文件路径：
-
-```powershell
-$glossaryTool = 'D:\StaticHanHua\Tools\localization\glossary_tool.py'
-python $glossaryTool audit --cache .\TranslateFiles\source\AiNieeCache\AinieeCacheData.json --source .\gamename_text.csv --output .\TranslateFiles\glossary\v1
-```
-
-输出 `glossary_original.json`（仅分析表，不含完整缓存）、`glossary_audit.json`、`glossary_audit.md`、`glossary_contexts.json` 与待填写的 `glossary_decisions.json`。检查空译名、同源重复、来源命中、分类、斜杠合成 source 和共用译名。来源匹配为忽略大小写的字面子串，只用于筛查；短名称可能误命中词内，必须读语境。上下文文件每条最多提供两处摘录及原文记录号，必要时查更多原文和资源映射。
-
-既有产物不覆盖，新一轮使用 v2 等新目录。缓存及备份不纳入 Git。
+自动报告筛查空译名、同源重复、来源命中、分类和共用译名等问题；自动检查不能代替语义审校。需要更多上下文时核对正式原文及资源映射，不把 CSV 相邻记录当作剧情顺序。
 
 ## 人工审校（不能省略）
 
 自定义流程在生成新的术语审校快照前，按英文原词（忽略大小写及首尾空白，不归并单复数或近义词）跨提取批次和分类合并，每个原词只占一个审校名额。所有出处去重汇总；不同译名、分类、备注及各自出处保存在 extraction_candidates。暂定译名按提取提案次数最多者选择，同票取首次出现者，分类沿用对应候选；这是程序选出的暂定值，不是语义通过。审校者一次比较候选并确认或修正标准译名，确属多义时记录语境区别。输入包提供每个候选至多两条代表性原文，全部出处编号仍保留；预算不足时拆分其他术语，不能将同一原词拆给多个审校实例，单项超限由分配程序报错。
 
-已生成的旧审校快照、在途任务及已完成结果不自动改写；新规则用于后续新快照。AINiee 原缓存审校仍沿用其原始快照，不自动重写缓存。
+已生成的旧审校快照、在途任务及已完成结果不自动改写；新规则用于后续新快照。历史 GUI 缓存不自动迁移或重写。
 
 检查全表来源、建议译名和分类，核对重要/可疑条目的原文。特别检查物品/书名是否被人物合并、复合名称截断、称谓遗漏、同一专名多译、技能/种族与普通词混淆、提示词示例混入、占位符误收。专业词根据游戏语境及必要的权威资料核对，不生搬现实含义。不把无匹配全判为虚构，也不把共用译名全判为错误。译名依据不足的条目隔离；隔离不是禁翻。
 
@@ -53,24 +44,12 @@ python $glossaryTool audit --cache .\TranslateFiles\source\AiNieeCache\AinieeCac
 }
 ```
 
-示例不能原样使用，删除不适用的项。edits 更新字段，改 source/译名必须有 evidence_rows；移类或拆分用 quarantine 原条目加 additions，新条目也必须有原文依据。所有索引指向原快照，不随删除改变。gender 支持男性/女性/其他；category_path 支持身份/物品/组织/地名/技能/种族/其他。其他背景分类写入 note，不扩展 AINiee 枚举。
+示例不能原样使用，删除不适用的项。edits 更新字段，改 source/译名必须有 evidence_rows；移类或拆分用 quarantine 原条目加 additions，新条目也必须有原文依据。所有索引指向原快照，不随删除改变。gender 支持男性/女性/其他；category_path 支持身份/物品/组织/地名/技能/种族/其他。其他背景分类写入 note，不扩展共用分析表枚举。
 
-## 构建和应用
+## 收集、构建与冻结
 
-```powershell
-python $glossaryTool build --snapshot .\TranslateFiles\glossary\v1\glossary_original.json --source .\gamename_text.csv --decisions .\TranslateFiles\glossary\v1\glossary_decisions.json --output .\TranslateFiles\glossary\v1\built
-```
+审校者按本批程序生成的模板提供真实四维证据和决定；API 的短编号由对应 session 还原，不能自行填写任务哈希。上面的完整决定结构说明持久化字段，实际交接使用生成的执行器模板。
 
-生成 `glossary_reviewed.json`、`glossary_review_changes.json`、`glossary_manifest.json`，保留分析表其他元数据，重算统计。未解决的无命中项必须修正、隔离或填写有依据的 allow_no_match。
+全部审校任务完成后，通过 `translation_workflow.py --project <项目> freeze-glossary` 合并决定、调用共享构建检查并冻结术语。生成审校版、修改/隔离清单及 manifest；未解决的无命中项必须修正、隔离或填写有依据的 allow_no_match。检查或真实语义审校未完成时，不得开放正文翻译。
 
-正常退出 AINiee，让它保存当前项目，然后检查并应用：
-
-```powershell
-$applyArgs = @('apply', '--cache', '.\TranslateFiles\source\AiNieeCache\AinieeCacheData.json', '--snapshot', '.\TranslateFiles\glossary\v1\glossary_original.json', '--source', '.\gamename_text.csv', '--decisions', '.\TranslateFiles\glossary\v1\glossary_decisions.json', '--reviewed', '.\TranslateFiles\glossary\v1\built\glossary_reviewed.json', '--manifest', '.\TranslateFiles\glossary\v1\built\glossary_manifest.json')
-python $glossaryTool @applyArgs
-python $glossaryTool @applyArgs --apply
-```
-
-默认只检查，`--apply` 才写缓存。核对四份输入 SHA-256，拒绝原表自审校后变化或 AINiee 仍运行的情况；备份完整缓存到旁边 `glossary_review_backups/`，只替换 `extra.analysis_v1`，原子替换后验证整份缓存逐字段符合预期。相同审校版已安装则不重复写。应用进程检查支持 Windows；检查和构建可跨平台。
-
-重新打开 AINiee，确认加载该游戏项目并抽查新译名。README 记录数量、人工核对范围、隔离问题、备份与应用验证；提交小型审校产物和文档，完整缓存/备份不提交。
+README 记录术语版本、数量、审校范围、隔离问题及冻结结果；提交小型审校产物和文档。缓存、备份和凭据不提交。后续术语修订通过共用程序执行，保留历史并按受影响范围复查，不能直接改冻结表。

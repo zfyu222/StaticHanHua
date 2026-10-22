@@ -60,7 +60,7 @@ extract/glossary_review 完成本阶段任务及原有格式重试后交回；pi
 
 局部性能对比（2026-10-18）：Expeditions Viking 冻结术语 3,529 项、分散抽样 80 条，原逐句匹配 3.437 秒，新首次匹配 2.588 秒、缓存复用 0.0017 秒，逐项结果一致。该数据不代表全文启动或 API 服务耗时。
 
-自定义工作流的程序入口是 `translation_workflow.py`。原 AINiee GUI 工作流保留；入口选择及子代理派发由 `game-translate` 技能管理。所有翻译中间产物放在游戏汉化项目 `TranslateFiles/`，正式原文/译文保持项目根目录的单列 CSV 格式。
+翻译仅提供 SubAgent 和 API 两条路线，程序入口是 `translation_workflow.py`；路线选择及子代理派发由 `game-translate` 技能管理。所有翻译中间产物放在游戏汉化项目 `TranslateFiles/`，正式原文/译文保持项目根目录的单列 CSV 格式。
 
 API 和 SubAgent 共用一套流程与程序，以既有 SubAgent 规范为准。唯一流程见 [自定义流程](../../.agents/skills/game-translate/references/custom_workflow.md)，统一输入产出和修复见 [批次交接](../../.agents/skills/game-translate/references/batch_execution.md)。两种方式均由 batch-open 生成 input.md 和模板、由 batch-finish 接收 result.json；API 只将相同输入包发送为单次请求，程序解析回复并落盘，不启用 agent 工具循环。升级修复保留 Sol SubAgent。修改共同模块即同时作用于两种方式，无需维护第二份实现。
 
@@ -112,7 +112,7 @@ selection.json 为配置补丁。例如：
 
 init 默认从项目 README 的游戏信息、简介、背景设定、世界观和文体等章节自动读取游戏背景，保存到 TranslateFiles/config/game_background.json。Luna 与 API 的每阶段任务都会携带这份快照、文体及相关上下文。可用 game_background 字符串替换为已核实的背景摘要；设为 null 则自动读取，设为空字符串则不载入背景。运行中更新 README 后需暂停并 configure 重新读取，不会自动改变在途任务。背景缺失时不推测剧情。
 
-AINiee 选择为 `workflow=ainiee`；init 只生成准备文件，不调用翻译。新 GUI 项目导入 TranslateFiles/source 下的源文快照，保持“项目缓存随输入目录”开启，缓存即可留在 TranslateFiles 内。旧项目缓存不自动移动或覆盖，原始 GUI 入口及使用方式继续可用。
+配置保留 `workflow=custom` 作为共用流程的历史字段，路线仅通过 `backend=codex`（SubAgent）或 `backend=api` 选择。`workflow=ainiee` 已停止支持，初始化和配置修订会拒绝该值。旧 GUI 项目的缓存和译文不自动迁移或覆盖，需先选择现行路线并核对产物。AINiee 目录仅作为现有复用模块、运行环境与 StevExtraction 的依赖保留。
 
 ## 程序接口
 
@@ -141,7 +141,7 @@ AINiee 选择为 `workflow=ainiee`；init 只生成准备文件，不调用翻�
 
 阶段顺序及质量门槛统一维护在 [自定义流程的固定阶段](../../.agents/skills/game-translate/references/custom_workflow.md#固定阶段及质量门槛)，本文件仅列程序入口和配置，不复制 API 或 SubAgent 流程。
 
-Codex 子代理由主代理通过平台工具调用，普通 Python 不负责调用聊天内的 spawn_agent。API 执行复用 AINiee 的客户端工厂、平台思考参数和 SSE 解析；本版支持 OpenAI 兼容接口。原 AINiee 的其他原生接口仍可用，尚未接入新程序。
+Codex 子代理由主代理通过平台工具调用，普通 Python 不负责调用聊天内的 spawn_agent。API 执行复用 AINiee 的客户端工厂、平台思考参数和 SSE 解析；本版支持 OpenAI 兼容接口。未接入的其他原生接口不属于当前翻译路线。
 
 API 地址、密钥和模型统一填写本地文件 `Tools/localization/api.local.jsonc`（已排除 Git）。首次可复制 `api.example.jsonc`；所有自定义 API 项目共用，下一次 run-api 启动读取，不改写在途请求。项目仍需选择 backend=api，不再逐项目重复填写连接信息。
 

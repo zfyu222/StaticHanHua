@@ -400,9 +400,29 @@ class WorkflowTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.flow.export()
         self.review('final_review'); self.flow.export()
 
-    def test_ainiee_choice_disables_custom_execution(self):
-        self.flow.pause(True); self.flow.configure({'workflow': 'ainiee'}, '选择原工作流')
-        with self.assertRaisesRegex(ValueError, 'AINiee GUI'): self.flow.prepare('extract')
+    def test_retired_ainiee_choice_rejected_without_changing_project(self):
+        before = workflow.read_json(self.flow.root / 'config/workflow.json')
+        self.flow.pause(True)
+        with self.assertRaisesRegex(ValueError, 'workflow=custom'):
+            self.flow.configure({'workflow': 'ainiee'}, '选择已移除的路线')
+        self.assertEqual(workflow.read_json(self.flow.root / 'config/workflow.json'), before)
+
+    def test_only_subagent_and_api_routes_supported(self):
+        for backend in ('codex', 'api'):
+            self.assertEqual(workflow.merge_config(workflow.DEFAULT, {'backend': backend})['backend'], backend)
+        for selection in ({'workflow': 'ainiee'}, {'backend': 'ainiee'}):
+            with self.assertRaisesRegex(ValueError, 'workflow=custom'):
+                workflow.merge_config(workflow.DEFAULT, selection)
+
+    def test_retired_route_init_rejected_before_writing_project(self):
+        project = Path(self.temp.name) / 'Retired'
+        project.mkdir()
+        source = project / 'retired_text.csv'
+        source.write_text('Hello\n', encoding='utf-8')
+        flow = workflow.Workflow(project)
+        with self.assertRaisesRegex(ValueError, 'workflow=custom'):
+            flow.init(source, {'workflow': 'ainiee'})
+        self.assertFalse(flow.root.exists())
 
     def test_prompt_heartbeat_and_tampered_task(self):
         self.flow.prepare('extract')

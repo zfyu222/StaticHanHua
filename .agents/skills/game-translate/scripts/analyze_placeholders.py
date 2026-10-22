@@ -3,7 +3,7 @@
 analyze_placeholders.py — 扫描待翻译原文，识别占位符/格式化字符串/标记符，
 输出：
   1. 控制台摘要 + placeholder_report.md（人读报告）
-  2. ainiee_exclusion_list.json（可直接导入 AINiee 禁翻表）
+  2. exclusion_list.json（供共用流程配置 exclusions 参考）
 
 用法：
   python analyze_placeholders.py <source_csv> [--out-dir <目录>] [--src-col N]
@@ -178,12 +178,12 @@ def main() -> int:
     # 输出
     report_path = out_dir / "placeholder_report.md"
     report_path.write_text("\n".join(report), encoding="utf-8")
-    json_path = out_dir / "ainiee_exclusion_list.json"
+    json_path = out_dir / "exclusion_list.json"
     json_path.write_text(json.dumps(exclusion, ensure_ascii=False, indent=2), encoding="utf-8")
 
     print(f"检测到 {len(exclusion)} 类占位符")
     print(f"报告     -> {report_path}")
-    print(f"禁翻表   -> {json_path}（AINiee 禁翻表页点「导入」选择此文件）")
+    print(f"禁翻表   -> {json_path}（结合原文核对后写入共用流程配置 exclusions）")
     for e in exclusion:
         print(f"  - {e['info']}: {e['regex']}")
     return 0

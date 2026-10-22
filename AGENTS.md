@@ -27,7 +27,7 @@ StaticHanHua/
 │       └── TranslateFiles/               # 翻译配置、术语、任务、报告、缓存等中间产物
 │
 ├── Tools/             # 工具集
-│   ├── AINiee/        # AI 翻译工具（主翻译引擎）
+│   ├── AINiee/        # 翻译底层复用依赖及 StevExtraction 提取工具
 │   ├── dnSpy-net-win64/  # .NET 反编译工具
 │   ├── AssetRipper_win_x64/  # Unity 资源提取工具（旧版 GUI）
 │   ├── AssetRipper-CLI/  # Unity 资源提取工具（命令行版，推荐）
@@ -64,32 +64,27 @@ StaticHanHua/
 
 ### 第 2 步：翻译
 
-> 使用 `game-translate` Skill 完成翻译阶段。保留 AINiee 工作流，也可选择自定义工作流；自定义可用 Codex 子代理或 API 程序执行。内部规则与工具见该技能，不在基础文档展开。
+> 使用 `game-translate` Skill 完成翻译阶段。翻译仅提供 SubAgent（Codex 子代理）和 API（程序请求）两条路线，共用同一套流程与验收规则。内部规则与工具见该技能，不在基础文档展开。
 
 开发、诊断或优化翻译流程本身时，使用 `translation-workflow-dev` Skill，遵循减少 API 模型机械负担、优先简单有效方案及基于数据验证的原则；实际翻译继续使用 `game-translate`。
 
 自定义的 SubAgent 与 API 共用同一份流程规范、任务输入产出及批次程序，以现有 SubAgent 规范为准；API 只作单次请求，由程序解析回复并落盘。升级修复可强制使用 Sol SubAgent，共同规则统一在 `game-translate` 技能及共用程序中维护。
 
-首次执行让用户选择工作流，已明确选择直接沿用。源文和正式译文在项目根目录；所有翻译中间产物统一放 `TranslateFiles/`，包括 `TranslateDoc.md`、配置、术语审校、任务、结果、报告、缓存与备份。
+首次执行让用户选择 SubAgent 或 API 路线，已明确选择直接沿用。源文和正式译文在项目根目录；所有翻译中间产物统一放 `TranslateFiles/`，包括 `TranslateDoc.md`、配置、术语审校、任务、结果、报告、缓存与备份。
 
 | 项目 | 说明 |
 |------|------|
 | **输入** | `{gamename}_text.csv`（1 列，逐行原文） |
 | **输出** | `{gamename}_text_translated.csv`（逐行译文，与原文一一对应） |
-| **方式** | AINiee 工作流 / 自定义工作流（Codex 子代理或 API） / 手动翻译 |
+| **方式** | SubAgent（Codex 子代理） / API（程序请求） |
 | **AI 接口** | DeepSeek（推荐）、OpenAI、Anthropic、Google 等 |
 
 **翻译流程**：
-1. 将 `{gamename}_text.csv` 作为翻译源文件。
-2. 若使用 AI 辅助翻译（AiNiee）：
-   - 启动 AINiee：`cd Tools\AINiee && .\venv\Scripts\python.exe AiNiee.py`
-   - 在「接口管理」中添加并激活 API（如 DeepSeek）
-   - 新项目导入 `TranslateFiles/source/{gamename}_text.csv` 源文快照，设置源语言/目标语言；既有项目沿用已保存的缓存与进度
-   - 先提取项目术语（全文分析），完成下面的固定术语审校步骤并应用审校版
-   - 点击「开始翻译」
-3. 翻译完成后将译文保存为 `{gamename}_text_translated.csv`，与原文逐行一一对应。
+1. 将 `{gamename}_text.csv` 作为翻译源文件，保存所选路线与项目配置。
+2. 通过共用程序完成全文术语提取、语义审校和冻结，再按技能规范完成翻译与审校；SubAgent 由主代理调度，API 由程序请求用户已选接口。
+3. 全部质量门槛通过后，由程序导出 `{gamename}_text_translated.csv`，与原文逐条一一对应。
 
-**共同要求**：正文前先完成全文术语整理与语义审校，再冻结使用；程序检查通过不等于语义审校完成。两种工作流都需保护占位符并完成译后校验。具体内部阶段、调度、缓存与修复规则由 `.agents/skills/game-translate/` 维护。缓存、备份和凭据不入库。
+**共同要求**：正文前先完成全文术语整理与语义审校，再冻结使用；程序检查通过不等于语义审校完成。两条路线都需保护占位符并完成译后校验。具体内部阶段、调度、缓存与修复规则由 `.agents/skills/game-translate/` 维护。缓存、备份和凭据不入库。
 
 **翻译过程中**：如果有需要注意的信息（字体选择、术语表、特殊语境说明、文本分组等），补充到 `README.md` 中，供打包阶段参考。
 
@@ -263,11 +258,8 @@ StaticHanHua/
   **调试经验**：遇到 CLI 与 GUI 行为不一致时，第一步应对比 GUI 入口（`MainWindow.axaml.cs`）与 CLI 入口（`CommandLineHandler.cs`）的初始化代码差异，而非在下游函数中反复调试。
 
 ### 翻译工具
-- **AINiee** — `Tools/AINiee/` — 主翻译工具，基于 PyQt5 的桌面应用，支持多种 AI 接口（OpenAI、Anthropic、DeepSeek 等），支持游戏文本、字幕、文档等多种格式
-  - **启动命令**：`.\venv\Scripts\python.exe AiNiee.py`（需 Python 3.12 虚拟环境）
-  - 依赖：`Tools/AINiee/requirements.txt`
-  - 虚拟环境：`Tools/AINiee/venv/`（Python 3.12，已安装所有依赖包括 babeldoc）
-  - 包含 `StevExtraction/` 子工具用于 RPG Maker 游戏文本提取
+- **共用流程程序** — `Tools/localization/translation_workflow.py` — 提供 SubAgent 和 API 两条执行路线，共用任务、术语、审校、恢复与导出验收。
+- **底层复用依赖** — `Tools/AINiee/` — 提供现有客户端、文本处理与 Token 计数模块，以及 RPG Maker 提取用的 `StevExtraction/`；不作为翻译阶段的执行路线。现有 Python 3.12 环境位于 `Tools/AINiee/venv/`。
 
 ## Git 与 README 协作规范
 
@@ -281,7 +273,7 @@ StaticHanHua/
 |------|-----------|----------|-------------|
 | 初始化 | `start-translate` | `README.md` + `.gitignore`（脚本自动提交） | `初始化汉化项目工作区 (start-translate)` |
 | 提取 | `game-unpack` | `{gamename}_text.csv` + `README.md`（文本提取节） | `提取: 从 resources.assets 提取 1234 条文本` |
-| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateFiles/` 内适合入库的配置、术语审校及交付报告 | `翻译: 完成 AINiee 翻译并校验通过` |
+| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateFiles/` 内适合入库的配置、术语审校及交付报告 | `翻译: 完成 SubAgent/API 翻译并校验通过` |
 | 回填 | `game-repack` | `README.md`（回填/已知问题节）+ 汉化产物（视体积） | `回填: 替换 12 个 TextAsset，游戏内验证通过` |
 | 发布 | `game-release-patch` | `README.md`（对外发布节）+ 小型说明/清单 | `发布: 生成 v1.0 对外汉化补丁` |
 

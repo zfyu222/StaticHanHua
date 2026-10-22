@@ -178,8 +178,8 @@ def merge_config(base, patch, nested=False):
 
 
 def validate_config(config):
-    if config['workflow'] not in ('custom', 'ainiee') or config['backend'] not in ('codex', 'api'):
-        raise ValueError('Unsupported workflow/backend')
+    if config['workflow'] != 'custom' or config['backend'] not in ('codex', 'api'):
+        raise ValueError('Unsupported workflow/backend; use workflow=custom with backend=codex (SubAgent) or api')
     reserve = config.get('review_output_reserve_percent', 20)
     if type(reserve) is not int or not 0 <= reserve < 100:
         raise ValueError('review_output_reserve_percent must be an integer from 0 to 99')
@@ -372,19 +372,13 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
         return self.status()
 
     def write_guide(self, config, source_name):
-        text = (f'# 翻译操作记录\n\n- 工作流：{config["workflow"]}\n- 自定义执行后端：{config["backend"]}\n'
+        text = (f'# 翻译操作记录\n\n- 工作流：{config["workflow"]}\n- 执行路线（codex=SubAgent，api=API）：{config["backend"]}\n'
                 f'- 原文：项目根目录 `{source_name}`\n- 正式译文：项目根目录 `{source_name[:-4]}_translated.csv`\n'
                 '- 中间产物：`TranslateFiles/`\n\n')
-        if config['workflow'] == 'ainiee':
-            text += ('按 game-translate 的 AINiee 指南执行，占位符报告及禁翻表放本目录；'
-                     f'术语审校放 glossary/。新项目 GUI 导入 TranslateFiles/source/{source_name} 的原文快照，'
-                     '保持“项目缓存随输入目录”开启，缓存会位于 TranslateFiles/source/AiNieeCache/。'
-                     '既有项目未完成缓存不自动搬移。先全文分析、术语审校，再翻译；'
-                     '先输出至 TranslateFiles/，校验通过后复制为项目根目录正式译文。\n')
-        else:
-            text += ('由 game-translate 技能调用流程程序；正文前完成全文术语整理及冻结。\n'
-                     '试译：固定随机样本 → pilot_translate → pilot-report → 主 AI pilot-decide；按需 pilot-retry。\n'
-                     '试译用于校准流程和风格，不要求逐句零错误；正式译文仍须完整独立审校和导出验收。\n')
+        text += ('由 game-translate 技能调用共用流程程序；路线为 SubAgent（codex）或 API（api）。'
+                 '正文前完成全文术语整理及冻结。\n'
+                 '试译：固定随机样本 → pilot_translate → pilot-report → 主 AI pilot-decide；按需 pilot-retry。\n'
+                 '试译用于校准流程和风格，不要求逐句零错误；正式译文仍须完整独立审校和导出验收。\n')
         atomic_write(self.root / 'TranslateDoc.md', text)
 
     def event(self, db, kind, detail):
@@ -457,7 +451,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
         with self.db() as db:
             config = self.config(db)
             if config['workflow'] != 'custom':
-                raise ValueError('Selected workflow is AINiee GUI; custom tasks disabled')
+                raise ValueError('Retired workflow; select SubAgent or API before preparing tasks')
             revision = self.meta(db, 'revision')
             self.allocate_legacy_pending(db, stage)
             existing = db.execute('SELECT id,ids FROM tasks WHERE stage=? AND revision=? AND status!="obsolete"', (stage, revision)).fetchall()

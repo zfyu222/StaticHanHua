@@ -1,7 +1,7 @@
 ---
 name: game-translate
 description: |
-  Manage the translation stage of StaticHanHua game localization. Preserve the AINiee workflow and offer a custom file-driven workflow with Codex subagents or API execution. Use for translation preparation, terminology extraction and contextual review, translation, proofreading, polishing, placeholder validation, and recovery. Do not translate a game merely because the workflow is being developed.
+  Manage the translation stage of StaticHanHua game localization. Use one shared file-driven workflow with two execution routes: Codex subagents (SubAgent) and API requests. Use for translation preparation, terminology extraction and contextual review, translation, proofreading, polishing, placeholder validation, and recovery. Do not translate a game merely because the workflow is being developed.
 ---
 
 # Game Translate（翻译阶段）
@@ -10,10 +10,9 @@ description: |
 
 修改翻译流程、执行程序或 API 交互协议时，先使用 `translation-workflow-dev` Skill；其开发原则包括尽量减少 API 模型的机械抄写、优先简单有效的优化及用数据验证。实际翻译的阶段与验收规则仍由本技能及共同程序维护。
 
-先读项目 README.md 和已保存的 TranslateFiles/config/workflow.json。未指定工作流时让用户选择 **AINiee** 或 **自定义工作流**；自定义再选择 **Codex 子代理** 或 **API 程序**。已有明确选择直接沿用，不重复询问。选择尚未确定时可继续源文分析，不运行正文翻译或付费请求。
+先读项目 README.md 和已保存的 TranslateFiles/config/workflow.json。未指定路线时让用户选择 **SubAgent（Codex 子代理）** 或 **API（程序请求）**。配置保持 workflow=custom，backend=codex/api；workflow 是共用程序的历史字段，不再提供 AINiee 路线。旧 AINiee 项目需先选择现行路线并核对既有产物，不自动改写缓存或迁移进度。已有明确选择直接沿用，不重复询问。选择尚未确定时可继续源文分析，不运行正文翻译或付费请求。
 
-- AINiee：保留已有工作流和本地改进，读取 [AINiee 流程](references/ainiee_workflow.md)。默认生成准备文件，由用户在 GUI 翻译；用户明确要求 AI 直接翻译时按授权执行。
-- 自定义：用户要求采用自定义流程执行汉化即授权其内部自动处理，读取 [自定义流程及调度](references/custom_workflow.md)，调用 Tools/localization/translation_workflow.py。Codex 方式按参考规则用子代理并行任务；API 方式由程序请求用户已选服务。未指定模型时当前采用 Luna 子代理，后续用户选择优先。
+- SubAgent / API：用户要求采用所选路线执行汉化即授权其内部自动处理，读取 [自定义流程及调度](references/custom_workflow.md)，调用 Tools/localization/translation_workflow.py。Codex 方式按参考规则用子代理并行任务；API 方式由程序请求用户已选服务。未指定模型时当前采用 Luna 子代理，后续用户选择优先。
 - 仅术语审校：按 [术语审校规则](references/glossary_review.md)；不要因此启动全文翻译。
 - 用户提供译文仅要求校验：直接执行校验，不必询问工作流或改动原项目后端。
 
@@ -54,7 +53,7 @@ API 阶段执行默认交给新的 Luna 执行代理（gpt-6-luna，fork_turns=n
 - 自定义路线先做随机样本试译，由主 AI 判断流程、文体和总体质量适合全文后开放正式翻译；正式审校实例必须与对应产出实例不同，审校需逐项留下结构化证据。正文后 Sol 只裁决独立审校明确遗留的争议，或处理多轮未修好、反复回退而升级的定向难题；风险提示、普通抽样、已修正项和一般一致性分组不自动进入 Sol。没有遗留问题时只由程序完成最终闭环，不制造 Sol 批量复审。实机检查在回填后记录，未通过不得发布。具体协议及门槛见 [质量检查](references/quality_workflow.md)。
 - 试译用于校准方案：从全文不放回随机抽取默认 150 条（不足时全部），保存 ID 并复用，不分类加权。按正文翻译的相同拆批和保护机制完成一轮，pilot-report 汇总真实译文与机械诊断；主 AI 评估链路、文体和共性错误，用 pilot-decide 记录 accept/retry/stop 及理由。需要调整时通过配置入口修订，再用 pilot-retry 指定受影响 ID（省略时重试同一批样本）。不要求样本逐句零错误，不安排 API 独立审校、逐条六维证据或额外 Sol 验收，也不套用正式阶段的 6 轮逐句修复循环。保留每轮结果和判断，已验收旧试译不自动重跑；正式翻译仍重新执行完整翻译及独立审校。详见 [试译校准](references/quality_workflow.md#随机样本试译)。
 - 占位符、字面转义、标签与变量严格保护；源文中的玩家选项不误当机器变量。细则见 [保护边界](references/placeholder_patterns.md)。
-- 自定义使用 ID JSON 协议；AINiee 才使用原 textarea 提示词要求。两种协议不能混用。
+- 两条路线使用共用 ID JSON 协议，按对应执行器生成输入和结果模板。
 - 输入 Token 及预计输出预算统一放在任务分配阶段，完整组成输入后自动拆批，必要的关联术语及出处不截断；只有单项仍超限才报错。领取阶段直接使用分配结果，不重复预算校验。旧版未尝试待办任务在 prepare 时自动重新分配。
 - AI 可在执行中检查和调整；通过程序暂停、修订和增量复查，不能直接改 DB、覆盖在途版本或忽略锁定译文。按配置限制重试，关键未解决问题不能标记通过。
 - 术语变化只复查命中新旧术语差异的语句；提示词、文体和背景的微调默认不扩大范围。确实影响部分已有译文时显式指定 ID，改变全文要求时才全量处理；保留无关译文、审校证据和通过结论，影响判断写入变更原因。
@@ -66,6 +65,6 @@ API 阶段执行默认交给新的 Luna 执行代理（gpt-6-luna，fork_turns=n
 
 ## 验证与交接
 
-AINiee 译后使用 scripts/validate_translation.py，显式指定 --src-col 0 --dst-col 0；报告与备份用 --report-dir 和 --backup-dir 指向 TranslateFiles。退出码 0 才能交接。自定义必须由程序 export 完成其全部质量门槛，不能手工拼接最终 CSV 绕过验收。
+两条路线均必须由程序 export 完成其全部质量门槛，不能手工拼接最终 CSV 绕过验收。用户仅要求校验已有译文时，可使用 scripts/validate_translation.py（--src-col 0 --dst-col 0，报告和备份指向 TranslateFiles）；独立校验不能替代正式流程验收。
 
 更新 README 的翻译节与技术栈，记录方式/后端/模型、术语版本和审校范围、占位符、验证及待确认问题；按项目规范提交 README、正式译文和 TranslateFiles 下适合入库的配置/审校/交付材料。仅准备阶段用“文档”提交，翻译通过用“翻译”提交。

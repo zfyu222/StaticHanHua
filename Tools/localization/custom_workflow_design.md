@@ -1,6 +1,6 @@
-# 翻译阶段双工作流设计
+# 翻译阶段早期双工作流设计（历史归档）
 
-本文保留早期设计依据，不作为现行执行规范。现行阶段流程统一见 [自定义流程](../../.agents/skills/game-translate/references/custom_workflow.md)，API/SubAgent 共用交接规则见 [批次规范](../../.agents/skills/game-translate/references/batch_execution.md)；以 SubAgent 规范为准，维护同一份实现。
+本文保留早期设计依据，不作为现行执行规范。2026-10-22 起已移除 AINiee GUI 翻译路线；下文涉及保留 GUI 路线的设计均已废止。现行仅提供 SubAgent 与 API 两条路线，`workflow=custom` 是历史配置字段，执行器为 `backend=codex/api`。现行阶段流程统一见 [自定义流程](../../.agents/skills/game-translate/references/custom_workflow.md)，API/SubAgent 共用交接规则见 [批次规范](../../.agents/skills/game-translate/references/batch_execution.md)；以 SubAgent 规范为准，维护同一份实现。
 
 设计日期：2026-10-12。实现更新：2026-10-13。命令行程序及技能路由已实现，Luna 并行合成样本全流程通过；API 模拟验证通过，真实 API 尚未验证。具体支持范围见同目录 README.md。
 

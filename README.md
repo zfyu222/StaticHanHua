@@ -32,11 +32,11 @@
 | REA + Ghidra | Node.js、Ghidra、JDK 21 | 源码子模块 `Tools/REA/source`（`zfyu222/rea`）；运行依赖安装和 CLI/MCP 入口见 [REA 工具说明](Tools/REA/README.md) |
 | BepInEx / XUnity.AutoTranslator | Visual Studio 或匹配的 .NET SDK | 仅在需要重新构建插件时打开各自的 `.sln` 并按上游说明构建 |
 
-4. 构建 AINiee 后，可从根目录运行 `startAINiee.bat`。
+4. 翻译使用下述共用流程程序；AINiee 的环境和复用模块仍是当前底层依赖。
 
 ## 翻译工作流
 
-翻译阶段可选择原有 AINiee 工作流或自定义工作流；自定义可选择 Codex 子代理或 API 程序。源文和正式译文留在游戏汉化项目根目录，翻译中间产物统一放 `TranslateFiles/`。执行规则由 `game-translate` 技能维护，程序入口为 `Tools/localization/translation_workflow.py`，操作参考见 [翻译流程工具说明](Tools/localization/README.md)。
+翻译阶段仅提供 SubAgent（Codex 子代理）和 API（程序请求）两条路线，共用任务准备、术语、审校、恢复与验收规则。源文和正式译文留在游戏汉化项目根目录，翻译中间产物统一放 `TranslateFiles/`。执行规则由 `game-translate` 技能维护，程序入口为 `Tools/localization/translation_workflow.py`，操作参考见 [翻译流程工具说明](Tools/localization/README.md)。
 
 ## 逆向工作流
 
