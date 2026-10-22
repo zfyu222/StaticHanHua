@@ -59,9 +59,14 @@ class ReviewRoundMixin:
         from translation_workflow import encoded
         before = original.get('repair_constraints')
         rules = self.rules(db, config)
+        source = original['source']
+        if record_id in config.get('record_constraints', {}):
+            actual = db.execute('SELECT id,source FROM records WHERE id=?', (record_id,)).fetchone()
+            rules = bridge.record_rules(actual, config, rules)
+            source = actual['source']
         if not before:
-            before = self.repair_constraints(original['source'], original.get('translation'), original.get('exceptions', []), glossary, config, rules=rules)
-        after = self.repair_constraints(original['source'], translation, exceptions, glossary, config, rules=rules)
+            before = self.repair_constraints(source, original.get('translation'), original.get('exceptions', []), glossary, config, rules=rules)
+        after = self.repair_constraints(source, translation, exceptions, glossary, config, rules=rules)
         lost = sorted(set(after['missing_terms']) & {t['src'] for t in before['satisfied_terms']})
         if not lost:
             return []
@@ -182,7 +187,9 @@ class ReviewRoundMixin:
 
     @staticmethod
     def repair_routing(config, tier):
-        return {'repair_tier': tier, 'required_model': config.get('sol_repair_model', 'gpt-6-sol') if tier == 'sol' else None,
+        backend = config.get('escalation_backend', 'codex')
+        return {'repair_tier': tier, 'escalation_backend': backend,
+                'required_model': config.get('sol_repair_model', 'gpt-6-sol') if tier == 'sol' and backend == 'codex' else None,
                 'repair_budget_scope': 'record',
                 'repair_round_limit': config.get('body_repair_round_limit', 6),
                 'automatic_escalation': tier == 'sol'}
@@ -249,7 +256,7 @@ class ReviewRoundMixin:
         route_groups = sorted({(r['used'], r['tier']) for r in rows})
         for used, tier in route_groups:
             batch_groups.extend(self.review_batches([r for r in rows if (r['used'], r['tier']) == (used, tier)],
-                                                    config, stage, 'codex' if tier == 'sol' else None))
+                                                    config, stage, config.get('escalation_backend', 'codex') if tier == 'sol' else None))
         print(f'repair-plan progress: prepared {len(batch_groups)} task groups; building payloads', flush=True)
         for task_index, group in enumerate(batch_groups, 1):
             task_id = stage + '-round-' + uuid.uuid4().hex[:16]
@@ -285,7 +292,7 @@ class ReviewRoundMixin:
                     print(f'repair-plan progress: task {task_index}/{len(batch_groups)}; records {item_index}/{len(group)}', flush=True)
             value = fingerprint(payload); payload['input_hash'] = value
             tasks.extend(self.allocate_task(db, payload,
-                'codex' if group[0]['tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
+                config.get('escalation_backend', 'codex') if group[0]['tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
         approvals = self.meta(db, 'quality_approvals', {}); approvals.pop('pilot' if stage == 'pilot_review' else 'final', None)
         self.put(db, 'quality_approvals', approvals)
         print(f'repair-plan progress: complete; tasks={len(tasks)}; ready={len(rows)}; locked={len(blocked)}', flush=True)

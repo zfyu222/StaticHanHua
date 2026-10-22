@@ -138,7 +138,7 @@ class DraftMixin:
             # All report/receipt writes remain on the calling transaction thread.
             item, protection = self.draft_candidate(row, originals.get(row['id']))
             errors = []
-            terms = bridge.matched_terms(glossary, [row['source']], config, rules=rules)
+            terms = bridge.matched_terms(glossary, [row['source']], config, rules=bridge.record_rules(row, config, rules))
             try:
                 self.validate_body_row(row, fake_task, {}, item, {'protection': protection},
                                        config, rules, glossary, terms=terms)
@@ -154,7 +154,7 @@ class DraftMixin:
                 errors.append(str(exc)); exempt = set()
             missing = [t['src'] for t in terms if t['src'] not in exempt and t['dst'] not in row['translation']
                        and not bridge.helper().is_keep_original_translation(t['dst'])]
-            structure = bridge.structural_issues(row['source'], row['translation'], rules)
+            structure = bridge.record_structural_issues(row, row['translation'], rules, config)
             if missing:
                 errors.append('terminology mismatch: ' + ', '.join(missing))
             if structure:
@@ -306,7 +306,10 @@ class DraftMixin:
                    and journal['translation'] == row['translation'] else None)
             # Advancing into semantic review does not change an unchanged text's
             # signature. Keep raw-marker evidence stable across stage changes.
-            signatures[row['id']] = fingerprint([row['source'], row['translation'], row['exceptions'], raw])
+            signature_data = [row['source'], row['translation'], row['exceptions'], raw]
+            if row['id'] in config.get('record_constraints', {}):
+                signature_data.append(config['record_constraints'][row['id']])
+            signatures[row['id']] = fingerprint(signature_data)
         self.adopt_legacy_draft_scan(db, config, rows, signatures, policy)
         previous = {r['record_id']: dict(r) for r in db.execute(f'SELECT * FROM {prefix}draft_checks WHERE policy_key=?', (policy,))}
         changed = [r['id'] for r in rows if r['id'] not in previous or previous[r['id']]['signature'] != signatures[r['id']]]
@@ -420,16 +423,17 @@ class DraftMixin:
                            'terms': bridge.matched_terms(glossary, [r['source'] for r in group], config, rules=rules),
                            'revision_request': '全文草稿已完成；本批为跨批汇总的失败语句。只修复列出的诊断，保留其他已保存译文。'}
                 for row in group:
-                    protected, protection = bridge.protect(row['source'], row['id'], rules)
+                    row_rules = bridge.record_rules(row, config, rules)
+                    protected, protection = bridge.protect(row['source'], row['id'], row_rules)
                     payload['records'].append({'id': row['id'], 'ordinal': row['ordinal'], 'source': protected,
                         'translation': row['translation'], 'protection': protection, 'metadata': row['metadata'],
                         'exceptions': json.loads(row['exceptions']), 'locked': bool(row['locked']),
-                        'repair_constraints': self.repair_constraints(row['source'], row['translation'], json.loads(row['exceptions']), glossary, config, rules=rules),
+                        'repair_constraints': self.repair_constraints(row['source'], row['translation'], json.loads(row['exceptions']), glossary, config, rules=row_rules),
                         'diagnostic': failed_by_id[row['id']]['diagnostics'],
                         'candidate': {'id': row['id'], 'translation': row['translation']}})
                 signature = fingerprint(payload); payload['input_hash'] = signature
                 tasks.extend(self.allocate_task(db, payload,
-                    'codex' if payload['repair_tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
+                    config.get('escalation_backend', 'codex') if payload['repair_tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
         clean = not failures and not tasks
         report_file = self.root / f'reports/{prefix}full_draft_scan.json'
         task_states = [dict(r) for r in db.execute('SELECT id,status,attempt,ids,payload FROM tasks WHERE stage=? AND revision=?',

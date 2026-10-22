@@ -98,7 +98,8 @@ class AllocationMixin:
         if 'repair_counts' in value and (not isinstance(value['repair_counts'], dict) or
                 set(value['repair_counts']) != seen or any(type(n) is not int or n < 1 for n in value['repair_counts'].values())):
             raise ValueError('Task allocation: repair counters must cover every assigned ID')
-        if value.get('repair_tier') == 'sol' and (backend != 'codex' or not value.get('required_model')):
+        api_escalation = backend == 'api' and value.get('escalation_backend') == 'api' and not value.get('required_model')
+        if value.get('repair_tier') == 'sol' and not api_escalation and (backend != 'codex' or not value.get('required_model')):
             raise ValueError('Task allocation: Sol repair requires its explicit Codex model')
         if stage == 'glossary_review':
             entries = value.get('entries', [])

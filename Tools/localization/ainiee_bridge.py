@@ -77,7 +77,7 @@ def glossary_rows(analysis):
 _FROZEN_MATCHERS = {}
 _MATCH_CONTEXTS = OrderedDict()
 _MATCH_LOCK = threading.RLock()
-TERM_MATCH_VERSION = 2
+TERM_MATCH_VERSION = 3
 
 
 def _visible_term_match(start, end, protected_spans):
@@ -102,6 +102,16 @@ def _frozen_matcher(helper_class):
         # Keep one subclass per helper class so its cached compiled search patterns
         # are reused across records during full-project validation.
         class FrozenMatcher(helper_class):
+            @classmethod
+            def normalize_row(cls, row):
+                normalized = super().normalize_row(row)
+                # Frozen source strings are literal unless their author explicitly
+                # marked a regex. Punctuation in game text is not regex syntax.
+                stored = row.get(cls.VALID_KEY) if isinstance(row, dict) else None
+                if stored in (cls.STATE_VALID, cls.STATE_REGEX, cls.STATE_INVALID):
+                    normalized[cls.VALID_KEY] = stored
+                return normalized
+
             @classmethod
             def normalize_rows(cls, rows):
                 return rows if isinstance(rows, _PreparedRows) else super().normalize_rows(rows)
@@ -361,7 +371,29 @@ def normalize_exception_sources(exceptions, terms, case_sensitive):
     return normalized
 
 
-def structural_issues(source, translation, rules):
+def record_constraint(row, config):
+    constraint = config.get('record_constraints', {}).get(row['id'], {})
+    if constraint and hashlib.sha256(row['source'].encode('utf-8')).hexdigest() != constraint['source_sha256']:
+        raise ValueError('Record constraint source changed: ' + row['id'])
+    return constraint
+
+
+def record_rules(row, config, rules):
+    constraint = record_constraint(row, config)
+    suffix = constraint.get('literal_suffix')
+    if suffix is None:
+        return rules
+    if not suffix or not row['source'].endswith(suffix):
+        raise ValueError('Protected suffix does not match source: ' + row['id'])
+    return [*rules, ('record_literal_suffix', re.compile(re.escape(suffix) + r'\Z'))]
+
+
+def record_structural_issues(row, translation, rules, config):
+    return structural_issues(row['source'], translation, record_rules(row, config, rules),
+                             record_constraint(row, config).get('physical_newlines'))
+
+
+def structural_issues(source, translation, rules, expected_newlines=None):
     issues = []
     if source.strip() and not translation.strip():
         issues.append('empty_translation')
@@ -386,7 +418,8 @@ def structural_issues(source, translation, rules):
             destination_pattern = re.compile(pattern.pattern, (pattern.flags & ~re.UNICODE) | re.ASCII)
         if originals != Counter(m.group(0) for m in destination_pattern.finditer(translation)):
             issues.append(name)
-    if re.findall(r'\r\n|\r|\n', source) != re.findall(r'\r\n|\r|\n', translation):
+    expected = re.findall(r'\r\n|\r|\n', source) if expected_newlines is None else expected_newlines
+    if expected != re.findall(r'\r\n|\r|\n', translation):
         issues.append('physical_newlines')
     return issues
 

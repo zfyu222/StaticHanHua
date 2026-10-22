@@ -27,6 +27,7 @@ import ainiee_bridge as bridge
 import glossary_tool
 import glossary_families
 import jsonc_config
+from workflow_api_budget import budget_requests, effective_attempts, service_failure, connection_retry_delay
 from workflow_tokens import count_tokens, record_limit, batch_limit, record_tokens
 from workflow_profile import RunProfile, profiled, progress, usage_totals, measure
 from workflow_batches import BatchMixin
@@ -42,6 +43,7 @@ from workflow_task_contract import WORKER_INSTRUCTION, output_template, render_p
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
 DEFAULT = {
     'workflow': 'custom', 'backend': 'codex', 'model': 'gpt-6-luna',
+    'record_constraints': {}, 'escalation_backend': 'codex',
     'source_language': 'auto', 'target_language': '简体中文',
     'style': '忠实原文、自然简洁；保留人物口吻，不补充原文没有的信息。',
     'game_background': None,
@@ -168,7 +170,7 @@ def merge_config(base, patch, nested=False):
     for key, value in patch.items():
         if key not in result:
             raise ValueError('Unknown configuration field: ' + key)
-        if isinstance(result[key], dict) and isinstance(value, dict) and key not in ('stage_backends', 'extra_body', 'placeholder_family_overrides'):
+        if isinstance(result[key], dict) and isinstance(value, dict) and key not in ('stage_backends', 'extra_body', 'placeholder_family_overrides', 'record_constraints'):
             result[key] = merge_config(result[key], value, True)
         else:
             result[key] = copy.deepcopy(value)
@@ -178,6 +180,24 @@ def merge_config(base, patch, nested=False):
 
 
 def validate_config(config):
+    if config.get('escalation_backend', 'codex') not in ('codex', 'api'):
+        raise ValueError('Unsupported escalation backend')
+    constraints = config.get('record_constraints', {})
+    if not isinstance(constraints, dict):
+        raise ValueError('record_constraints must be a source-bound mapping')
+    for record_id, rule in constraints.items():
+        if (not isinstance(record_id, str) or not isinstance(rule, dict)
+                or set(rule) - {'source_sha256', 'reason', 'physical_newlines', 'literal_suffix'}
+                or not isinstance(rule.get('reason'), str) or not rule['reason'].strip()
+                or not isinstance(rule.get('source_sha256'), str)
+                or not re.fullmatch(r'[0-9a-f]{64}', rule['source_sha256'])
+                or ('physical_newlines' not in rule and 'literal_suffix' not in rule)):
+            raise ValueError('Record constraints need source hash, reason and explicit rules')
+        if 'physical_newlines' in rule and (not isinstance(rule['physical_newlines'], list)
+                or any(n not in ('\r\n', '\n', '\r') for n in rule['physical_newlines'])):
+            raise ValueError('Explicit newline sequence required')
+        if 'literal_suffix' in rule and (not isinstance(rule['literal_suffix'], str) or not rule['literal_suffix']):
+            raise ValueError('Literal suffix must be nonempty text')
     if config['workflow'] != 'custom' or config['backend'] not in ('codex', 'api'):
         raise ValueError('Unsupported workflow/backend; use workflow=custom with backend=codex (SubAgent) or api')
     reserve = config.get('review_output_reserve_percent', 20)
@@ -251,6 +271,7 @@ def validate_config(config):
 
 
 class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin):
+    effective_attempts = staticmethod(effective_attempts)
     def __init__(self, project):
         requested = Path(project).absolute()
         if requested.name.casefold() == 'game' or requested.is_symlink() or (hasattr(requested, 'is_junction') and requested.is_junction()):
@@ -260,14 +281,20 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
         if self.root.exists() and self.root.resolve() != self.root:
             raise ValueError('TranslateFiles must not redirect outside the project')
         self.db_path = self.root / 'state/workflow.sqlite3'
+        # API workers share this Workflow. Serialize their short transactions
+        # before SQLite's busy timeout, so a busy worker cannot starve a peer.
+        self._db_lock = threading.RLock()
 
     @contextmanager
     def db(self):
         if not self.db_path.exists():
             raise ValueError('Run init first')
-        connection = sqlite3.connect(self.db_path, timeout=30)
-        connection.row_factory = sqlite3.Row
+        connection = None
+        with measure('db_lock_wait'):
+            self._db_lock.acquire()
         try:
+            connection = sqlite3.connect(self.db_path, timeout=30)
+            connection.row_factory = sqlite3.Row
             connection.execute('PRAGMA foreign_keys=ON')
             with measure('db_lock_wait'):
                 connection.execute('BEGIN IMMEDIATE')
@@ -277,10 +304,13 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             yield connection
             connection.commit()
         except BaseException:
-            connection.rollback()
+            if connection is not None:
+                connection.rollback()
             raise
         finally:
-            connection.close()
+            if connection is not None:
+                connection.close()
+            self._db_lock.release()
 
     @staticmethod
     def meta(db, key, default=None):
@@ -396,7 +426,8 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                     'tasks': [dict(r) for r in db.execute('SELECT stage,status,count(*) n FROM tasks GROUP BY stage,status')],
                     'attention': [dict(r) for r in db.execute('SELECT id,stage,status,attempt,error,lease_until FROM tasks '
                                                              'WHERE status IN ("running","failed") ORDER BY id LIMIT 30')],
-                    'api_requests': db.execute('SELECT count(*) FROM api_calls WHERE status!="cancelled"').fetchone()[0]}
+                    'api_requests': db.execute('SELECT count(*) FROM api_calls WHERE status!="cancelled"').fetchone()[0],
+                    'api_budget_requests': budget_requests(db)}
 
     def pause(self, paused):
         with self.db() as db:
@@ -571,7 +602,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                         if receipt.get('reviewer') != 'main':
                             payload['pilot_style_notes'] = receipt['decisions']['summary']
                 for row in group:
-                    source, mapping = bridge.protect(row['source'], row['id'], rules) if stage in ('translate', 'pilot_translate') else (row['source'], [])
+                    source, mapping = bridge.protect(row['source'], row['id'], bridge.record_rules(row, config, rules)) if stage in ('translate', 'pilot_translate') else (row['source'], [])
                     payload['records'].append({'id': row['id'], 'ordinal': row['ordinal'], 'source': source,
                                                'translation': row['translation'], 'locked': bool(row['locked']),
                                                'metadata': row['metadata'],
@@ -643,7 +674,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             if (not task or task['stage'] != 'glossary_review' or task['revision'] != self.meta(db, 'revision')
                     or task['status'] not in ('done', 'failed') or not reason.strip()):
                 raise ValueError('Only completed/failed current glossary review tasks can be reopened with reason')
-            if task['attempt'] >= config['max_attempts']:
+            if self.effective_attempts(db, task) >= config['max_attempts']:
                 raise ValueError('Attempt limit reached; investigate before increasing max_attempts')
             db.execute('UPDATE tasks SET status="pending",lease_token=NULL,lease_until=NULL,ready_at=0 WHERE id=?', (task_id,))
             self.event(db, 'reopen_review', {'task': task_id, 'reason': reason})
@@ -658,12 +689,25 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             if self.meta(db, 'paused'):
                 return None
             candidates = db.execute('SELECT * FROM tasks WHERE stage=? AND revision=? AND backend=? AND status="pending" '
-                              'AND attempt<? AND ready_at<=? ORDER BY id',
-                              (stage, self.meta(db, 'revision'), backend, config['max_attempts'], time.time())).fetchall()
-            if worker_model:
-                candidates = [t for t in candidates if (json.loads(t['payload']).get('required_model') or 'gpt-6-luna') == worker_model]
-            task = next((t for t in candidates if self.independent_worker(db, t, worker)), None)
-            if candidates and not task:
+                              'AND ready_at<=? ORDER BY id',
+                              (stage, self.meta(db, 'revision'), backend, time.time()))
+            task, eligible = None, False
+            try:
+                # Fetch lazily: stop at the first eligible independent task rather
+                # than copying every pending payload/result into each worker.
+                for candidate in candidates:
+                    if (candidate['attempt'] >= config['max_attempts']
+                            and self.effective_attempts(db, candidate) >= config['max_attempts']):
+                        continue
+                    if worker_model and (json.loads(candidate['payload']).get('required_model') or 'gpt-6-luna') != worker_model:
+                        continue
+                    eligible = True
+                    if self.independent_worker(db, candidate, worker):
+                        task = candidate
+                        break
+            finally:
+                candidates.close()
+            if eligible and task is None:
                 raise ValueError('Independent reviewer instance required; this worker produced the assigned text')
             if not task:
                 return None
@@ -766,12 +810,12 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
         if stage == 'polish' and translation != row['translation'] and not nonempty(item.get('reason')):
             raise ValueError('Polishing changes require a reason')
         if terms is None:
-            terms = bridge.matched_terms(analysis, [row['source']], config, rules=rules)
+            terms = bridge.matched_terms(analysis, [row['source']], config, rules=bridge.record_rules(row, config, rules))
         exceptions = bridge.normalize_exception_sources(item.get('exceptions', json.loads(row['exceptions'])), terms, config['case_sensitive'])
         if not isinstance(exceptions, list) or any(not isinstance(e, dict) or not e.get('source') or not str(e.get('reason', '')).strip()
                                                   for e in exceptions):
             raise ValueError('Context exceptions need source and reason')
-        failures = bridge.structural_issues(row['source'], translation, rules)
+        failures = bridge.record_structural_issues(row, translation, rules, config)
         if failures:
             raise ValueError(f'{item["id"]}: structural mismatch {failures}')
         known_sources = {t['src'] for t in terms}
@@ -988,7 +1032,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
         with self.db() as db:
             config = self.config(db)
             task = self.valid_task(db, task_id, token)
-            status = 'pending' if retryable and task['attempt'] < config['max_attempts'] else 'failed'
+            status = 'pending' if retryable and self.effective_attempts(db, task) < config['max_attempts'] else 'failed'
             db.execute('UPDATE tasks SET status=?,error=?,ready_at=? WHERE id=?',
                        (status, code[:200], time.time() + delay, task_id))
             self.event(db, 'fail', {'task': task_id, 'code': code[:200], 'status': status})
@@ -1001,7 +1045,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             task = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
             if not task or task['status'] not in ('running', 'failed') or task['revision'] != self.meta(db, 'revision'):
                 raise ValueError('No recoverable current task')
-            if task['attempt'] >= config['max_attempts']:
+            if self.effective_attempts(db, task) >= config['max_attempts']:
                 raise ValueError('Attempt limit reached; investigate and revise configuration')
             db.execute('UPDATE tasks SET status="pending",lease_token=NULL,lease_until=NULL,ready_at=0 WHERE id=?', (task_id,))
             self.event(db, 'recover', {'task': task_id})
@@ -1013,6 +1057,23 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             if not self.meta(db, 'paused'):
                 raise ValueError('Pause and finish/recover in-flight tasks before changing rules')
             old = self.meta(db, 'config')
+            if set(patch) == {'review_output_tokens'} and impact == 'none' and not record_ids:
+                self.config(db)
+                new = merge_config({**DEFAULT, **old}, patch)
+                if new['review_output_tokens'] > old.get('review_output_tokens', DEFAULT['review_output_tokens']):
+                    # More output capacity does not invalidate an already sized
+                    # batch. Keep its exact payload, lineage, lease and budget.
+                    if (db.execute('SELECT 1 FROM tasks WHERE status="running" AND backend!="api"').fetchone()
+                            or db.execute('SELECT 1 FROM api_calls WHERE status="reserved"').fetchone()):
+                        raise ValueError('Output capacity increase requires paused idle API tasks and no reserved requests')
+                    detail = {'before': old.get('review_output_tokens', DEFAULT['review_output_tokens']),
+                              'after': new['review_output_tokens'], 'reason': reason}
+                    write_json(self.root / f'history/output_capacity_{uuid.uuid4().hex}.json', detail)
+                    self.put(db, 'config', new)
+                    write_json(self.root / 'config/workflow.json', new)
+                    self.event(db, 'configure_output_capacity', detail)
+                    return {'revision': self.meta(db, 'revision'), 'semantic_reset': False,
+                            'affected_records': [], 'output_capacity_only': True}
             if db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone():
                 # An exhausted API lease can outlive its stopped runner. Permit
                 # an explicitly investigated retry-limit increase while idle;
@@ -1056,6 +1117,11 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             if digest(self.meta(db, 'source_path')) != self.meta(db, 'source_hash'):
                 raise ValueError('Source changed; cannot reconfigure this run')
             new = merge_config({**DEFAULT, **old, 'game_background': old.get('game_background', '')}, patch)
+            for record_id in new.get('record_constraints', {}):
+                row = db.execute('SELECT id,source FROM records WHERE id=?', (record_id,)).fetchone()
+                if row is None:
+                    raise ValueError('Unknown constrained record: ' + record_id)
+                bridge.record_rules(row, new, [])
             background = resolve_background(self.project, new)
             background_file = self.root / 'config/game_background.json'
             if 'game_background' not in patch and background_file.exists():
@@ -1107,6 +1173,20 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             if not self.meta(db, 'glossary'):
                 # Preserve completed extraction tasks under the new scheduling/backend revision.
                 db.execute('UPDATE tasks SET revision=? WHERE status="done" AND stage="extract"', (revision,))
+                # Completed glossary reviews stay valid when the change is only scheduling,
+                # transport or retry limits; dropping them would repeat hours of paid work.
+                sources = {row[0] for row in db.execute(
+                    'SELECT DISTINCT revision FROM tasks WHERE stage="glossary_review" AND status="done"')}
+                for source in sorted(sources):
+                    if source == revision:
+                        continue
+                    old_folder = self.root / f'glossary/r{source}'
+                    new_folder = self.root / f'glossary/r{revision}'
+                    if old_folder.is_dir() and not new_folder.exists():
+                        import shutil
+                        shutil.copytree(old_folder, new_folder)
+                db.execute('UPDATE tasks SET revision=? WHERE status="done" AND stage="glossary_review"',
+                           (revision,))
             if quality_upgrade:
                 # Historical semantic flags lack per-entry evidence and instance ownership.
                 # Keep artifacts as history, but require the stronger terminology pipeline again.
@@ -1182,7 +1262,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             total = len(records)
             print(f'export progress: structural validation 0/{total}', file=sys.stderr, flush=True)
             for index, row in enumerate(records, 1):
-                issues = bridge.structural_issues(row['source'], row['translation'], rules)
+                issues = bridge.record_structural_issues(row, row['translation'], rules, config)
                 if issues:
                     raise ValueError(f"Final structural validation failed: {row['id']} ({', '.join(issues)})")
                 if index % 1000 == 0 or index == total:
@@ -1374,6 +1454,10 @@ def prompt(payload, *, api=False):
                 '其他条目或未附原文的行号一律不得引用；'
                 'source_excerpt 必须是所引 ordinal 原文的连续逐字片段，不拼接、不省略、不改写、不翻译；'
                 'entry_reviews 只写 entries 中的 e编号，不得包含 related_entries 或 term_families 条目。'
+                'additions 的 table 只能是 characters、terms、non_translate；row 用 source 与 recommended_translation'
+                '（characters 另需 gender，terms 另需 category_path），不新增通用翻译类条目。'
+                'terms 的 category_path 只能取 身份/物品/组织/地名/技能/种族/其他 之一；'
+                '原文或候选写成“地点”等非法值时，必须在 edits 中改为合法值。'
                 '逐项证据不能用程序检查或全表 summary 替代，不在 reason 中重复四维全文。')
         common += glossary_contract
     if stage in ('pilot_translate', 'translate') and (not api or payload.get('approved_pilot_examples') or payload.get('pilot_style_notes')):
@@ -1530,11 +1614,13 @@ def resume_api_tasks(flow, stage):
             run = db.execute('SELECT * FROM batch_runs WHERE task_id=? AND token=? AND status="waiting" ORDER BY rowid DESC LIMIT 1',
                              (task['id'], task['lease_token'])).fetchone()
             run = dict(run) if run else None
+            # Explicit resume is only allowed after the old executor stopped.
+            # Partial handoffs also need a fresh lease before batch-repair can
+            # reuse their saved rows; otherwise long pauses strand them forever.
+            db.execute('UPDATE tasks SET lease_until=? WHERE id=?', (time.time() + flow.config(db)['lease_seconds'], task['id']))
             if run is None and db.execute('SELECT 1 FROM batch_runs WHERE task_id=? AND token=? AND status IN ("repair_required","repair_part_saved","needs_attention")',
                                          (task['id'], task['lease_token'])).fetchone():
                 continue  # Existing partial results retain their normal repair path.
-            # The previous process has stopped; extend only for local collection.
-            db.execute('UPDATE tasks SET lease_until=? WHERE id=?', (time.time() + flow.config(db)['lease_seconds'], task['id']))
         if run:
             path = Path(run['result_file'])
             try:
@@ -1608,6 +1694,10 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
         raise ValueError('Pilot independent review retired; use pilot-report and main pilot-decide')
     sync_api_batching(flow)
     with flow.db() as db:
+        from workflow_dispatch_indexes import ensure_dispatch_indexes
+        flow.batch_tables(db)
+        with profile.measure('dispatch_index_setup'):
+            ensure_dispatch_indexes(db)
         config = flow.config(db)
     selected_api = local_api_name(name=api_name)
     api, key = load_api_settings(config, name=api_name)
@@ -1631,6 +1721,8 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
         flow.batch_tables(db)
         if 'session_id' not in {r[1] for r in db.execute('PRAGMA table_info(api_calls)')}:
             db.execute('ALTER TABLE api_calls ADD COLUMN session_id TEXT')
+        if 'task_attempt' not in {r[1] for r in db.execute('PRAGMA table_info(api_calls)')}:
+            db.execute('ALTER TABLE api_calls ADD COLUMN task_attempt INTEGER')
         if session_ids is not None:
             if not session_ids or len(set(session_ids)) != len(session_ids):
                 raise ValueError('Explicit API sessions must be nonempty and unique')
@@ -1677,7 +1769,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
             if flow.meta(db, 'paused'):
                 summary['paused'] = True
                 return None
-            calls = db.execute('SELECT count(*) FROM api_calls WHERE status!="cancelled"').fetchone()[0]
+            calls = budget_requests(db)
             if calls >= api['max_requests']:
                 stopped = True
                 summary['paused'] = True
@@ -1702,6 +1794,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
         nonlocal stopped, in_flight
         session, retry_reason = None, None
         request_failures = 0
+        connection_retries = 0
         while not stopped:
             # Transport owns request accounting only. Input, collection and repair
             # go through precisely the same handoffs as a Codex SubAgent.
@@ -1718,6 +1811,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                 try:
                     if retry_reason is None:
                         request_failures = 0
+                        connection_retries = 0
                     session = (flow.batch_retry(session['session_id'], worker, retry_reason,
                                                 format_error=retry_reason == 'invalid_model_result')
                                if retry_reason else open_session(worker))
@@ -1735,8 +1829,8 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                     cancel(call_id)
                     return
                 with flow.db() as db:
-                    db.execute('UPDATE api_calls SET task_id=?,session_id=? WHERE id=?',
-                               (session['task_id'], session['session_id'], call_id))
+                    db.execute('UPDATE api_calls SET task_id=?,session_id=?,task_attempt=(SELECT attempt FROM tasks WHERE id=?) WHERE id=?',
+                               (session['task_id'], session['session_id'], session['task_id'], call_id))
             retry_reason = None
             usage = None
             try:
@@ -1820,6 +1914,30 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                     summary['failed'] += 1
                 profile.emit('attempt_failed', call_id=call_id, error_type=type(error).__name__, retryable=retryable)
                 report_progress()
+                if isinstance(error, bridge.ApiFailure) and service_failure(code):
+                    delay = connection_retry_delay(code, connection_retries) if retryable else None
+                    if delay is not None:
+                        connection_retries += 1
+                        profile.emit('connection_retry_scheduled', call_id=call_id,
+                                     retry=connection_retries, delay_seconds=delay)
+                        until = time.monotonic() + delay
+                        with profile.measure('connection_retry_wait'):
+                            while time.monotonic() < until and not stopped:
+                                time.sleep(min(0.25, max(0, until - time.monotonic())))
+                                with flow.db() as db:
+                                    if flow.meta(db, 'paused'):
+                                        summary['paused'] = True
+                                        return
+                        # Reuse the ordinary transport-retry handoff. Failed calls
+                        # stay in the ledger and earn their existing budget credit.
+                        retry_reason = code
+                        continue
+                    # HTTP denials and exhausted transport retries pause dispatch.
+                    summary['paused'] = True
+                    stopped = True
+                    summary['needs_attention'].append({'session_id': session['session_id'],
+                        'error': code, 'service_failure': True, 'consumes_request_budget': False})
+                    return
                 request_failures += 1
                 if not retryable:
                     summary['paused'] = True
@@ -1877,6 +1995,7 @@ def main():
     p = sub.add_parser('draft-scan'); p.add_argument('--prepare-repairs', action='store_true'); p.add_argument('--stage', choices=('translate', 'pilot_translate'), default='translate')
     p.add_argument('--workers', type=int, choices=range(1, 33), help='Override draft scan threads for this invocation')
     p = sub.add_parser('review-scan'); p.add_argument('--stage', choices=('pilot_review', 'review', 'final_review'), default='review'); p.add_argument('--prepare-repairs', action='store_true')
+    p = sub.add_parser('restore-review-layout'); p.add_argument('--file', required=True)
     p = sub.add_parser('sol-round-record'); p.add_argument('--decisions', required=True)
     sub.add_parser('sol-round-finish')
     p = sub.add_parser('claim'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--worker', required=True)
@@ -1932,6 +2051,9 @@ def main():
         elif args.command == 'batch-save': result = flow.batch_save(args.session, args.file)
         elif args.command == 'draft-scan': result = flow.draft_scan(args.prepare_repairs, workers=args.workers, stage=args.stage)
         elif args.command == 'review-scan': result = flow.review_scan(args.stage, args.prepare_repairs)
+        elif args.command == 'restore-review-layout':
+            from workflow_layout_restore import restore_review_layout
+            result = restore_review_layout(flow, read_json(args.file))
         elif args.command == 'sol-round-record': result = flow.record_sol_round(read_json(args.decisions))
         elif args.command == 'sol-round-finish': result = flow.finish_sol_round()
         elif args.command == 'claim':

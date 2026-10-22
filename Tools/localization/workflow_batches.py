@@ -31,7 +31,7 @@ class BatchMixin:
             if (not task or task['stage'] != 'extract' or task['revision'] != self.meta(db, 'revision')
                     or task['status'] not in ('running', 'failed', 'pending') or task['backend'] != 'api'):
                 raise ValueError('Only an unfinished current API extraction can be split')
-            if task['attempt'] >= config['max_attempts']:
+            if self.effective_attempts(db, task) >= config['max_attempts']:
                 raise ValueError('No remaining attempt budget; investigate before an explicit increase')
             payload = json.loads(task['payload'])
             if fingerprint({k:v for k,v in payload.items() if k != 'input_hash'}) != task['input_hash']:
@@ -166,6 +166,7 @@ class BatchMixin:
             if original['id'] not in scope:
                 continue
             raw = db.execute('SELECT source FROM records WHERE id=?', (original['id'],)).fetchone()['source']
+            source_row = {'id': original['id'], 'source': raw}
             row = {k: original[k] for k in ('id', 'ordinal', 'source', 'translation', 'metadata', 'locked') if k in original}
             for field in ('diagnostic', 'diagnostic_detail', 'candidate', 'repair_constraints'):
                 if field in original:
@@ -173,7 +174,10 @@ class BatchMixin:
             row['protection'] = original.get('protection', [])
             if raw != original['source']:
                 row['original_source'] = raw
-            terms = bridge.matched_terms(glossary, [raw], config, rules=rules)
+            terms = bridge.matched_terms(glossary, [raw], config, rules=bridge.record_rules(source_row, config, rules))
+            constraint = bridge.record_constraint(source_row, config)
+            if constraint:
+                row['metadata'] = dict(row.get('metadata', {}), validated_record_constraints=constraint)
             row['terms'] = [{k: t[k] for k in ('src', 'dst', 'src_state', 'info') if t.get(k)}
                             for t in terms]
             if original.get('exceptions'):
@@ -337,16 +341,18 @@ class BatchMixin:
             self.batch_tables(db)
             # Both executors prioritize the same undispatched reliability repair
             # packages. Semantic round repairs remain ordinary prepared tasks.
-            parent = db.execute('SELECT b.id,t.payload FROM batch_runs b JOIN tasks t ON t.id=b.task_id '
+            parent = db.execute('SELECT b.id,t.payload,t.id AS task_id,t.attempt,t.backend, '
+                'EXISTS(SELECT 1 FROM batch_repair_plans p WHERE p.task_id=b.task_id AND p.token=b.token AND p.status="pending") AS pending_parts '
+                'FROM batch_runs b JOIN tasks t ON t.id=b.task_id '
                 'WHERE t.backend=? AND t.stage=? AND t.revision=? AND t.status="running" '
                 'AND b.status="repair_required" AND b.round=0 AND '
-                '(t.attempt<? OR EXISTS(SELECT 1 FROM batch_repair_plans p WHERE '
-                'p.task_id=b.task_id AND p.token=b.token AND p.status="pending")) AND '
                 '(NOT EXISTS(SELECT 1 FROM batch_runs c WHERE c.task_id=b.task_id AND c.token=b.token AND c.round>0) '
                 'OR EXISTS(SELECT 1 FROM batch_repair_plans p WHERE p.task_id=b.task_id AND p.token=b.token AND p.status="pending")) '
-                'ORDER BY b.rowid', (backend, stage, self.meta(db, 'revision'), self.config(db)['max_attempts'])).fetchall()
-            parent = next((r for r in parent if not worker_model or
-                           (json.loads(r['payload']).get('required_model') or 'gpt-6-luna') == worker_model), None)
+                'ORDER BY b.rowid', (backend, stage, self.meta(db, 'revision'))).fetchall()
+            limit = self.config(db)['max_attempts']
+            parent = next((r for r in parent if (r['pending_parts'] or r['attempt'] < limit
+                or self.effective_attempts(db, dict(r, id=r['task_id'])) < limit)
+                and (not worker_model or (json.loads(r['payload']).get('required_model') or 'gpt-6-luna') == worker_model)), None)
         if parent:
             return self.batch_repair(parent['id'], worker)
         claim = self.claim(stage, worker, backend=backend, compact_input=True, worker_model=worker_model)
@@ -558,7 +564,7 @@ class BatchMixin:
                     'SELECT receipt FROM batch_runs WHERE task_id=? AND token=? AND status="superseded"',
                     (task['id'], run['token']))):
                 raise ValueError('One automatic format retry allowed; unresolved envelope needs attention')
-            if task['attempt'] >= config['max_attempts']:
+            if self.effective_attempts(db, task) >= config['max_attempts']:
                 raise ValueError('Task attempt limit reached')
             if not worker.strip() or db.execute('SELECT 1 FROM quality_attempts WHERE instance=?', (worker,)).fetchone():
                 raise ValueError('Fresh instance required for transport retry')
@@ -617,7 +623,7 @@ class BatchMixin:
             if new_round:
                 if db.execute('SELECT 1 FROM batch_runs WHERE task_id=? AND token=? AND round=?', (task['id'], run['token'], round_number)).fetchone():
                     raise ValueError('Repair already dispatched')
-                if task['attempt'] >= config['max_attempts']:
+                if self.effective_attempts(db, task) >= config['max_attempts']:
                     raise ValueError('Task attempt limit reached')
                 payload = json.loads(task['payload'])
                 payload['records'] = [r for r in payload['records'] if r['id'] in scope]
@@ -633,7 +639,7 @@ class BatchMixin:
                 from translation_workflow import read_json
                 metadata_file = Path(run['result_file']).with_name('response.metadata.json')
                 metadata = read_json(metadata_file) if metadata_file.exists() else {}
-                constrained = (len(scope) > 1 and (task['attempt'] >= 2
+                constrained = (len(scope) > 1 and (self.effective_attempts(db, task) >= 2
                                or isinstance(metadata, dict) and metadata.get('finish_reason') == 'length'))
                 limit = max(1, len(scope) // 2) if constrained else None
                 planned = self.plan_task_allocation(db, payload, task['backend'], fixed_identity=True,

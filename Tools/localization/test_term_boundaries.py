@@ -69,7 +69,20 @@ class TermBoundaryTests(unittest.TestCase):
 
     def test_non_latin_terms_and_explicit_regex_still_work(self):
         self.assertEqual(self.match('勇者', [('勇者', '英雄')]), [('勇者', '英雄')])
-        self.assertEqual(self.match('Magic Sword', [(r'Magic\s+Sword', '魔法剑')]), [('Magic Sword', '魔法剑')])
+        analysis = {'terms': [{'source': r'Magic\s+Sword', 'recommended_translation': '魔法剑',
+                              'src_state': 'regex'}]}
+        self.assertEqual([r['dst'] for r in bridge.matched_terms(
+            analysis, ['Magic Sword'], self.options)], ['魔法剑'])
+
+    def test_frozen_punctuation_is_literal_not_inferred_regex(self):
+        terms = [('[Sorrow Flame]', '[悲伤之焰]'), ('Matkina (Young)', '年轻玛特金娜'),
+                 ('V.', '维'), ('Urmpfh?', '乌尔姆普夫？')]
+        self.assertEqual(self.match('A normal sentence with spaces.', terms), [])
+        for source, target in terms:
+            with self.subTest(source=source):
+                self.assertEqual(self.match(source, terms), [(source, target)])
+        analysis = {'non_translate': [{'source': '[DEBUG] Continue.'}]}
+        self.assertEqual(bridge.matched_terms(analysis, ['D and E are letters.'], self.options), [])
 
 
 class TermCacheVersionTests(unittest.TestCase):

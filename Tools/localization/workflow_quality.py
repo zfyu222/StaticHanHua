@@ -126,7 +126,30 @@ def validate_review(item, source, before, after):
         raise ValueError('Corrected translation must identify a corrected check')
 
 
+def validate_category_paths(decisions):
+    """Reject unsupported glossary categories at submission, not at freeze time."""
+    from glossary_tool import TERM_CATEGORIES
+    for edit in decisions.get('edits') or []:
+        if not isinstance(edit, dict) or edit.get('table') != 'terms':
+            continue
+        patch = edit.get('patch')
+        if isinstance(patch, dict) and 'category_path' in patch:
+            value = patch['category_path']
+            if value not in TERM_CATEGORIES:
+                raise ValueError('terms:' + str(edit.get('index')) + ' category_path must be one of '
+                                 + '/'.join(sorted(TERM_CATEGORIES)) + '; got ' + repr(value))
+    for item in decisions.get('additions') or []:
+        if not isinstance(item, dict) or item.get('table') != 'terms':
+            continue
+        row = item.get('row') if isinstance(item.get('row'), dict) else {}
+        value = row.get('category_path')
+        if value not in TERM_CATEGORIES:
+            raise ValueError('terms addition category_path must be one of '
+                             + '/'.join(sorted(TERM_CATEGORIES)) + '; got ' + repr(value))
+
+
 def validate_glossary_reviews(decisions, payload):
+    validate_category_paths(decisions)
     reviews = decisions.get('entry_reviews')
     refs = {e['ref']: e for e in payload['entries']}
     if (not isinstance(reviews, list) or any(not isinstance(r, dict) for r in reviews)
