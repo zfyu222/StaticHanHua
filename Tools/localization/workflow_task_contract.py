@@ -83,6 +83,16 @@ def api_output_template(payload, scope=None):
                 example['source_ref'] = 'whole'
                 example['checks'] = {key: ['pass 或 corrected' if key in ('accuracy', 'completeness', 'logic')
                     else 'pass、corrected 或有依据的 not_applicable', '填写本维度具体依据'] for key in example['checks']}
+                example['evidence'] = {
+                    'e1': '填写本条含义、覆盖及关系的实际核对依据；若依据不同，另列证据',
+                    'e2': '填写本条术语适用情况的实际依据',
+                    'e3': '填写本条口吻的实际依据',
+                    'e4': '填写本条变量和标签的实际依据'}
+                example['reason'] = {'ref': 'e1'}
+                refs = {'accuracy': 'e1', 'completeness': 'e1', 'logic': 'e1',
+                        'terminology': 'e2', 'tone': 'e3', 'placeholders': 'e4'}
+                for key, check in example['checks'].items():
+                    check[1] = {'ref': refs[key]}
             examples.append(example)
         result['records'] = examples
     return result
@@ -109,6 +119,10 @@ def api_template_instruction(stage):
             instruction += ('审校 checks、source_excerpt、changes 必须真实填写。'
                             'checks 每维使用 [status,evidence] 两项数组；两个值都须由本次真实检查填写，'
                             '程序只恢复字段名，不代填状态或依据。'
+                            '同条相同依据可只写一次：evidence={"e1":"本条具体核对依据"}，'
+                            'reason、checks 各维第二项和 changes.reason 可用 {"ref":"e1"} 显式引用；'
+                            '六个状态仍各自填写，依据必须足以支持所引用维度，不使用空泛全通过说明；'
+                            'e编号仅限本条，不跨记录引用，不嵌套引用，不列未使用证据。'
                             'changes 的 before/after 由程序恢复，无需抄写；reviewed 标记由程序绑定。'
                             '引用本条完整原文时可用 source_ref:"whole" 代替 source_excerpt，changes 中也适用；'
                             '局部引用仍填写连续 source_excerpt。issues 只填写当前候选尚未解决的问题，'
@@ -311,6 +325,8 @@ def canonical_api_result(result, transport, session_id, task_id, input_hash, sco
     if not isinstance(summaries, dict) or any(key not in mapping for key in summaries):
         raise ValueError('Unknown API review summary ID')
     canonical = transport_id_fields(result, mapping)
+    from workflow_review_evidence import expand_evidence
+    canonical['records'] = [expand_evidence(row) for row in canonical['records']]
     from workflow_api_transport import expand_check_pairs
     for row in canonical['records']:
         if 'checks' in row:

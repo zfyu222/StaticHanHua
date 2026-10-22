@@ -175,6 +175,26 @@ def validate_glossary_reviews(decisions, payload):
                 'source_excerpt must be one exact contiguous excerpt from a cited, provided source; '
                 'do not join paraphrases or insert ellipses.')
 
+    validate_glossary_applicability(decisions, payload)
+
+
+def validate_glossary_applicability(decisions, payload):
+    if payload.get('applicability_policy') != 1:
+        return
+    from workflow_term_scope import validate_applicability
+    edits = {f'{e["table"]}:{e["index"]}': e for e in decisions.get('edits', [])}
+    quarantined = {f'{e["table"]}:{e["index"]}' for e in decisions.get('quarantine', [])}
+    for entry in payload['entries']:
+        if entry['ref'] in quarantined:
+            continue
+        edit = edits.get(entry['ref'], {})
+        if 'applicability' in edit.get('patch', {}) and not edit.get('evidence_rows'):
+            raise ValueError('Applicability edit requires actual source evidence rows')
+        row = dict(entry['row'], **edit.get('patch', {}))
+        validate_applicability(row, required=True)
+    for addition in decisions.get('additions', []):
+        validate_applicability(addition['row'], required=True)
+
 
 def risk_reasons(row):
     """Heuristic candidates, never a semantic pass/fail verdict."""

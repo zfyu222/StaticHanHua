@@ -45,6 +45,7 @@ def merge_extractions(extractions):
         row['extraction_candidates'] = candidates
         row['provisional_selection'] = 'most_extraction_proposals_then_first_seen'
         result[selected['table']].append(row)
+    result['applicability_policy'] = 1
     return result
 
 

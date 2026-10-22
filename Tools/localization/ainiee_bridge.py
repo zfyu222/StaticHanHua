@@ -77,7 +77,7 @@ def glossary_rows(analysis):
 _FROZEN_MATCHERS = {}
 _MATCH_CONTEXTS = OrderedDict()
 _MATCH_LOCK = threading.RLock()
-TERM_MATCH_VERSION = 3
+TERM_MATCH_VERSION = 4
 
 
 def _visible_term_match(start, end, protected_spans):
@@ -105,6 +105,8 @@ def _frozen_matcher(helper_class):
             @classmethod
             def normalize_row(cls, row):
                 normalized = super().normalize_row(row)
+                if isinstance(row, dict) and 'applicability' in row:
+                    normalized['applicability'] = copy.deepcopy(row['applicability'])
                 # Frozen source strings are literal unless their author explicitly
                 # marked a regex. Punctuation in game text is not regex syntax.
                 stored = row.get(cls.VALID_KEY) if isinstance(row, dict) else None
@@ -196,6 +198,14 @@ def matched_terms(analysis, texts, options, *, rules=None):
                 _MATCH_CONTEXTS.popitem(last=False)
     _, raw_rows, rows, results, plans = context
     texts = tuple(texts)
+    # Scope applies to each record, never to a concatenated batch.
+    if len(texts) > 1 and any(row.get('applicability') for row in raw_rows):
+        combined = []
+        for text in texts:
+            for term in matched_terms(analysis, [text], options, rules=rules):
+                if term not in combined:
+                    combined.append(term)
+        return combined
     if rules is None:
         # Workflow callers pass their actual rules (including corpus-level curly
         # choice detection). Standalone callers must explicitly enable ambiguous
@@ -227,12 +237,18 @@ def matched_terms(analysis, texts, options, *, rules=None):
                 state = row.get(h.VALID_KEY, h.STATE_VALID)
                 if state == h.STATE_INVALID:
                     continue
-                pattern = FrozenMatcher.build_search_pattern(row['src'], state, *plan_key)
+                from workflow_term_scope import validate_applicability
+                validate_applicability(dict(row, source=row['src']))
+                sensitive = row.get('applicability', {}).get('case_sensitive', plan_key[0])
+                pattern = FrozenMatcher.build_search_pattern(row['src'], state, sensitive, plan_key[1])
                 if pattern is not None:
                     normal.append((priority, row, pattern))
             for row in raw_rows:
                 if h.is_keep_original_translation(row['dst']):
-                    pattern = FrozenMatcher.build_search_pattern(row['src'], row['src_state'], *plan_key)
+                    from workflow_term_scope import validate_applicability
+                    validate_applicability(dict(row, source=row['src']))
+                    sensitive = row.get('applicability', {}).get('case_sensitive', plan_key[0])
+                    pattern = FrozenMatcher.build_search_pattern(row['src'], row['src_state'], sensitive, plan_key[1])
                     if pattern is not None:
                         kept.append((row, pattern))
             plan = plans[plan_key] = (normal, kept)
@@ -241,9 +257,11 @@ def matched_terms(analysis, texts, options, *, rules=None):
     protected_spans = tuple({match.span() for _, pattern in rules for match in pattern.finditer(full_text)
                              if match.start() != match.end()})
     candidates = []
+    from workflow_term_scope import applicable
     for priority, row, pattern in plan[0]:
         for match in pattern.finditer(full_text):
-            if match.start() != match.end() and _visible_term_match(match.start(), match.end(), protected_spans):
+            if (match.start() != match.end() and applicable(row, full_text, match.start(), match.end())
+                    and _visible_term_match(match.start(), match.end(), protected_spans)):
                 candidates.append({'start': match.start(), 'end': match.end(), 'priority': priority,
                                    'match_text': match.group(0), 'row': row})
     matched, seen = [], set()
@@ -256,7 +274,7 @@ def matched_terms(analysis, texts, options, *, rules=None):
             matched.append(row)
     # Keep-original entries still convey useful instructions, but are not term-check errors.
     for row, pattern in plan[1]:
-        if any(_visible_term_match(m.start(), m.end(), protected_spans)
+        if any(applicable(row, full_text, m.start(), m.end()) and _visible_term_match(m.start(), m.end(), protected_spans)
                for m in pattern.finditer(full_text) if m.start() != m.end()):
             matched.append(copy.deepcopy(row))
     with _MATCH_LOCK:

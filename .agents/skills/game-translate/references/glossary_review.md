@@ -53,3 +53,7 @@ SubAgent 与 API 使用相同的术语提取、审校和冻结程序。正式输
 全部审校任务完成后，通过 `translation_workflow.py --project <项目> freeze-glossary` 合并决定、调用共享构建检查并冻结术语。生成审校版、修改/隔离清单及 manifest；未解决的无命中项必须修正、隔离或填写有依据的 allow_no_match。检查或真实语义审校未完成时，不得开放正文翻译。
 
 README 记录术语版本、数量、审校范围、隔离问题及冻结结果；提交小型审校产物和文档。缓存、备份和凭据不提交。后续术语修订通过共用程序执行，保留历史并按受影响范围复查，不能直接改冻结表。
+
+## 新快照的术语适用范围
+
+新提取合并快照标记 applicability_policy=1。普通代词/助动词/常用词和单字母候选必须结合出处审校：确为普通词则隔离，确为专名、属性或技术义则提供 applicability。text/whole_record/literal_context 分别表示正文匹配、完整记录标签、指定紧邻字串；case_sensitive 为逐词布尔设置，reason 为具体来源依据。literal_context 需实际 prefix/suffix，不能编造语法。edits.patch.applicability 仍需 evidence_rows，提交时检查而非拖到冻结。旧快照不加标记、不自动修表。

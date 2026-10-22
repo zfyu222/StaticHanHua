@@ -1,0 +1,7 @@
+{
+  "basis": "same model-written review reply; only expand record-local evidence references; o200k_base local estimate, not server billing or reasoning savings",
+  "records": 6,
+  "compact_tokens": 1556,
+  "expanded_tokens": 2073,
+  "reduction_percent": 24.94
+}

@@ -262,7 +262,7 @@ class ReviewRoundMixin:
             task_id = stage + '-round-' + uuid.uuid4().hex[:16]
             print(f'repair-plan progress: task {task_index}/{len(batch_groups)}; preparing {len(group)} records', flush=True)
             payload = {'task_id': task_id, 'stage': stage, 'revision': self.meta(db, 'revision'),
-                       'source_hash': self.meta(db, 'source_hash'), 'review_round': round_number,
+                       'source_hash': self.meta(db, 'source_hash'), 'layout_policy': config.get('layout_normalization', 'off'), 'review_round': round_number,
                        'review_repair_origin': origin,
                        **self.repair_routing(config, group[0]['tier']),
                        'repair_counts': {r['id']: r['used'] + 1 for r in group}, 'language': {'source': config['source_language'], 'target': config['target_language']},

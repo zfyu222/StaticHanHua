@@ -59,7 +59,7 @@ DEFAULT = {
     'review_estimate': {'full_base_tokens': 420, 'pilot_base_tokens': 120,
                         'ascii_chars_per_token': 3, 'non_ascii_tokens_per_char': 2,
                         'translation_multiplier': 3},
-    'draft_scan_workers': 1,
+    'draft_scan_workers': 1, 'layout_normalization': 'exact_v1',
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
     'polish': False, 'max_attempts': 3, 'body_repair_round_limit': 6, 'sol_repair_model': 'gpt-6-sol', 'lease_seconds': 3600,
     'exclusions': [], 'stage_backends': {}, 'placeholder_family_overrides': {},
@@ -180,6 +180,8 @@ def merge_config(base, patch, nested=False):
 
 
 def validate_config(config):
+    if config.get('layout_normalization', 'off') not in ('off', 'exact_v1'):
+        raise ValueError('layout_normalization must be off or exact_v1')
     if config.get('escalation_backend', 'codex') not in ('codex', 'api'):
         raise ValueError('Unsupported escalation backend')
     constraints = config.get('record_constraints', {})
@@ -590,6 +592,8 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                            'glossary_version': self.meta(db, 'glossary'),
                            'terms': bridge.matched_terms(glossary, [t for r in group + context
                                                                   for t in (r['source'], r['metadata'].get('speaker', ''))], config, rules=rules) if glossary else []}
+                if stage in ('translate', 'pilot_translate', 'review', 'final_review', 'polish'):
+                    payload['layout_policy'] = config.get('layout_normalization', 'off')
                 if stage == 'translate':
                     receipt = self.meta(db, 'quality_approvals', {}).get('pilot', {})
                     accepted = self.root / f'reports/accepted/pilot_{receipt.get("report_hash", "")[:16]}/report.json'
@@ -608,6 +612,8 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                                                'metadata': row['metadata'],
                                                'exceptions': json.loads(row['exceptions']), 'protection': mapping})
                 if original is not None:
+                    if original.get('applicability_policy') == 1:
+                        payload['applicability_policy'] = 1
                     payload['entries'] = review_groups[group_index]
                     payload['related_entries'] = related_groups[group_index]
                     payload['term_families'] = glossary_families.batch_hints(
@@ -844,8 +850,15 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
         prior = db.execute('SELECT * FROM tasks WHERE id=?', (task_id,)).fetchone()
         if prior and isinstance(result.get('records'), list) and prior['stage'] in ('pilot_translate', 'pilot_review', 'translate', 'review', 'final_review', 'polish'):
             originals = {r['id']: r for r in json.loads(prior['payload'])['records']}
-            result = {**result, 'records': [self.inherit_exceptions(item, originals.get(item.get('id'), {}))
-                                          if isinstance(item, dict) else item for item in result['records']]}
+            prepared = []
+            for item in result['records']:
+                if isinstance(item, dict):
+                    item, audit = self.prepare_body_item(db, prior, item, originals.get(item.get('id'), {}))
+                    if audit and prior['status'] != 'done':
+                        self.event(db, 'normalize_layout', dict(audit, task=task_id, record_id=item['id']))
+                    item = self.inherit_exceptions(item, originals.get(item.get('id'), {}))
+                prepared.append(item)
+            result = {**result, 'records': prepared}
         if (prior and prior['status'] == 'done' and prior['lease_token'] == token
                 and prior['result'] == encoded(result) and prior['revision'] == self.meta(db, 'revision')):
             return {'status': 'already_submitted'}
@@ -1326,6 +1339,16 @@ def prompt(payload, *, api=False):
         else:
             common = common.replace('原样复制 task_id、input_hash 和 ID；',
                                     '任务标识及哈希由程序绑定，无需返回；出处使用输入 ordinal；')
+    if stage in ('extract', 'glossary_review'):
+        common += (' 只提取/保留游戏特有名称或确有游戏义的术语。普通代词、助动词、常用动词/形容词不因频繁出现就成为术语；'
+                   'I/like/back/might 等若只是普通词义应不提取或隔离。运行时标记优先由保护规则处理，不将裸字母扩成全局禁翻。'
+                   '确有游戏义且容易与普通词混淆时，提供 applicability={mode:text|whole_record|literal_context,'
+                   'case_sensitive:布尔值,reason:具体原文依据}；literal_context 还须给实际 prefix/suffix，不能编造语法。'
+                   'text 用于确属正文专名/术语，whole_record 只匹配完整标签，literal_context 只匹配指定紧邻字串。'
+                   '术语审校用 edits.patch.applicability 或有依据的 quarantine；不能仅承认风险却留下无范围的普通词。')
+    if payload.get('layout_policy') == 'exact_v1':
+        common += (' 首尾横向空白及段落数相同时的 CRLF/LF 编码由程序按绑定源文恢复；不要把这些视为翻译错误或改动理由。'
+                   '不得增删或移动段落；仍须核对文字、变量与标签，存在歧义则报告，不猜测格式位置。')
     schemas = {
         'extract': '返回 analysis={characters:[],terms:[],non_translate:[]}。条目含 source、evidence_rows（原文 ordinal）；'
                    'characters/terms 含 recommended_translation，人物含 gender（男性/女性/其他），'

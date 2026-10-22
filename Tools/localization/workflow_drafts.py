@@ -413,7 +413,7 @@ class DraftMixin:
             for group in groups:
                 task_id = prefix + 'draft-repair-' + uuid.uuid4().hex[:20]
                 payload = {'task_id': task_id, 'stage': stage, 'revision': self.meta(db, 'revision'),
-                           'source_hash': self.meta(db, 'source_hash'), 'strict_translation': True, 'draft_scan_key': key,
+                           'source_hash': self.meta(db, 'source_hash'), 'layout_policy': config.get('layout_normalization', 'off'), 'strict_translation': True, 'draft_scan_key': key,
                            'draft_repair_round': round_number,
                            **self.repair_routing(config, routes[group[0]['id']][1]),
                            'repair_counts': {r['id']: routes[r['id']][0] + 1 for r in group},

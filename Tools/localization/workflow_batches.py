@@ -286,6 +286,16 @@ class BatchMixin:
                 'tasks': {r['status']: r['n'] for r in db.execute('SELECT status,count(*) n FROM tasks WHERE revision=? GROUP BY status',
                                                                (self.meta(db, 'revision'),))}}
 
+    def prepare_body_item(self, db, task, item, original):
+        from workflow_review_evidence import expand_evidence
+        from workflow_format_normalize import normalize_body_item
+        item = expand_evidence(item)
+        payload = json.loads(task['payload'])
+        if payload.get('layout_policy') != 'exact_v1':
+            return item, None
+        row = db.execute('SELECT * FROM records WHERE id=?', (item['id'],)).fetchone()
+        return normalize_body_item(item, original, row, self.config(db), payload['layout_policy'])
+
     def _batch_session(self, db, task, token, worker, scope, round_number, reason=None, prepared_payload=None, resume_feedback=False):
         from translation_workflow import atomic_write, write_json
         from workflow_task_contract import render_protocol_input
@@ -416,9 +426,11 @@ class BatchMixin:
                 # Raw full source comes from the bound DB record, not protected display text.
                 source_row = db.execute('SELECT source FROM records WHERE id=?', (item['id'],)).fetchone()
                 item = restore_source_references(item, source_row['source'])
+                item, layout_audit = self.prepare_body_item(db, task, item, original)
                 item = self.inherit_exceptions(item, original)
             except ValueError as exc:
                 item = dict(item, _format_error=str(exc))
+                layout_audit = None
             prior = db.execute('SELECT item,instance,summary FROM batch_items WHERE task_id=? AND token=? AND record_id=?',
                                (task['id'], run['token'], item['id'])).fetchone()
             value = encoded(item)
@@ -427,6 +439,8 @@ class BatchMixin:
                 raise ValueError('Conflicting duplicate output part; use a repair handoff')
             if prior and prior['instance'] == run['worker'] and prior['item'] == value and prior['summary'] == summary:
                 continue
+            if layout_audit:
+                self.event(db, 'normalize_layout', dict(layout_audit, task=task['id'], record_id=item['id']))
             db.execute('INSERT OR REPLACE INTO batch_items VALUES (?,?,?,?,?,0,NULL,?)',
                        (task['id'], run['token'], item['id'], value, run['worker'], summary))
             db.execute('INSERT INTO record_lineage(task_id,token,record_id,stage,instance,action,item) VALUES (?,?,?,?,?,?,?)',

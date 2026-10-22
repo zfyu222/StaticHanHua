@@ -38,6 +38,8 @@ def validate_shape(analysis):
                 raise ValueError(f'Invalid source at {table}:{index}')
             if table != 'non_translate' and not isinstance(row.get('recommended_translation'), str):
                 raise ValueError(f'Invalid translation at {table}:{index}')
+            from workflow_term_scope import validate_applicability
+            validate_applicability(row)
 
 
 def source_rows(path):
@@ -73,6 +75,13 @@ def findings(analysis, texts):
                 flag('category', [ref], f'Unsupported AINiee category: {category}')
             if ' / ' in name:
                 flag('compound_source', [ref], 'Slash-separated alternatives may need separate source entries.')
+    from workflow_term_scope import scope_risk
+    for table in TABLES:
+        for index, row in enumerate(analysis[table]):
+            if scope_risk(row['source']) and not row.get('applicability'):
+                flag('ambiguous_applicability', [f'{table}:{index}'],
+                     'Ordinary word/single letter: quarantine unless a real game-specific meaning is evidenced; '
+                     'otherwise supply explicit applicability, case sensitivity and reason.')
     for refs in names.values():
         if len(refs) > 1:
             flag('duplicate_source', refs, 'Exact source collision across project tables (case-insensitive).')
@@ -165,6 +174,8 @@ def build(snapshot, source, decisions_path, output):
                     raise ValueError('patch must be an object.')
                 if any(key in patch for key in ('source', 'recommended_translation')) and not item.get('evidence_rows'):
                     raise ValueError('Source/translation edits need evidence_rows: ' + str(ref))
+                if 'applicability' in patch and not item.get('evidence_rows'):
+                    raise ValueError('Applicability edits need evidence_rows: ' + str(ref))
                 revised[table][index].update(patch)
                 after = copy.deepcopy(revised[table][index])
             mutations.append(dict(action=action, table=table, index=index, before=before, after=after,
@@ -181,6 +192,11 @@ def build(snapshot, source, decisions_path, output):
                               evidence=[dict(row=n, text=texts[n-1]) for n in item['evidence_rows']]))
     # Moving/splitting uses quarantine + additions so the original entry remains in the log.
     validate_shape(revised)
+    if revised.get('applicability_policy') == 1:
+        from workflow_term_scope import validate_applicability
+        for table in TABLES:
+            for row in revised[table]:
+                validate_applicability(row, required=True)
     final = findings(revised, texts)
     exceptions = {item['source'].casefold(): item['reason'] for item in decisions.get('allow_no_match', []) if str(item.get('reason', '')).strip()}
     for item in final:
