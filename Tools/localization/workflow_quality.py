@@ -805,7 +805,7 @@ class QualityMixin:
         receipt = self.meta(db, 'quality_approvals', {}).get('final', {})
         if receipt.get('report_hash') != report['report_hash']:
             raise ValueError('Current final quality closure required before export; unresolved disputes/findings cannot be skipped')
-        return {'report_hash': receipt['report_hash'], 'reviewer': 'sol'}
+        return {'report_hash': receipt['report_hash'], 'reviewer': receipt.get('reviewer', 'sol')}
 
     def reopen_body(self, task_id, reason, record_ids=None):
         """Return a rejected batch to a subagent, preserving attempt budgets and locks."""

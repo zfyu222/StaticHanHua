@@ -50,6 +50,8 @@ disposition 可为 pass/contextual/repair。一致性组提出 repair 时必须�
 
 当整轮所有结论都是 pass/contextual 时，sol-round-finish 才批准最终验收。一次提交完整通过文件的 approve-quality --kind final 仍兼容，但必须覆盖整轮且不能绕过已记录的 repair 问题。当前报告已经批准时返回 already_approved，不开始重复检查轮。export 仍执行完整交付门槛；实机检查在回填后完成。
 
+用户明确授权少量遗留由主对话直接处理时，可用 `quality-round-record-direct --decisions <JSON>` 记录至多16项的实际裁决。reviewer须使用真实 `main:` 身份，并写入 user_authorization；report_hash、覆盖范围、逐项理由及整轮关闭/派修门槛不变，不能冒充Sol。`restore-review-layout --file <JSON>` 仅用于暂停、无在途任务时的至多8条已失败候选：绑定源文/候选哈希，只恢复相同段落数量下的换行类型及边界空白，保留原始回复、修复前审校项和累计次数；另记人工格式复核归属。候选回到pending后仍须review-scan完整验收，不能直接标记通过。
+
 ## 正文后自动升级
 
 正文后的程序验收、独立审校及 Sol 最终验收所产生的修复链，按条目累计最多 6 轮常规修复（body_repair_round_limit 默认 6，最多 6）；首次翻译/首次审校不计入，任务格式或传输重试仍受 max_attempts=3 单任务限制。第 6 轮统一复查后仍失败，程序自动生成 repair_tier=sol、required_model=sol_repair_model（默认 gpt-6-sol）、automatic_escalation=true 的失败项任务；直接创建对应模型的新 Sol 子代理（fork_turns=none）执行，不请求用户批准追加轮次。batch-open 回执和输入包携带模型要求，必须按 required_model 派发，不能继续交给 Luna。Sol 修复继续整轮保存、整轮复查及失败 ID 定向处理；相同诊断持续失败时由 Sol 排查原文、术语例外或校验规则根因，不机械重复同一修改，也不借此放宽验收。主对话只调度与检查，不代写译文。Sol 任务使用 codex 后端，API 路线也转交 Sol 子代理，不用原 API 模型冒充升级。既有已完成修复轮及历史计数保留，不重置译文/审校证据，不修改在途任务。锁定冲突及执行故障仍须明确处理，但不得把常规修复超限当作向用户申请追加轮次的理由。

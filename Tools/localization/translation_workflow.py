@@ -1285,12 +1285,10 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             term_cache = {}
             for index, row in enumerate(records, 1):
                 exempt = {e['source'] for e in json.loads(row['exceptions'])}
-                source_text = row['source']
-                if source_text not in term_cache:
-                    term_cache[source_text] = bridge.matched_terms(analysis, [source_text], config, rules=rules)
+                terms = bridge.record_matched_terms(analysis, row, config, rules, term_cache)
                 if any(t['dst'] not in row['translation'] and t['src'] not in exempt
                        and not bridge.helper().is_keep_original_translation(t['dst'])
-                       for t in term_cache[source_text]):
+                       for t in terms):
                     raise ValueError('Final terminology validation failed: ' + row['id'])
                 if index % 1000 == 0 or index == total:
                     print(f'export progress: terminology validation {index}/{total}',
@@ -2019,6 +2017,7 @@ def main():
     p.add_argument('--workers', type=int, choices=range(1, 33), help='Override draft scan threads for this invocation')
     p = sub.add_parser('review-scan'); p.add_argument('--stage', choices=('pilot_review', 'review', 'final_review'), default='review'); p.add_argument('--prepare-repairs', action='store_true')
     p = sub.add_parser('restore-review-layout'); p.add_argument('--file', required=True)
+    p = sub.add_parser('quality-round-record-direct'); p.add_argument('--decisions', required=True)
     p = sub.add_parser('sol-round-record'); p.add_argument('--decisions', required=True)
     sub.add_parser('sol-round-finish')
     p = sub.add_parser('claim'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--worker', required=True)
@@ -2077,6 +2076,7 @@ def main():
         elif args.command == 'restore-review-layout':
             from workflow_layout_restore import restore_review_layout
             result = restore_review_layout(flow, read_json(args.file))
+        elif args.command == 'quality-round-record-direct': result = flow.record_direct_quality_round(read_json(args.decisions))
         elif args.command == 'sol-round-record': result = flow.record_sol_round(read_json(args.decisions))
         elif args.command == 'sol-round-finish': result = flow.finish_sol_round()
         elif args.command == 'claim':

@@ -113,14 +113,19 @@ class SolRoundMixin:
         self.require_review_round_complete(db, 'final_review' if self.config(db)['polish'] else 'review')
         return row
 
-    def record_sol_checks(self, db, decisions):
+    def record_sol_checks(self, db, decisions, *, direct=False):
         from translation_workflow import encoded, write_json
         if not isinstance(decisions, dict):
             raise ValueError('Sol decisions must be a JSON object')
         row = self.active_sol_round(db)
         report, saved = json.loads(row['report']), json.loads(row['decisions'])
         entries = decisions.get('decisions')
-        if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'sol'
+        if direct:
+            if (not isinstance(decisions.get('reviewer'), str) or not decisions['reviewer'].startswith('main:')
+                    or not isinstance(decisions.get('user_authorization'), str) or not decisions['user_authorization'].strip()
+                    or len(report['required_decisions']) > 16):
+                raise ValueError('Direct adjudication requires actual main identity, explicit user authorization and at most 16 checks')
+        if (decisions.get('report_hash') != report['report_hash'] or (not direct and decisions.get('reviewer') != 'sol')
                 or not isinstance(decisions.get('summary'), str) or not decisions['summary'].strip()
                 or not isinstance(entries, list) or not entries or any(not isinstance(e, dict) or not isinstance(e.get('id'), str) for e in entries)
                 or len({e.get('id') for e in entries}) != len(entries)):
@@ -139,7 +144,8 @@ class SolRoundMixin:
                 if not isinstance(ids, list) or not ids or any(not isinstance(i, str) for i in ids) or len(set(ids)) != len(ids) or not set(ids).issubset(allowed):
                     raise ValueError('Sol repair must name exact affected record IDs within this check')
                 entry = {**entry, 'record_ids': ids}
-            saved[record_id] = entry
+            saved[record_id] = ({**entry, 'reviewer': decisions['reviewer'],
+                                'user_authorization': decisions['user_authorization']} if direct else entry)
         db.execute('UPDATE sol_review_rounds SET decisions=? WHERE id=?', (encoded(saved), row['id']))
         write_json(self.root / f'reports/sol_rounds/round_{row["id"]:05d}.progress.json',
                    {'round': row['id'], 'report_hash': report['report_hash'], 'decisions': saved,
@@ -152,6 +158,12 @@ class SolRoundMixin:
         with self.db() as db:
             self.config(db)
             return self.record_sol_checks(db, decisions)
+
+    def record_direct_quality_round(self, decisions):
+        """User-authorized small adjudication, with the real reviewer recorded."""
+        with self.db() as db:
+            self.config(db)
+            return self.record_sol_checks(db, decisions, direct=True)
 
     def finish_sol_round(self):
         from translation_workflow import encoded, write_json
@@ -188,7 +200,8 @@ class SolRoundMixin:
                 result['repair_stop_reasons'] = {i: reason for i, reason in self.repair_stops(db, config).items() if i in blocked}
                 print(f'sol-round-finish progress: dispatch prepared; tasks={len(tasks)}; blocked={len(blocked)}', flush=True)
             else:
-                supplied = {'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': 'Completed Sol inspection round; explicit per-item decisions archived.',
+                reviewers = sorted({entry.get('reviewer', 'sol') for entry in decisions.values()})
+                supplied = {'report_hash': report['report_hash'], 'reviewer': ','.join(reviewers) if reviewers else 'workflow:no-disputes', 'summary': 'Completed inspection round; explicit per-item decisions and actual reviewer archived.',
                             'decisions': [decisions[i] for i in report['required_decisions']]}
                 result = self.accept_quality_in_transaction(db, 'final', report, supplied)
                 result['round'] = row['id']

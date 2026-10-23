@@ -284,6 +284,15 @@ def matched_terms(analysis, texts, options, *, rules=None):
     return matched
 
 
+def record_matched_terms(analysis, row, config, rules, cache):
+    """Share record-bound protection with final export, including its cache key."""
+    actual_rules = tuple(record_rules(row, config, rules))
+    key = (row['source'], actual_rules)
+    if key not in cache:
+        cache[key] = matched_terms(analysis, [row['source']], config, rules=actual_rules)
+    return cache[key]
+
+
 def patterns(named_curly=True, exclusions=(), family_overrides=None):
     module = load_script('analyze_placeholders')
     overrides = family_overrides or {}

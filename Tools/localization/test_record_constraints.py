@@ -46,6 +46,18 @@ class RecordConstraintTests(unittest.TestCase):
         self.assertTrue(route['automatic_escalation'])
         self.assertEqual(ReviewRoundMixin.repair_routing({}, 'sol')['required_model'], 'gpt-6-sol')
 
+    def test_export_matching_uses_bound_rules_without_cross_record_cache_leak(self):
+        suffix = '{NATHAN: player action without closing brace.'
+        row = {'id': 'bound', 'source': 'Narrative. ' + suffix}
+        config = {**self.config(row, literal_suffix=suffix), 'case_sensitive': False, 'whole_word': True}
+        glossary = {'terms': [{'source': 'player', 'recommended_translation': '玩家'}]}
+        cache = {}
+        self.assertEqual(bridge.record_matched_terms(glossary, row, config, [], cache), [])
+        other = dict(row, id='unbound')
+        terms = bridge.record_matched_terms(glossary, other, config, [], cache)
+        self.assertEqual([t['src'] for t in terms], ['player'])
+        self.assertEqual(len(cache), 2)
+
     def test_configure_retains_drafts_and_rejects_wrong_source_hash(self):
         f = fixtures.WorkflowTests(); f.setUp(); self.addCleanup(f.tearDown)
         f.freeze(True); f.translate(); flow = f.flow
