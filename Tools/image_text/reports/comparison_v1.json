@@ -1,0 +1,1349 @@
+{
+  "scope": "Purposive 20-image development challenge, four per category; not held-out or representative accuracy. English game assets plus two synthetic normal-text controls. Labels frozen before this experiment's predictions; some assets were seen in earlier development.",
+  "label_hash": "910f1daf2d8519f20db3867069fe44495d3deaf5dba2217d4808802736e66a98",
+  "cases": [
+    {
+      "id": "art_title",
+      "category": "art",
+      "source": "1211.png",
+      "expected": "LAKEVIEW CABIN III",
+      "note": "Angular narrow title",
+      "models": {
+        "paddle_raw": {
+          "text": "LAKEVIEW CABIN III",
+          "edit_distance": 0,
+          "reference_characters": 16,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "LAKEVIEW CABIN",
+          "edit_distance": 3,
+          "reference_characters": 16,
+          "cer": 0.1875,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "LAKEYVIEW CABIN III",
+          "edit_distance": 1,
+          "reference_characters": 16,
+          "cer": 0.0625,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "LAKEVIEW CABIN",
+          "edit_distance": 3,
+          "reference_characters": 16,
+          "cer": 0.1875,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "art_poster",
+      "category": "art",
+      "source": "0815.png",
+      "expected": "TREASURE OF THE VAMPIRE REDNECKS",
+      "note": "Outlined decorative poster lettering",
+      "models": {
+        "paddle_raw": {
+          "text": "TREASURE OFTHE",
+          "edit_distance": 15,
+          "reference_characters": 28,
+          "cer": 0.5357142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "TREASURE OFTHE",
+          "edit_distance": 15,
+          "reference_characters": 28,
+          "cer": 0.5357142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "TREASURE OF THE VAMPIRE REDNECKS",
+          "edit_distance": 0,
+          "reference_characters": 28,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "TREASURE OFTHE",
+          "edit_distance": 15,
+          "reference_characters": 28,
+          "cer": 0.5357142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "art_handwriting",
+      "category": "art",
+      "source": "1575.png",
+      "crop": [
+        0,
+        0,
+        255,
+        240
+      ],
+      "expected": "As I sit here at my final resting place, contemplating my last words, only one thing comes to mind. Fuck all of you... I'm burning down the factory and cursing the lake you sought to protect. May you never find peace when my blood still flows.",
+      "note": "Cursive red writing on textured paper; illegible signature cropped from both inputs",
+      "models": {
+        "paddle_raw": {
+          "text": "Ms Fsit here at my final resting place; contemplating my last words, only one thing comes to mind: Fuch all of you. I'm burning down the fuctory and oursing the lake you sought to protect. May you never finé peace when my blood still flows.",
+          "edit_distance": 6,
+          "reference_characters": 189,
+          "cer": 0.031746031746031744,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "Ms Fsit here at my final resting place; contemplating my last words, only one thing comes to mind: Fuch all of you. I'm burning down the fuctory and oursing the lake you sought to protect. May you never finé peace when my blood still flows.",
+          "edit_distance": 6,
+          "reference_characters": 189,
+          "cer": 0.031746031746031744,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "As I sit here at my final resting place, contemplating my last words, only one thing comes to mind: Fuck all of you. I'm burning down the factory and cursing the lake you sought to protect. May you never find peace when my blood still flows.",
+          "edit_distance": 0,
+          "reference_characters": 189,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "Ms Fsit here at my final resting place; contemplating my last word's, only one thing comes to mind: Fuch all of you. I'm burning down the fuctory and oursing the lske you sought to protect. May you never finé peace when my blood still flows.",
+          "edit_distance": 7,
+          "reference_characters": 189,
+          "cer": 0.037037037037037035,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "art_newspaper",
+      "category": "art",
+      "source": "1078.png",
+      "crop": [
+        0,
+        24,
+        240,
+        142
+      ],
+      "expected": "The Lakeview Post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+      "note": "Blackletter masthead and newspaper headline; decorative unreadable footer excluded from both inputs",
+      "models": {
+        "paddle_raw": {
+          "text": "The Lakebre b post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+          "edit_distance": 3,
+          "reference_characters": 56,
+          "cer": 0.05357142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "The Lakebre b post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+          "edit_distance": 3,
+          "reference_characters": 56,
+          "cer": 0.05357142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "The Lakeview Post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+          "edit_distance": 0,
+          "reference_characters": 56,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "The Lakebre b post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+          "edit_distance": 3,
+          "reference_characters": 56,
+          "cer": 0.05357142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "pixel_draw",
+      "category": "pixel",
+      "source": "0496.png",
+      "expected": "DRAW",
+      "note": "34x7 pixels; manually legible",
+      "models": {
+        "paddle_raw": {
+          "text": "BH",
+          "edit_distance": 4,
+          "reference_characters": 4,
+          "cer": 1.0,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "",
+          "edit_distance": 4,
+          "reference_characters": 4,
+          "cer": 1.0,
+          "exact": false,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "",
+          "edit_distance": 4,
+          "reference_characters": 4,
+          "cer": 1.0,
+          "exact": false,
+          "presence": "uncertain",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "",
+          "edit_distance": 4,
+          "reference_characters": 4,
+          "cer": 1.0,
+          "exact": false,
+          "presence": "no_text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "pixel_glitch",
+      "category": "pixel",
+      "source": "0130.png",
+      "expected": "ERROR! CAN YOU ZOOM OUT? ERROR!",
+      "primary_cer": false,
+      "note": "Fragmented glitch effect; full reference relies on earlier project transcription, so excluded from primary CER and exact-match metrics",
+      "models": {
+        "paddle_raw": {
+          "text": "\"℃F 3.7:0-1 CA . Y . U 20 0  .011 T 7 ERRUR",
+          "edit_distance": 16,
+          "reference_characters": 23,
+          "cer": 0.6956521739130435,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "3.7:0-1 CA Y . U .011 T 7 ERRUR",
+          "edit_distance": 15,
+          "reference_characters": 23,
+          "cer": 0.6521739130434783,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "",
+          "edit_distance": 23,
+          "reference_characters": 23,
+          "cer": 1.0,
+          "exact": false,
+          "presence": "uncertain",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "\"℃F 3 7 0-0 CA . YP .U 20 0  .011 T ？ ERRUR",
+          "edit_distance": 15,
+          "reference_characters": 23,
+          "cer": 0.6521739130434783,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "pixel_come_play",
+      "category": "pixel",
+      "source": "1131.png",
+      "expected": "COME PLAY",
+      "note": "Irregular thin pixel strokes",
+      "models": {
+        "paddle_raw": {
+          "text": "SOME",
+          "edit_distance": 5,
+          "reference_characters": 8,
+          "cer": 0.625,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "SOME",
+          "edit_distance": 5,
+          "reference_characters": 8,
+          "cer": 0.625,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "COME PLAY",
+          "edit_distance": 0,
+          "reference_characters": 8,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "SPOME",
+          "edit_distance": 6,
+          "reference_characters": 8,
+          "cer": 0.75,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "pixel_game_over",
+      "category": "pixel",
+      "source": "0379.png",
+      "expected": "GAME OVER",
+      "note": "70x7 pixels",
+      "models": {
+        "paddle_raw": {
+          "text": "GAMEOYER",
+          "edit_distance": 1,
+          "reference_characters": 8,
+          "cer": 0.125,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "GAMEOYER",
+          "edit_distance": 1,
+          "reference_characters": 8,
+          "cer": 0.125,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "STANDARD",
+          "edit_distance": 8,
+          "reference_characters": 8,
+          "cer": 1.0,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "",
+          "edit_distance": 8,
+          "reference_characters": 8,
+          "cer": 1.0,
+          "exact": false,
+          "presence": "no_text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "normal_ui",
+      "category": "normal",
+      "source": "0062.png",
+      "expected": "PRESS START/SPACE",
+      "note": "Regular readable game UI",
+      "models": {
+        "paddle_raw": {
+          "text": "PRESS START/SPACE",
+          "edit_distance": 0,
+          "reference_characters": 15,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "PRESS START/SPACE",
+          "edit_distance": 0,
+          "reference_characters": 15,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "PRESS START/SPACE",
+          "edit_distance": 0,
+          "reference_characters": 15,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "PRESS START/SPACE",
+          "edit_distance": 0,
+          "reference_characters": 15,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "normal_sign",
+      "category": "normal",
+      "source": "0272.png",
+      "expected": "FOR SALE",
+      "note": "Regular block capitals",
+      "models": {
+        "paddle_raw": {
+          "text": "FOR SALE",
+          "edit_distance": 0,
+          "reference_characters": 7,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "FOR SALE",
+          "edit_distance": 0,
+          "reference_characters": 7,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "FOR SALE",
+          "edit_distance": 0,
+          "reference_characters": 7,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "FOR SALE",
+          "edit_distance": 0,
+          "reference_characters": 7,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "normal_en",
+      "category": "normal",
+      "render": "en",
+      "expected": "Lakeview Cabin Collection\nPress SPACE to continue\nVolume: 75%",
+      "note": "Synthetic printed English control, Arial 28px",
+      "models": {
+        "paddle_raw": {
+          "text": "Lakeview Cabin Collection Press SPACE to continue Volume: 75%",
+          "edit_distance": 0,
+          "reference_characters": 51,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "Lakeview Cabin Collection Press SPACE to continue Volume: 75%",
+          "edit_distance": 0,
+          "reference_characters": 51,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "Lakeview Cabin Collection Press SPACE to continue Volume: 75%",
+          "edit_distance": 0,
+          "reference_characters": 51,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "Lakeview Cabin Collection Press SPACE to continue Volume: 75%",
+          "edit_distance": 0,
+          "reference_characters": 51,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "normal_zh",
+      "category": "normal",
+      "render": "zh",
+      "expected": "湖景小屋\n按空格键继续\n音量：75%",
+      "note": "Synthetic printed Chinese control, Noto Sans SC 28px",
+      "models": {
+        "paddle_raw": {
+          "text": "湖景小屋 按空格键继续 音量：75%",
+          "edit_distance": 0,
+          "reference_characters": 14,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "湖景小屋 按空格键继续 音量：75%",
+          "edit_distance": 0,
+          "reference_characters": 14,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "湖景小屋 按空格键继续 音量：75%",
+          "edit_distance": 0,
+          "reference_characters": 14,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "湖景小屋 按空格键继续 音量：75%",
+          "edit_distance": 0,
+          "reference_characters": 14,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "scene_rental",
+      "category": "scene",
+      "source": "0911.png",
+      "expected": "KILLER VIDEOS VHS RENTAL",
+      "note": "Storefront, brick pattern, dark area and miniature posters",
+      "models": {
+        "paddle_raw": {
+          "text": "KILLER VIDEOS VHS REHTAL + : 2 + 图 ÷  5",
+          "edit_distance": 4,
+          "reference_characters": 21,
+          "cer": 0.19047619047619047,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "KILLER VIDEOS VHS REHTAL",
+          "edit_distance": 1,
+          "reference_characters": 21,
+          "cer": 0.047619047619047616,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "KILLER VIDEOS VHS RENTAL",
+          "edit_distance": 0,
+          "reference_characters": 21,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "KILLER VIDEOS VHS REHTAL + : 2 + 图 ÷  5",
+          "edit_distance": 4,
+          "reference_characters": 21,
+          "cer": 0.19047619047619047,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "scene_bible",
+      "category": "scene",
+      "source": "0072.png",
+      "expected": "1 JOHN 3:14",
+      "note": "Low-contrast wall writing with wallpaper and window",
+      "models": {
+        "paddle_raw": {
+          "text": "JOHN 3:14",
+          "edit_distance": 1,
+          "reference_characters": 8,
+          "cer": 0.125,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "JOHN 3:14",
+          "edit_distance": 1,
+          "reference_characters": 8,
+          "cer": 0.125,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "1 JOHN 3:14",
+          "edit_distance": 0,
+          "reference_characters": 8,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "JOHN 3:14",
+          "edit_distance": 1,
+          "reference_characters": 8,
+          "cer": 0.125,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "scene_gas",
+      "category": "scene",
+      "source": "1625.png",
+      "expected": "GAS",
+      "note": "Small sign among building and roof textures",
+      "models": {
+        "paddle_raw": {
+          "text": "GAS",
+          "edit_distance": 0,
+          "reference_characters": 3,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "GAS",
+          "edit_distance": 0,
+          "reference_characters": 3,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "GAS",
+          "edit_distance": 0,
+          "reference_characters": 3,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "GAS",
+          "edit_distance": 0,
+          "reference_characters": 3,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "scene_screenshot",
+      "category": "scene",
+      "source_absolute": "C:/Users/zfyu2/AppData/Local/Temp/codex-clipboard-784bb8e7-2ebc-4f0f-8a56-c45b6ba7338d.jpg",
+      "expected": "The Lakeview Post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+      "score_roi": [
+        840,
+        155,
+        1600,
+        602
+      ],
+      "note": "Full 2560x1600 user screenshot, never cropped as model input; only clearly readable newspaper lettering scored, clock ornaments and decorative footer unscored",
+      "models": {
+        "paddle_raw": {
+          "text": "The LakeviehPost e upost INFANT NT KIDNAPPINGS PINGS CONTINUE! NUE! POLICE ARE BAFFLED AFFLED",
+          "edit_distance": 23,
+          "reference_characters": 56,
+          "cer": 0.4107142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": [
+            "M LI",
+            "1CLLII11C",
+            "[LILL",
+            "CLICLUICLLI",
+            "35",
+            "新",
+            "E",
+            "FH",
+            "Frr",
+            "MHTTTTI",
+            "FH",
+            "多",
+            "产",
+            "THL",
+            "H",
+            "Tr!"
+          ]
+        },
+        "paddle_06": {
+          "text": "The LakeviehPost e upost INFANT NT KIDNAPPINGS PINGS CONTINUE! NUE! POLICE ARE BAFFLED AFFLED",
+          "edit_distance": 23,
+          "reference_characters": 56,
+          "cer": 0.4107142857142857,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": [
+            "1CLLII11C",
+            "CLICLUICLLI",
+            "FH",
+            "Tr!"
+          ]
+        },
+        "qwen": {
+          "text": "The Lakeview Post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+          "edit_distance": 0,
+          "reference_characters": 56,
+          "cer": 0.0,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "The LakeviehPost INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED",
+          "edit_distance": 1,
+          "reference_characters": 56,
+          "cer": 0.017857142857142856,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": [
+            "M LI",
+            "[LILL",
+            "35",
+            "MHTTTTI",
+            "FH",
+            "THL",
+            "H",
+            "Tr!"
+          ]
+        }
+      }
+    },
+    {
+      "id": "none_sprite",
+      "category": "none",
+      "source": "0069.png",
+      "expected": "",
+      "note": "Tiny paired sprite shapes",
+      "models": {
+        "paddle_raw": {
+          "text": "– –",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "none_pumpkin",
+      "category": "none",
+      "source": "0086.png",
+      "expected": "",
+      "note": "Face-like strokes",
+      "models": {
+        "paddle_raw": {
+          "text": "e",
+          "edit_distance": 1,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "none_trees",
+      "category": "none",
+      "source": "0117.png",
+      "expected": "",
+      "note": "High-frequency leaves and branches",
+      "models": {
+        "paddle_raw": {
+          "text": "Y 福 Y E き男ゃ P 美",
+          "edit_distance": 9,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "Y 福 Y",
+          "edit_distance": 3,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    },
+    {
+      "id": "none_room",
+      "category": "none",
+      "source": "0255.png",
+      "expected": "",
+      "note": "Wallpaper grid, window and edges",
+      "models": {
+        "paddle_raw": {
+          "text": "日 \"",
+          "edit_distance": 1,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": false,
+          "presence": "text",
+          "unscored_text": []
+        },
+        "paddle_06": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "qwen": {
+          "text": "",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "no_text",
+          "unscored_text": []
+        },
+        "paddle_single": {
+          "text": "\"",
+          "edit_distance": 0,
+          "reference_characters": 0,
+          "cer": null,
+          "exact": true,
+          "presence": "text",
+          "unscored_text": []
+        }
+      }
+    }
+  ],
+  "aggregate": {
+    "all": {
+      "paddle_raw": {
+        "positive_images": 16,
+        "readable_text_predictions": 16,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 6,
+        "scorable_images": 15,
+        "character_errors": 62,
+        "reference_characters": 484,
+        "cer": 0.128099173553719,
+        "negative_images": 4,
+        "negative_text_predictions": 4,
+        "negative_uncertain": 0
+      },
+      "paddle_06": {
+        "positive_images": 16,
+        "readable_text_predictions": 15,
+        "uncertain": 0,
+        "false_no_text": 1,
+        "exact_images": 5,
+        "scorable_images": 15,
+        "character_errors": 62,
+        "reference_characters": 484,
+        "cer": 0.128099173553719,
+        "negative_images": 4,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "qwen": {
+        "positive_images": 16,
+        "readable_text_predictions": 14,
+        "uncertain": 2,
+        "false_no_text": 0,
+        "exact_images": 12,
+        "scorable_images": 15,
+        "character_errors": 13,
+        "reference_characters": 484,
+        "cer": 0.026859504132231406,
+        "negative_images": 4,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_single": {
+        "positive_images": 16,
+        "readable_text_predictions": 14,
+        "uncertain": 0,
+        "false_no_text": 2,
+        "exact_images": 5,
+        "scorable_images": 15,
+        "character_errors": 52,
+        "reference_characters": 484,
+        "cer": 0.10743801652892562,
+        "negative_images": 4,
+        "negative_text_predictions": 2,
+        "negative_uncertain": 0
+      }
+    },
+    "art": {
+      "paddle_raw": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 1,
+        "scorable_images": 4,
+        "character_errors": 24,
+        "reference_characters": 289,
+        "cer": 0.08304498269896193,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_06": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 0,
+        "scorable_images": 4,
+        "character_errors": 27,
+        "reference_characters": 289,
+        "cer": 0.09342560553633218,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "qwen": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 3,
+        "scorable_images": 4,
+        "character_errors": 1,
+        "reference_characters": 289,
+        "cer": 0.0034602076124567475,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_single": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 0,
+        "scorable_images": 4,
+        "character_errors": 28,
+        "reference_characters": 289,
+        "cer": 0.09688581314878893,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      }
+    },
+    "pixel": {
+      "paddle_raw": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 0,
+        "scorable_images": 3,
+        "character_errors": 10,
+        "reference_characters": 20,
+        "cer": 0.5,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_06": {
+        "positive_images": 4,
+        "readable_text_predictions": 3,
+        "uncertain": 0,
+        "false_no_text": 1,
+        "exact_images": 0,
+        "scorable_images": 3,
+        "character_errors": 10,
+        "reference_characters": 20,
+        "cer": 0.5,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "qwen": {
+        "positive_images": 4,
+        "readable_text_predictions": 2,
+        "uncertain": 2,
+        "false_no_text": 0,
+        "exact_images": 1,
+        "scorable_images": 3,
+        "character_errors": 12,
+        "reference_characters": 20,
+        "cer": 0.6,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_single": {
+        "positive_images": 4,
+        "readable_text_predictions": 2,
+        "uncertain": 0,
+        "false_no_text": 2,
+        "exact_images": 0,
+        "scorable_images": 3,
+        "character_errors": 18,
+        "reference_characters": 20,
+        "cer": 0.9,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      }
+    },
+    "normal": {
+      "paddle_raw": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 4,
+        "scorable_images": 4,
+        "character_errors": 0,
+        "reference_characters": 87,
+        "cer": 0.0,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_06": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 4,
+        "scorable_images": 4,
+        "character_errors": 0,
+        "reference_characters": 87,
+        "cer": 0.0,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "qwen": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 4,
+        "scorable_images": 4,
+        "character_errors": 0,
+        "reference_characters": 87,
+        "cer": 0.0,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_single": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 4,
+        "scorable_images": 4,
+        "character_errors": 0,
+        "reference_characters": 87,
+        "cer": 0.0,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      }
+    },
+    "scene": {
+      "paddle_raw": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 1,
+        "scorable_images": 4,
+        "character_errors": 28,
+        "reference_characters": 88,
+        "cer": 0.3181818181818182,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_06": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 1,
+        "scorable_images": 4,
+        "character_errors": 25,
+        "reference_characters": 88,
+        "cer": 0.2840909090909091,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "qwen": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 4,
+        "scorable_images": 4,
+        "character_errors": 0,
+        "reference_characters": 88,
+        "cer": 0.0,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_single": {
+        "positive_images": 4,
+        "readable_text_predictions": 4,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 1,
+        "scorable_images": 4,
+        "character_errors": 6,
+        "reference_characters": 88,
+        "cer": 0.06818181818181818,
+        "negative_images": 0,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      }
+    },
+    "none": {
+      "paddle_raw": {
+        "positive_images": 0,
+        "readable_text_predictions": 0,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 0,
+        "scorable_images": 0,
+        "character_errors": 0,
+        "reference_characters": 0,
+        "cer": null,
+        "negative_images": 4,
+        "negative_text_predictions": 4,
+        "negative_uncertain": 0
+      },
+      "paddle_06": {
+        "positive_images": 0,
+        "readable_text_predictions": 0,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 0,
+        "scorable_images": 0,
+        "character_errors": 0,
+        "reference_characters": 0,
+        "cer": null,
+        "negative_images": 4,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "qwen": {
+        "positive_images": 0,
+        "readable_text_predictions": 0,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 0,
+        "scorable_images": 0,
+        "character_errors": 0,
+        "reference_characters": 0,
+        "cer": null,
+        "negative_images": 4,
+        "negative_text_predictions": 0,
+        "negative_uncertain": 0
+      },
+      "paddle_single": {
+        "positive_images": 0,
+        "readable_text_predictions": 0,
+        "uncertain": 0,
+        "false_no_text": 0,
+        "exact_images": 0,
+        "scorable_images": 0,
+        "character_errors": 0,
+        "reference_characters": 0,
+        "cer": null,
+        "negative_images": 4,
+        "negative_text_predictions": 2,
+        "negative_uncertain": 0
+      }
+    }
+  },
+  "timing": {
+    "paddle_initialization_seconds": 9.746422199998051,
+    "paddle_image_processing_seconds": 5.3703128000488505,
+    "paddle_total_seconds": 15.124094200029504,
+    "qwen_wall_seconds": 48.268,
+    "qwen_requests": 20,
+    "qwen_cached": 0,
+    "qwen_model": {
+      "model": "qwen3-vl:8b-instruct-q4_K_M",
+      "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+      "runtime": "0.40.9"
+    },
+    "qwen_gpu": {
+      "name": "qwen3-vl:8b-instruct-q4_K_M",
+      "model": "qwen3-vl:8b-instruct-q4_K_M",
+      "size": 6588685352,
+      "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen3vl",
+        "families": [
+          "qwen3vl",
+          "clip"
+        ],
+        "parameter_size": "8.2B",
+        "quantization_level": "Q4_K_M"
+      },
+      "expires_at": "2026-10-23T21:58:58.393861+08:00",
+      "size_vram": 6588685352,
+      "context_length": 8192,
+      "runner": "llamacpp"
+    },
+    "qwen_usage": {
+      "prompt_eval_count": 27368,
+      "eval_count": 3083,
+      "total_duration": 47464473400
+    },
+    "qwen_failures": [],
+    "qwen_load_seconds": 5.343266,
+    "paid_api_requests": 0
+  },
+  "method": "CER: NFKC, casefold, retain letters/numbers, discard spacing/punctuation. Primary CER excludes fragmented glitch reference. Reading order from box geometry, not reference text. Qwen uncertain has empty transcription; counts as retained for review, not successful OCR. Threshold .6 is the existing screening setting, not tuned here; latin for the known English source and any for the Chinese control. Different existing preprocessing is part of the workflow comparison. No-text examples are not CER-scored."
+}

@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "scope": "Purposive 20-image development challenge, four per category; not held-out or representative accuracy. English game assets plus two synthetic normal-text controls. Labels frozen before this experiment's predictions; some assets were seen in earlier development.",
+  "source_root": "Projects/lakeview-cabin-collection/Analysis/image_audit/images",
+  "cases": [
+    {"id":"art_title","category":"art","source":"1211.png","expected":"LAKEVIEW CABIN III","note":"Angular narrow title"},
+    {"id":"art_poster","category":"art","source":"0815.png","expected":"TREASURE OF THE VAMPIRE REDNECKS","note":"Outlined decorative poster lettering"},
+    {"id":"art_handwriting","category":"art","source":"1575.png","crop":[0,0,255,240],"expected":"As I sit here at my final resting place, contemplating my last words, only one thing comes to mind. Fuck all of you... I'm burning down the factory and cursing the lake you sought to protect. May you never find peace when my blood still flows.","note":"Cursive red writing on textured paper; illegible signature cropped from both inputs"},
+    {"id":"art_newspaper","category":"art","source":"1078.png","crop":[0,24,240,142],"expected":"The Lakeview Post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED","note":"Blackletter masthead and newspaper headline; decorative unreadable footer excluded from both inputs"},
+    {"id":"pixel_draw","category":"pixel","source":"0496.png","expected":"DRAW","note":"34x7 pixels; manually legible"},
+    {"id":"pixel_glitch","category":"pixel","source":"0130.png","expected":"ERROR! CAN YOU ZOOM OUT? ERROR!","primary_cer":false,"note":"Fragmented glitch effect; full reference relies on earlier project transcription, so excluded from primary CER and exact-match metrics"},
+    {"id":"pixel_come_play","category":"pixel","source":"1131.png","expected":"COME PLAY","note":"Irregular thin pixel strokes"},
+    {"id":"pixel_game_over","category":"pixel","source":"0379.png","expected":"GAME OVER","note":"70x7 pixels"},
+    {"id":"normal_ui","category":"normal","source":"0062.png","expected":"PRESS START/SPACE","note":"Regular readable game UI"},
+    {"id":"normal_sign","category":"normal","source":"0272.png","expected":"FOR SALE","note":"Regular block capitals"},
+    {"id":"normal_en","category":"normal","render":"en","expected":"Lakeview Cabin Collection\nPress SPACE to continue\nVolume: 75%","note":"Synthetic printed English control, Arial 28px"},
+    {"id":"normal_zh","category":"normal","render":"zh","expected":"湖景小屋\n按空格键继续\n音量：75%","note":"Synthetic printed Chinese control, Noto Sans SC 28px"},
+    {"id":"scene_rental","category":"scene","source":"0911.png","expected":"KILLER VIDEOS VHS RENTAL","note":"Storefront, brick pattern, dark area and miniature posters"},
+    {"id":"scene_bible","category":"scene","source":"0072.png","expected":"1 JOHN 3:14","note":"Low-contrast wall writing with wallpaper and window"},
+    {"id":"scene_gas","category":"scene","source":"1625.png","expected":"GAS","note":"Small sign among building and roof textures"},
+    {"id":"scene_screenshot","category":"scene","source_absolute":"C:/Users/zfyu2/AppData/Local/Temp/codex-clipboard-784bb8e7-2ebc-4f0f-8a56-c45b6ba7338d.jpg","expected":"The Lakeview Post INFANT KIDNAPPINGS CONTINUE! POLICE ARE BAFFLED","score_roi":[840,155,1600,602],"note":"Full 2560x1600 user screenshot, never cropped as model input; only clearly readable newspaper lettering scored, clock ornaments and decorative footer unscored"},
+    {"id":"none_sprite","category":"none","source":"0069.png","expected":"","note":"Tiny paired sprite shapes"},
+    {"id":"none_pumpkin","category":"none","source":"0086.png","expected":"","note":"Face-like strokes"},
+    {"id":"none_trees","category":"none","source":"0117.png","expected":"","note":"High-frequency leaves and branches"},
+    {"id":"none_room","category":"none","source":"0255.png","expected":"","note":"Wallpaper grid, window and edges"}
+  ]
+}
