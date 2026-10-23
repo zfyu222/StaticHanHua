@@ -1,0 +1,199 @@
+{
+  "model": {
+    "model": "qwen3-vl:8b-instruct-q4_K_M",
+    "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+    "runtime": "0.40.9"
+  },
+  "requested": 8,
+  "requests": 8,
+  "cached": 0,
+  "completed": 8,
+  "failures": [],
+  "elapsed_seconds": 21.014,
+  "usage": [
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1227,
+        "eval_count": 65,
+        "total_duration": 6610775500,
+        "load_duration": 5269714900,
+        "prompt_eval_duration": 709804000,
+        "eval_duration": 603861000
+      }
+    },
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1186,
+        "eval_count": 55,
+        "total_duration": 1201950800,
+        "load_duration": 3200200,
+        "prompt_eval_duration": 501269000,
+        "eval_duration": 592680000
+      }
+    },
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1186,
+        "eval_count": 59,
+        "total_duration": 1196288100,
+        "load_duration": 2499700,
+        "prompt_eval_duration": 550618000,
+        "eval_duration": 527794999
+      }
+    },
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1216,
+        "eval_count": 165,
+        "total_duration": 2009340100,
+        "load_duration": 3501200,
+        "prompt_eval_duration": 544858000,
+        "eval_duration": 1357754000
+      }
+    },
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1226,
+        "eval_count": 422,
+        "total_duration": 3992558700,
+        "load_duration": 3499700,
+        "prompt_eval_duration": 527457999,
+        "eval_duration": 3374958000
+      }
+    },
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1206,
+        "eval_count": 56,
+        "total_duration": 1154731700,
+        "load_duration": 2999900,
+        "prompt_eval_duration": 545662000,
+        "eval_duration": 472586000
+      }
+    },
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1235,
+        "eval_count": 290,
+        "total_duration": 2929549400,
+        "load_duration": 2500200,
+        "prompt_eval_duration": 555868000,
+        "eval_duration": 2270114000
+      }
+    },
+    {
+      "cached": false,
+      "server": {
+        "prompt_eval_count": 1212,
+        "eval_count": 137,
+        "total_duration": 1798740400,
+        "load_duration": 2499900,
+        "prompt_eval_duration": 525399000,
+        "eval_duration": 1160707000
+      }
+    }
+  ],
+  "gpu": {
+    "name": "qwen3-vl:8b-instruct-q4_K_M",
+    "model": "qwen3-vl:8b-instruct-q4_K_M",
+    "size": 6588685352,
+    "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "qwen3vl",
+      "families": [
+        "qwen3vl",
+        "clip"
+      ],
+      "parameter_size": "8.2B",
+      "quantization_level": "Q4_K_M"
+    },
+    "expires_at": "2026-10-23T19:11:47.3947922+08:00",
+    "size_vram": 6588685352,
+    "context_length": 8192,
+    "runner": "llamacpp"
+  },
+  "paid_api_requests": 0,
+  "human_approval": false,
+  "successful_fresh_request_totals": {
+    "prompt_eval_count": 9694,
+    "eval_count": 1249,
+    "total_duration": 20893934700
+  },
+  "cases": [
+    {
+      "path": "0496.png",
+      "presence": "uncertain",
+      "reason": "The image contains pixelated shapes that resemble letters, but the resolution and pixelation make it impossible to reliably read any text. The shapes are ambiguous and could represent various characters or be non-textual patterns.",
+      "proposed_texts": []
+    },
+    {
+      "path": "0069.png",
+      "presence": "no_text",
+      "reason": "The image contains only pixelated shapes resembling eyes or windows, with no discernible text or readable characters. There are no textual elements visible in the image.",
+      "proposed_texts": []
+    },
+    {
+      "path": "0099.png",
+      "presence": "no_text",
+      "reason": "The image contains only pixelated shapes resembling a pair of pants and shoes, with no discernible readable text. There are no characters or symbols that form recognizable words or letters.",
+      "proposed_texts": []
+    },
+    {
+      "path": "1575.png",
+      "presence": "text",
+      "reason": "The image contains clearly legible red text on a parchment-like background, including phrases like 'As I sit here at my final resting place,' 'Fuck all of you,' and 'May you never find peace when my blood still flows.'",
+      "proposed_texts": [
+        "As I sit here at my final resting place, contemplating my last words, only one thing comes to mind: Fuck all of you. I'm burning down the factory and cursing the lake you sought to protect. May you never find peace when my blood still flows."
+      ]
+    },
+    {
+      "path": "1227.png",
+      "presence": "text",
+      "reason": "The image contains clearly legible text entries dated May 20th, June 3rd, June 10th, June 27th, and July 2nd, written in a pixelated font on lined paper. The text is readable and follows a consistent format.",
+      "proposed_texts": [
+        "May 20th\nBack at the camp. I really need to\nfix the holes in the new building\nbefore someone gets hurt.",
+        "June 3th\nSome kids say they heard\na baby screaming last night.\nProbably just to scare\nthe younger ones...",
+        "June 10th\nNew owner. Seemed to have a bit\nof a temper. Better to just stay out\nof the way and focus on my work.",
+        "June 27th\nI think there's something in the\nwater... Feeling kinda uneasy...",
+        "July 2nd\nA kid went missing last night.\nThe sheriff is shutting the camp\ndown until further notice.\nShould probably look for\na new job."
+      ]
+    },
+    {
+      "path": "0130.png",
+      "presence": "uncertain",
+      "reason": "The text appears heavily pixelated and distorted, making it impossible to reliably read any characters. The green text is fragmented and does not form coherent words or sentences.",
+      "proposed_texts": []
+    },
+    {
+      "path": "1078.png",
+      "presence": "text",
+      "reason": "The image contains clearly legible text in a pixelated font, including 'The Lakeview Post', 'INFANT KIDNAPPINGS CONTINUE!', and 'POLICE ARE BAFFLED'.",
+      "proposed_texts": [
+        "The Lakeview Post",
+        "INFANT",
+        "KIDNAPPINGS",
+        "CONTINUE!",
+        "POLICE ARE BAFFLED"
+      ]
+    },
+    {
+      "path": "1131.png",
+      "presence": "text",
+      "reason": "The image contains pixelated text that clearly reads 'COME PLAY' in two lines, with the letters being distinct and legible despite the low resolution.",
+      "proposed_texts": [
+        "COME",
+        "PLAY"
+      ]
+    }
+  ],
+  "scope": "Eight real local samples; full pipeline including OCR child exit. Semantic spot-check, not full transcription accuracy."
+}

@@ -1,0 +1,6 @@
+local Qwen 1/1; text; cached=0; elapsed=0.0s
+local Qwen 1/1; text; cached=1; elapsed=0.0s
+----------------------------------------------------------------------
+Ran 41 tests in 1.020s
+
+OK

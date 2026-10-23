@@ -1,0 +1,26 @@
+{
+  "model": {
+    "model": "qwen3-vl:8b-instruct-q4_K_M",
+    "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+    "runtime": "0.40.9"
+  },
+  "requested": 272,
+  "requests": 0,
+  "cached": 272,
+  "completed": 272,
+  "failures": [],
+  "elapsed_seconds": 33.734,
+  "gpu": null,
+  "paid_api_requests": 0,
+  "human_approval": false,
+  "successful_fresh_request_totals": {
+    "prompt_eval_count": 0,
+    "eval_count": 0,
+    "total_duration": 0
+  },
+  "fresh_request_totals": {
+    "prompt_eval_count": 0,
+    "eval_count": 0,
+    "total_duration": 0
+  }
+}

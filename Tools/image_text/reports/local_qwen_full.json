@@ -1,0 +1,73 @@
+{
+  "model": {
+    "model": "qwen3-vl:8b-instruct-q4_K_M",
+    "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+    "runtime": "0.40.9"
+  },
+  "requested": 272,
+  "requests": 272,
+  "cached": 0,
+  "completed": 272,
+  "failures": [],
+  "elapsed_seconds": 506.545,
+  "gpu": {
+    "name": "qwen3-vl:8b-instruct-q4_K_M",
+    "model": "qwen3-vl:8b-instruct-q4_K_M",
+    "size": 6588685352,
+    "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+    "details": {
+      "parent_model": "",
+      "format": "gguf",
+      "family": "qwen3vl",
+      "families": [
+        "qwen3vl",
+        "clip"
+      ],
+      "parameter_size": "8.2B",
+      "quantization_level": "Q4_K_M"
+    },
+    "expires_at": "2026-10-23T19:20:45.4641959+08:00",
+    "size_vram": 6588685352,
+    "context_length": 8192,
+    "runner": "llamacpp"
+  },
+  "paid_api_requests": 0,
+  "human_approval": false,
+  "successful_fresh_request_totals": {
+    "prompt_eval_count": 332093,
+    "eval_count": 35131,
+    "total_duration": 471840707400
+  },
+  "fresh_request_totals": {
+    "prompt_eval_count": 332093,
+    "eval_count": 35131,
+    "total_duration": 471840707400
+  },
+  "verdict_counts": {
+    "no_text": 137,
+    "text": 127,
+    "uncertain": 8
+  },
+  "pending_images": 0,
+  "development_positive_verdicts": {
+    "text": 81,
+    "uncertain": 2,
+    "not_queued": 1
+  },
+  "development_needs_attention": [
+    {
+      "path": "0130.png",
+      "presence": "uncertain"
+    },
+    {
+      "path": "0496.png",
+      "presence": "not_queued"
+    },
+    {
+      "path": "0220.png",
+      "presence": "uncertain"
+    }
+  ],
+  "scope": "272 selected/audit images after full 1666 image medium OCR. Remaining 1394 images not inspected by this VLM pass. Model no_text is not human confirmation. Known positives are development data, not held-out.",
+  "detailed_usage": "verification/medium_gpu/local_vlm/first_run_report.json and original raw replies"
+}

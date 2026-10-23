@@ -1,10 +1,45 @@
-# 游戏图片文字扫描工具 v0.3
+# 游戏图片文字扫描工具 v0.4
 
 用于静态汉化的图片文字发现、OCR提取和人工确认。输入已导出的图片目录，输出来源清单、原图文字框、OCR候选、疑难/漏检抽查队列、本地审核页，以及确认后的单列CSV与回填映射。独立于游戏引擎，不启动游戏、不操作桌面、不改输入图片、不自动翻译或部署。
 
 v0.3根据用户允许少量漏检的取舍，默认采用 `screened` 平衡筛选，实际排除低价值候选以减少多模态图片量。默认识别分数门槛0.6，保留具有合理文字形态的读法、两位以上数字及单个CJK等不区分大小写字母；空读法、乱码、孤立拉丁字母及重复字母形状可能被排除。识别分数不是正确率。原始结果不变，排除图片仍可抽查、手动救回或改用recall-first重新建队列。
 
-本轮通用配置保留353张，加30张抽查共383张；已知英文游戏可显式加 `--screen-script latin`，Lakeview保留182张，加30张抽查共212张，相较旧1410张明显减少。84张已知有字图片里漏掉1张特殊效果字（0130.png）；这是参与调参的开发样本，不是全游戏漏检率。32项回归和完整审核页测试通过，模型API调用0。新版审核页：`verification/v03/review.html`，对比报告 `reports/screening_v03.json`。
+v0.3的 CPU small 基线：通用配置保留353张，加30张抽查共383张；已知英文游戏加 `--screen-script latin` 时保留182张，加30张抽查共212张。84张已知有字图片里漏掉1张特殊效果字（0130.png）；这是开发样本，不是全游戏漏检率。该历史结果不能当作 medium 或 Qwen 的测试结果，详见 `reports/screening_v03.json`。
+
+## 本地 GPU：medium → Qwen
+
+官方型号名称是 `PP-OCRv6 medium`（用户所说 middle）。检测和识别都选择 medium，通过 RapidOCR + ONNX Runtime CUDA 运行。CUDA 初始化失败直接报错；不会悄悄退回 CPU。普通 `scan` 的默认仍是已有 CPU small，`local-pipeline` 固定使用 GPU medium。
+
+Qwen 使用 `qwen3-vl:8b-instruct-q4_K_M`，便携版 Ollama 提供本机推理。OCR 在独立子进程全量执行，退出后再启动 Qwen，不同时保留两套模型占用显存。默认仍只生成离线队列，只有显式运行以下本地命令才会推理；不会调用付费 API。
+
+```powershell
+Tools/image_text/setup-gpu.ps1
+Tools/Ollama/setup.ps1
+Tools/image_text/run-gpu.ps1 inventory --input D:/ExportedImages --out D:/ImageTextWork
+# 首次需要 --pull 下载模型，以后省略；英文游戏可显式使用 latin
+Tools/image_text/run-gpu.ps1 local-pipeline --out D:/ImageTextWork --pull --screen-script latin
+```
+
+默认 `screened`：全量 OCR 后，Qwen 处理筛选保留图片、20张未检出抽查和10张低信号抽查，每次一张。`--policy recall-first` 处理全部检测到文字框的图片并抽查；`--policy full-audit` 让 Qwen 看全部图片。只有全图模式才能逐张覆盖OCR排除图片，仍不能保证模型不漏字。`--limit 8` 可先测8张，重跑相同命令按模型摘要、图片、提示词和参数缓存接续，不重复推理已完成项。
+
+已扫描且已生成队列时，可单独运行 `local-vlm --out ...`。此命令不会替你等待其他手动启动的 OCR，须确保 OCR 已退出。顺序保证由 `local-pipeline` 提供。更换策略、输入或队列前使用独立输出目录，避免与既有审核/回复冲突。
+
+Qwen只判断有无可读文字、转写并提供区域，程序绑定图片与任务、恢复原图坐标、验证回复并导入审核页；原始回复保存在 `local_vlm/raw/`，用量/耗时和实际GPU驻留保存在 `local_vlm/report.json`。失败停止，支持重跑，未完成项保留pending。模型结果与no_text均不是人工确认，不会自动导出正式原文或改写游戏汉化进度。
+
+首次需下载 GPU 依赖、OCR medium 权重、便携运行环境及约6GB Qwen权重。环境与模型放在工作区且不入库；CPU和GPU环境分离。`verify_gpu.py --image ... --out ...` 可生成真正执行的CUDA内核记录，比只检查显卡名称或provider列表更可靠。
+
+官方资料：[PP-OCRv6各档模型](https://www.paddleocr.ai/latest/en/version3.x/algorithm/PP-OCRv6/PP-OCRv6.html)、[ONNX Runtime CUDA](https://onnxruntime.ai/docs/execution-providers/CUDA-ExecutionProvider.html)、[Ollama Windows](https://docs.ollama.com/windows)、[Qwen3-VL模型](https://ollama.com/library/qwen3-vl)。
+
+### 本轮实测（RTX 5080 16GB）
+
+- 1666张唯一图片全量 GPU medium OCR：297.897秒，3658个候选框，扫描错误0；实际检测/识别CUDA内核执行记录见 `reports/gpu_medium_smoke.json`。
+- 英文筛选0.6保留242张，加30张抽查，272张全部完成真实本地Qwen请求、坐标校验和建议导入：506.545秒，127张text、8张uncertain、137张no_text，导入错误0。模型驻留6,588,685,352字节，实际报告全部驻留GPU。付费接口请求0。
+- 84张已知有字开发样本：原检测均有框；筛选漏掉0496.png，剩余83张中Qwen判81张text、2张uncertain，没有判no_text。0496在额外8张专项测试中仍为uncertain；需在审核页搜索0496.png人工检查。0130.png、0220.png也仍需人工检查。不是独立测试集，也不是全游戏漏检率或转写正确率。
+- 首次真实测试发现模型返回空reason，严格校验拒绝导入；已保留真实失败夹具并加强非空schema/指令。修正后的8张专项测试全部完成，原始失败数据保留在 `verification/local_pilot/`，不伪装成成功。
+- 41项回归和真实输出审核页的无界面浏览器测试通过。正式游戏原文、译文和游戏文件未改写。
+- 272张完整真实缓存续跑全部命中，额外推理请求0，详见 `reports/local_qwen_cache_replay.json`；每条仍重新校验输入和队列绑定。
+
+完整原始结果及审核页：`verification/medium_gpu/review.html`；专项样本：`verification/local_pilot_v2/review.html`。精简可入库报告：`reports/medium_gpu_ocr.json`、`reports/local_qwen_pilot.json`、`reports/local_qwen_full.json`。主队列之外1394张未接受本轮Qwen逐张检查；不能把其余图片当作已确认无字。Qwen结果全部待人工确认，原OCR并列保留。
 
 ## 安装与运行
 

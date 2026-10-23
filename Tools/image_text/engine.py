@@ -10,17 +10,26 @@ ENGINE_VERSION = 3
 
 
 class Engine:
-    def __init__(self, threads=4, box_threshold=.35, language='ch'):
+    def __init__(self, threads=4, box_threshold=.35, language='ch', model_size='small', device='cpu'):
         from rapidocr import RapidOCR
         from rapidocr.utils.typings import LangRec, ModelType, OCRVersion
+        import onnxruntime as ort
+        if device not in ('cpu','cuda') or model_size not in ('tiny','small','medium'):
+            raise ValueError('Unsupported OCR device or size')
+        if device=='cuda':
+            if 'CUDAExecutionProvider' not in ort.get_available_providers():
+                raise RuntimeError('CUDA provider missing; use the isolated GPU environment')
+            ort.preload_dlls(directory='')
         params={
             'Global.log_level': 'error', 'Global.use_cls': False,
             'EngineConfig.onnxruntime.intra_op_num_threads': threads,
             'EngineConfig.onnxruntime.inter_op_num_threads': 1,
             'Det.box_thresh': box_threshold, 'Det.limit_side_len': 960, 'Det.limit_type': 'max',
             'Rec.lang_type': LangRec(language),
+            'Det.model_type':ModelType(model_size),'Rec.model_type':ModelType(model_size),
+            'EngineConfig.onnxruntime.use_cuda':device=='cuda',
         }
-        if language == 'en':
+        if language == 'en' and model_size=='small':
             # PP-OCRv6's bundled small recognizer is multilingual; the English-only
             # model is published under PP-OCRv5/mobile in the pinned backend.
             params.update({'Rec.ocr_version': OCRVersion.PPOCRV5, 'Rec.model_type': ModelType.MOBILE})
@@ -28,21 +37,29 @@ class Engine:
         # Load explicitly so fingerprints include actual selected model files, not just names.
         self.ocr._load_det_model()
         self.ocr._load_rec_model()
+        try:ort_version=importlib.metadata.version('onnxruntime-gpu')
+        except importlib.metadata.PackageNotFoundError:ort_version=importlib.metadata.version('onnxruntime')
         self.metadata = dict(adapter=ENGINE_VERSION, rapidocr=importlib.metadata.version('rapidocr'),
-                             onnxruntime=importlib.metadata.version('onnxruntime'), language=language,
+                             onnxruntime=ort_version, language=language,
                              numpy=importlib.metadata.version('numpy'), pillow=importlib.metadata.version('Pillow'),
                              opencv=importlib.metadata.version('opencv-python-headless'),
                              box_threshold=box_threshold, threads=threads, models={})
+        if model_size!='small' or device!='cpu':
+            self.metadata.update(model_size=model_size,device=device)
         for name in ('Det', 'Rec'):
             cfg = getattr(self.ocr.cfg, name)
             # RapidOCR engine config resolves the concrete path at initialization.
             model = self.ocr.text_det if name == 'Det' else self.ocr.text_rec
             session = model.session
+            providers=session.session.get_providers()
+            if device=='cuda' and (not providers or providers[0]!='CUDAExecutionProvider'):
+                raise RuntimeError(f'{name} did not initialize CUDA; refusing silent CPU fallback: {providers}')
             path = getattr(session.session, '_model_path', None)
             if path is None:
                 raise RuntimeError('Cannot determine model path for cache fingerprint')
             path = Path(path)
             self.metadata['models'][name] = dict(file=path.name, sha256=digest(path.read_bytes()))
+            if device=='cuda':self.metadata['models'][name]['providers']=providers
 
     def run(self, image, name, offset=(0, 0), scale=1):
         """Detect separately; recognize rectified lines without filtering any detected box."""

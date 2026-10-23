@@ -54,6 +54,14 @@ def prepare(out, max_jobs=100, negative_samples=20, low_signal_samples=10, seed=
             ordered.append(key)
             reasons[key] = ('scan_failed' if records[key]['errors'] else 'full_audit_not_detected' if not records[key]['regions']
                             else 'detected_text_image' if policy=='recall-first' else 'grouped_uncertain_regions')
+    # Do not replace the binding or crops underneath saved model findings.
+    if (out/'vision_findings.json').exists():
+        previous=read_json(out/'queue/jobs.json')
+        if (previous['scan_hash']!=digest(canonical(scan)) or previous['policy']!=policy or previous['seed']!=seed
+                or [x['image_id'] for x in previous['jobs']]!=ordered[:max_jobs]
+                or policy=='screened' and previous.get('screening',{})!={
+                    'score':screen_score,'script':screen_script,'kept':len(screened),'excluded':len(scan['images'])-len(screened)}):
+            raise ValueError('Saved findings bind this queue; use a separate output directory for changed settings')
     jobs = []
     for key in ordered[:max_jobs]:
         image, result = byid[key], records[key]

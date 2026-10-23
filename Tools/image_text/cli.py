@@ -12,7 +12,10 @@ def scan(args):
     from engine import Engine, analyze
     out = Path(args.out).resolve()
     manifest = read_json(out/'manifest.json')
-    engine = Engine(threads=args.threads, box_threshold=args.threshold, language=args.language)
+    options=dict(threads=args.threads,box_threshold=args.threshold,language=args.language)
+    if getattr(args,'model_size','small')!='small' or getattr(args,'device','cpu')!='cpu':
+        options.update(model_size=args.model_size,device=args.device)
+    engine = Engine(**options)
     engine_init_seconds=time.perf_counter()-invocation_started
     config = dict(engine=engine.metadata, profile=args.profile, sprite_crops=args.sprite_crops)
     fingerprint = digest(canonical(config))
@@ -134,12 +137,20 @@ def main():
     p.add_argument('--input', required=True)
     p.add_argument('--out', required=True)
     p.add_argument('--provenance', help='JSON mapping relative image paths to engine-specific source metadata')
+    p=commands.add_parser('local-vlm',help='Run local Qwen on an existing queue; OCR must already have exited')
+    p.add_argument('--out',required=True);p.add_argument('--limit',type=int);p.add_argument('--pull',action='store_true')
+    p=commands.add_parser('local-pipeline',help='Full GPU medium OCR, process exit, then local Qwen')
+    p.add_argument('--out',required=True);p.add_argument('--limit',type=int);p.add_argument('--pull',action='store_true')
+    p.add_argument('--screen-script',choices=['any','latin'],default='any')
+    p.add_argument('--policy',choices=['screened','recall-first','full-audit'],default='screened')
     p = commands.add_parser('scan')
     p.add_argument('--out', required=True)
     p.add_argument('--profile', choices=['fast', 'balanced', 'careful'], default='balanced')
     p.add_argument('--threads', type=int, default=4)
     p.add_argument('--threshold', type=float, default=.35)
     p.add_argument('--language', default='ch', help='RapidOCR language; default bundled Chinese/English-capable model')
+    p.add_argument('--model-size',choices=['tiny','small','medium'],default='small')
+    p.add_argument('--device',choices=['cpu','cuda'],default='cpu')
     p.add_argument('--limit', type=int)
     p.add_argument('--ids', help='JSON array of image hashes to scan')
     p.add_argument('--refresh', action='store_true', help='Explicitly recompute selected images; failed scans are always retried')
@@ -173,6 +184,19 @@ def main():
     p.add_argument('--out', required=True)
     p.add_argument('--truth', required=True)
     args = parser.parse_args()
+    if args.command in ('local-vlm','local-pipeline'):
+        if args.limit is not None and args.limit<1:parser.error('limit must be positive')
+        if args.command=='local-pipeline':
+            from pipeline import execute
+            execute(args.out,args.screen_script,args.policy,args.limit,args.pull)
+        else:
+            from local_vlm import run,MODEL
+            from ollama_server import Server
+            with Server() as server:
+                if args.pull:server.pull(MODEL)
+                run(args.out,server.endpoint,limit=args.limit)
+            review_page(args)
+        return
     if args.command == 'inventory':
         result = inventory(args.input, args.out, read_json(args.provenance) if args.provenance else None)
         print(json.dumps(dict(files=len(result['files']), unique=len(result['images']), errors=len(result['errors']))))
