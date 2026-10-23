@@ -62,6 +62,8 @@ StaticHanHua/
 
 **完成后必须**：将提取所用的技术栈、工具版本、关键步骤写入 `README.md`，并在项目目录提交 git（`git add {gamename}_text.csv README.md && git commit`，详见下方「Git 与 README 协作规范」）。
 
+**图片文字辅助提取**：菜单、美术字、标牌、便条等可能位于贴图中。图片导出后可用 `Tools/image_text/`（说明见 `Tools/image_text/README.md`）完成本地检测/OCR、候选复核及未检出抽查；检测框和识别结果分开保留。只有明确确认的原文才导出单列CSV，来源/坐标另存mapping，再进入正式翻译。未检出、模型高分、疑难队列生成均不代表已人工确认或全游戏无漏字；不得自动覆盖已有源文及翻译进度。在线多模态接入不属于当前v0.1默认行为。
+
 ### 第 2 步：翻译
 
 > 使用 `game-translate` Skill 完成翻译阶段。翻译仅提供 SubAgent（Codex 子代理）和 API（程序请求）两条路线，共用同一套流程与验收规则。内部规则与工具见该技能，不在基础文档展开。

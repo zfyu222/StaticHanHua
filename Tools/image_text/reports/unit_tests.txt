@@ -1,0 +1,18 @@
+test_balanced_rescues_a_negative_without_discarding_first_pass (test_workflow.WorkflowTests.test_balanced_rescues_a_negative_without_discarding_first_pass) ... ok
+test_conflicting_passes_preserve_both_readings (test_workflow.WorkflowTests.test_conflicting_passes_preserve_both_readings) ... ok
+test_csv_export_requires_confirmation_and_preserves_multiline_mapping (test_workflow.WorkflowTests.test_csv_export_requires_confirmation_and_preserves_multiline_mapping) ... ok
+test_dedupe_provenance_and_decode_failure (test_workflow.WorkflowTests.test_dedupe_provenance_and_decode_failure) ... ok
+test_failure_is_distinct_from_no_detection (test_workflow.WorkflowTests.test_failure_is_distinct_from_no_detection) ... ok
+test_invisible_rgb_is_canonical_but_visible_pixels_are_not (test_workflow.WorkflowTests.test_invisible_rgb_is_canonical_but_visible_pixels_are_not) ... ok
+test_manual_missed_text_coordinates_and_no_text_conflict (test_workflow.WorkflowTests.test_manual_missed_text_coordinates_and_no_text_conflict) ... ok
+test_no_recognition_does_not_discard_detection (test_workflow.WorkflowTests.test_no_recognition_does_not_discard_detection) ... ok
+test_overlap_tiles_cover_edges (test_workflow.WorkflowTests.test_overlap_tiles_cover_edges) ... ok
+test_queue_respects_budget_preserves_negatives_and_sends_nothing (test_workflow.WorkflowTests.test_queue_respects_budget_preserves_negatives_and_sends_nothing) ... ok
+test_resume_uses_cache_and_checks_snapshot_before_reusing (test_workflow.WorkflowTests.test_resume_uses_cache_and_checks_snapshot_before_reusing) ... ok
+test_source_coordinates_survive_sprite_crop (test_workflow.WorkflowTests.test_source_coordinates_survive_sprite_crop) ... ok
+test_strict_review_rejects_stale_duplicate_unknown_and_moved (test_workflow.WorkflowTests.test_strict_review_rejects_stale_duplicate_unknown_and_moved) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.246s
+
+OK

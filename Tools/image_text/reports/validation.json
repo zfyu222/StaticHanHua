@@ -1,0 +1,138 @@
+{
+  "tool_version": "0.1",
+  "date": "2026-10-23",
+  "unit_tests": {
+    "status": "passed",
+    "tests": 13,
+    "evidence": "unit_tests.txt"
+  },
+  "local_model": {
+    "config": {
+      "engine": {
+        "adapter": 3,
+        "rapidocr": "3.10.0",
+        "onnxruntime": "1.31.0",
+        "language": "ch",
+        "numpy": "2.5.4",
+        "pillow": "13.0.0",
+        "opencv": "5.0.0.93",
+        "box_threshold": 0.35,
+        "threads": 4,
+        "models": {
+          "Det": {
+            "file": "PP-OCRv6_det_small.onnx",
+            "sha256": "090f04abcd9d9a7498bc4ebf677e4cb9bdce1fe4197ddb7e529f1ef44e1ff94f"
+          },
+          "Rec": {
+            "file": "PP-OCRv6_rec_small.onnx",
+            "sha256": "6f327246b50388f3c176ae304bd95767ea6dc0c9ae92153ef8cbe210b3c14884"
+          }
+        }
+      },
+      "profile": "balanced",
+      "sprite_crops": false
+    },
+    "first_scan": {
+      "total_unique_images": 1666,
+      "scanned_images": 1666,
+      "not_scanned": 0,
+      "status": {
+        "not_detected": 276,
+        "needs_review": 1155,
+        "text_candidate": 235
+      },
+      "invocation": {
+        "computed_images": 1666
+      },
+      "wall_seconds": 455.875,
+      "online_requests": 0,
+      "regions": 3796,
+      "fingerprint": "4cdd63571603bb36193df6e8bec53d3c201262d8dd3fa8cb7ff948f5d00f8603",
+      "note": "not_detected does not mean confirmed_no_text; OCR scores are not calibrated correctness probabilities"
+    },
+    "cache_replay": {
+      "total_unique_images": 1666,
+      "scanned_images": 1666,
+      "not_scanned": 0,
+      "status": {
+        "not_detected": 276,
+        "needs_review": 1155,
+        "text_candidate": 235
+      },
+      "invocation": {
+        "cached_images": 1666
+      },
+      "wall_seconds": 13.494,
+      "engine_init_seconds": 1.532,
+      "scan_seconds": 11.916,
+      "online_requests": 0,
+      "regions": 3796,
+      "fingerprint": "4cdd63571603bb36193df6e8bec53d3c201262d8dd3fa8cb7ff948f5d00f8603",
+      "note": "not_detected does not mean confirmed_no_text; OCR scores are not calibrated correctness probabilities"
+    },
+    "review_identity_preserved": true
+  },
+  "sample_detection": {
+    "schema": 1,
+    "scope": "75 known-positive images from earlier human transcription and 12 manually inspected tiny no-text sprites; broad overlay boxes, not tight text annotations; development sample, not held-out or complete",
+    "evaluated": 87,
+    "unevaluated": 0,
+    "positive_images": 75,
+    "detected_positive_images": 75,
+    "stable_positive_candidates": 68,
+    "labeled_boxes": 118,
+    "hit_boxes": 101,
+    "negative_images": 12,
+    "false_positive_images": 11,
+    "stable_negative_candidates": 0,
+    "note": "Detection overlap is not transcription accuracy. No ground-truth negatives means false-positive rate unavailable; no full-game coverage claim."
+  },
+  "browser": {
+    "status": "passed",
+    "browser": "headless Edge",
+    "user_browser_control": false,
+    "checks": [
+      "load",
+      "resource search",
+      "select text region",
+      "confirm",
+      "image conclusion",
+      "draw missed region",
+      "download",
+      "reload review"
+    ],
+    "page_errors": []
+  },
+  "handoff": {
+    "mode": "offline_no_requests_sent",
+    "total_candidates": 3315,
+    "selected": 100,
+    "deferred": 3215,
+    "reserved_negative_audit": 20,
+    "negative_audit_candidates": 20
+  },
+  "online_model_requests": 0,
+  "paid_multimodal_adapter": "not_implemented_or_tested",
+  "game_files_modified": false,
+  "user_computer_control": false,
+  "limits": [
+    "75 positives/12 negatives are development samples, not a held-out benchmark.",
+    "Raw detector found candidates in 11/12 no-text sprites; none reached the stable-candidate tier. This is not proof of zero false positives.",
+    "101/118 broad known regions overlap detections; text presence is not full transcription accuracy.",
+    "1155/1666 images remain ambiguous. No unreviewed candidate is exported as confirmed text.",
+    "No complete negative ground truth, per-character accuracy benchmark or multilingual acceptance test."
+  ],
+  "code_sha256": {
+    "cli.py": "0985bc8ed795cd02450ecd6c7cc0cb64fc940f28f7be9b407a853d00240af361",
+    "core.py": "b2a2327041dce028220f403f49f4ab9f2452f2680fd172411cd0a57f9db89b11",
+    "engine.py": "2454637752888c5e5f590a6c30dec38aa7c4ec2854611aaf06be8824eab063da",
+    "prepare_lakeview.py": "17d0952b19151a43eddb6d4f9df6e69ab1a37deaf8b307d59a515c54e80ec5d5",
+    "report_validation.py": "fd72759a0aca766c83b6e83bc27162e9a71d0ff4be0c6cbed227c344f5886d68",
+    "review.py": "2af3893bc9c8c8dd7d171ccb413864f2e897638320996ff8518a438aff367877",
+    "review_template.html": "6a6c61a9c5dbc9ce451fbad0efc816811167e756951d529c57a5af43ed3bfbf7",
+    "run.ps1": "b72ea50e6a4770f6700706ab0cfca241739f4c36d64c86c892f4de7a93fd1b38",
+    "setup.ps1": "44495f11e7c1a5be5c0325599e495ba501ceb482175bdf0a3d07acddeab9d1fa",
+    "test_browser.cjs": "5e40ff70c9dc3ecf76b72a36aa7e04a0456b619a36167a8824c54cacc030ffc2",
+    "test_workflow.py": "413dd79bc28a0049ea23ad0286b2863dae4a6908052d9d8000a6fceb918e66b3"
+  }
+}
