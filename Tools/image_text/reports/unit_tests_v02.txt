@@ -1,0 +1,32 @@
+test_binding_stays_out_of_model_reply_and_raw_reply_is_preserved (test_handoff.HandoffTests.test_binding_stays_out_of_model_reply_and_raw_reply_is_preserved) ... ok
+test_budget_is_hard_and_zero_does_not_mean_completed (test_handoff.HandoffTests.test_budget_is_hard_and_zero_does_not_mean_completed) ... ok
+test_crop_coordinates_restored_and_require_explicit_confirmation (test_handoff.HandoffTests.test_crop_coordinates_restored_and_require_explicit_confirmation) ... ok
+test_full_audit_routes_every_image_even_if_nothing_was_detected (test_handoff.HandoffTests.test_full_audit_routes_every_image_even_if_nothing_was_detected) ... ok
+test_groups_multiple_regions_into_one_image_job (test_handoff.HandoffTests.test_groups_multiple_regions_into_one_image_job) ... ok
+test_idempotent_reimport_and_conflicting_results_are_protected (test_handoff.HandoffTests.test_idempotent_reimport_and_conflicting_results_are_protected) ... ok
+test_modified_crop_is_not_accepted (test_handoff.HandoffTests.test_modified_crop_is_not_accepted) ... ok
+test_modified_queue_and_context_are_not_accepted (test_handoff.HandoffTests.test_modified_queue_and_context_are_not_accepted) ... ok
+test_no_text_proposal_does_not_confirm_image_absence (test_handoff.HandoffTests.test_no_text_proposal_does_not_confirm_image_absence) ... ok
+test_partial_response_stays_pending_and_is_never_approval (test_handoff.HandoffTests.test_partial_response_stays_pending_and_is_never_approval) ... ok
+test_recall_first_includes_stable_candidates_and_never_drops_weak_sprites (test_handoff.HandoffTests.test_recall_first_includes_stable_candidates_and_never_drops_weak_sprites) ... ok
+test_recall_first_keeps_entire_image_to_rescue_undetected_words (test_handoff.HandoffTests.test_recall_first_keeps_entire_image_to_rescue_undetected_words) ... ok
+test_reject_unknown_duplicate_missing_and_empty_contracts_atomically (test_handoff.HandoffTests.test_reject_unknown_duplicate_missing_and_empty_contracts_atomically) ... ok
+test_triage_only_changes_priority_not_source_detection_or_review (test_handoff.HandoffTests.test_triage_only_changes_priority_not_source_detection_or_review) ... ok
+test_balanced_rescues_a_negative_without_discarding_first_pass (test_workflow.WorkflowTests.test_balanced_rescues_a_negative_without_discarding_first_pass) ... ok
+test_conflicting_passes_preserve_both_readings (test_workflow.WorkflowTests.test_conflicting_passes_preserve_both_readings) ... ok
+test_csv_export_requires_confirmation_and_preserves_multiline_mapping (test_workflow.WorkflowTests.test_csv_export_requires_confirmation_and_preserves_multiline_mapping) ... ok
+test_dedupe_provenance_and_decode_failure (test_workflow.WorkflowTests.test_dedupe_provenance_and_decode_failure) ... ok
+test_failure_is_distinct_from_no_detection (test_workflow.WorkflowTests.test_failure_is_distinct_from_no_detection) ... ok
+test_invisible_rgb_is_canonical_but_visible_pixels_are_not (test_workflow.WorkflowTests.test_invisible_rgb_is_canonical_but_visible_pixels_are_not) ... ok
+test_manual_missed_text_coordinates_and_no_text_conflict (test_workflow.WorkflowTests.test_manual_missed_text_coordinates_and_no_text_conflict) ... ok
+test_no_recognition_does_not_discard_detection (test_workflow.WorkflowTests.test_no_recognition_does_not_discard_detection) ... ok
+test_overlap_tiles_cover_edges (test_workflow.WorkflowTests.test_overlap_tiles_cover_edges) ... ok
+test_queue_respects_budget_preserves_negatives_and_sends_nothing (test_workflow.WorkflowTests.test_queue_respects_budget_preserves_negatives_and_sends_nothing) ... ok
+test_resume_uses_cache_and_checks_snapshot_before_reusing (test_workflow.WorkflowTests.test_resume_uses_cache_and_checks_snapshot_before_reusing) ... ok
+test_source_coordinates_survive_sprite_crop (test_workflow.WorkflowTests.test_source_coordinates_survive_sprite_crop) ... ok
+test_strict_review_rejects_stale_duplicate_unknown_and_moved (test_workflow.WorkflowTests.test_strict_review_rejects_stale_duplicate_unknown_and_moved) ... ok
+
+----------------------------------------------------------------------
+Ran 27 tests in 0.561s
+
+OK

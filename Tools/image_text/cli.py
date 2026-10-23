@@ -1,10 +1,8 @@
 """Reusable local image-text discovery workflow. Never modifies input or game assets."""
 import argparse
 from collections import Counter
-import importlib.metadata
 import json
 from pathlib import Path
-import random
 import time
 from core import canonical, digest, export_review, inventory, load_image, pixel_hash, read_json, validate_box, write_json
 
@@ -81,62 +79,9 @@ def review_page(args):
 
 
 def queue(args):
-    """Budgeted, offline handoff. No request is sent and no paid cost is incurred."""
-    out = Path(args.out)
-    manifest, scan = read_json(out/'manifest.json'), read_json(out/'scan.json')
-    items, negatives = [], []
-    byid = {x['image_id']: x for x in manifest['images']}
-    for image in scan['images']:
-        if image['status'] == 'scan_failed':
-            items.append(dict(image_id=image['image_id'], region_id=None, reason='scan_failed'))
-        elif not image['regions']:
-            negatives.append(image['image_id'])
-        for region in image['regions']:
-            if region['status'] == 'needs_review':
-                items.append(dict(image_id=image['image_id'], region_id=region['region_id'],
-                                  box=region['box'], reason='empty_low_score_or_disagreement', ocr_text=region['text']))
-    region_lookup={r['region_id']:r for image in scan['images'] for r in image['regions']}
-    def priority(item):
-        if item['region_id'] is None:return 0
-        region=region_lookup[item['region_id']]
-        if region['disagreement']:return 1
-        image=byid[item['image_id']]
-        return 3 if max(image['width'],image['height'])<=32 else 2
-    items.sort(key=priority)
-    # Deterministic strata by image area; negative audit cannot only sample low OCR scores.
-    negatives.sort(key=lambda key: byid[key]['width']*byid[key]['height'])
-    rng = random.Random(args.seed)
-    strata = [negatives[i*len(negatives)//3:(i+1)*len(negatives)//3] for i in range(3)]
-    chosen = []
-    while len(chosen) < min(args.negative_samples, len(negatives)):
-        for stratum in strata:
-            if stratum and len(chosen) < args.negative_samples:
-                chosen.append(stratum.pop(rng.randrange(len(stratum))))
-    # Put the reserved negative audit sample before difficult positives so it cannot be starved by budget.
-    ordered = [dict(image_id=key, region_id=None, reason='not_detected_audit_sample') for key in chosen]+items
-    jobs = []
-    for item in ordered[:args.max_jobs]:
-        job = dict(item, id=str(len(jobs)+1), context=f'images/{item["image_id"]}.png', sources=byid[item['image_id']]['sources'])
-        if 'box' in item:
-            im = load_image(out/job['context'])
-            x, y, right, bottom = item['box']
-            box = (max(0, int(x)-8), max(0, int(y)-8), min(im.width, int(right)+9), min(im.height, int(bottom)+9))
-            crop = f'queue/crops/{job["id"]}.png'
-            (out/crop).parent.mkdir(parents=True, exist_ok=True)
-            im.crop(box).save(out/crop)
-            job['crop'], job['crop_box'] = crop, list(box)
-        jobs.append(job)
-    result = dict(schema=1, scan_hash=digest(canonical(scan)), mode='offline_no_requests_sent',
-                  total_candidates=len(ordered), selected=len(jobs), deferred=max(0, len(ordered)-len(jobs)),
-                  reserved_negative_audit=sum(job['reason']=='not_detected_audit_sample' for job in jobs),
-                  negative_audit_candidates=len(chosen), seed=args.seed, jobs=jobs,
-                  instruction='Read only visible text, preserve line order; unreadable is uncertain, never invent. Use original-pixel boxes. Findings require human review; no response means pending.')
-    write_json(out/'queue/jobs.json', result)
-    write_json(out/'queue/input.json',dict(instruction=result['instruction'],records=[
-        {k:job[k] for k in ('id','context','crop','ocr_text') if k in job} for job in jobs],
-        response_contract=dict(records=[dict(id='1',presence='text|no_text|uncertain',text='only visibly readable text',reason='brief evidence')]),
-        note='Offline handoff only. Findings are not automatically accepted as human-confirmed text.'))
-    print(json.dumps({k:result[k] for k in ['mode', 'total_candidates', 'selected', 'deferred']}))
+    from handoff import prepare
+    result=prepare(args.out,args.max_jobs,args.negative_samples,getattr(args,'low_signal_samples',10),args.seed,getattr(args,'policy','recall-first'))
+    print(json.dumps({k:result[k] for k in ('mode','total_candidates','selected','deferred','raw_uncertain_regions','reserved_negative_audit','reserved_low_signal_audit')}))
 
 
 def benchmark(args):
@@ -204,7 +149,15 @@ def main():
     p.add_argument('--out', required=True)
     p.add_argument('--max-jobs', type=int, default=100)
     p.add_argument('--negative-samples', type=int, default=20)
+    p.add_argument('--low-signal-samples', type=int, default=10)
+    p.add_argument('--policy', choices=['recall-first','uncertain-only','full-audit'], default='recall-first')
     p.add_argument('--seed', type=int, default=42)
+    p = commands.add_parser('triage')
+    p.add_argument('--out', required=True)
+    p = commands.add_parser('import-findings')
+    p.add_argument('--out', required=True)
+    p.add_argument('--reply', required=True)
+    p.add_argument('--binding', help='Saved queue/binding.json; keeps long hashes out of model replies')
     p = commands.add_parser('export')
     p.add_argument('--out', required=True)
     p.add_argument('--review', required=True)
@@ -223,9 +176,18 @@ def main():
     elif args.command == 'review':
         review_page(args)
     elif args.command == 'queue':
-        if args.max_jobs < 1 or args.negative_samples < 0:
+        if args.max_jobs < 1 or args.negative_samples < 0 or args.low_signal_samples < 0:
             parser.error('invalid queue limits')
         queue(args)
+    elif args.command == 'triage':
+        from triage import prioritize
+        out=Path(args.out)
+        result=prioritize(read_json(out/'scan.json'),read_json(out/'manifest.json'))
+        write_json(out/'triage.json',result)
+        print(json.dumps(dict(Counter(x['priority'] for x in result['images']))))
+    elif args.command == 'import-findings':
+        from handoff import import_findings
+        print(json.dumps(import_findings(args.out,args.reply,args.binding)))
     elif args.command == 'export':
         print(json.dumps(export_review(args.out, args.review, args.csv)))
     elif args.command == 'benchmark':

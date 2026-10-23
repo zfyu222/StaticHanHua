@@ -1,0 +1,75 @@
+{
+  "version": "0.2",
+  "date": "2026-10-23",
+  "routing_policy": "recall-first",
+  "raw_scan_unchanged": true,
+  "total_images": 1666,
+  "all_detected_images": 1390,
+  "detected_images_dropped": 0,
+  "raw_not_detected_images": 276,
+  "not_detected_disposition": "pending_negative_bucket_not_confirmed_absent",
+  "review_priority": {
+    "audit": 276,
+    "normal": 358,
+    "low": 797,
+    "high": 235
+  },
+  "sample_priority": {
+    "known_positive": {
+      "high": 68,
+      "normal": 7
+    },
+    "known_negative": {
+      "low": 11,
+      "audit": 1
+    }
+  },
+  "old_region_tasks": 3315,
+  "new_image_tasks": 1410,
+  "old_selected_unique_images": 73,
+  "new_selected_unique_images": 100,
+  "selected_negative_audits": 20,
+  "selected_low_signal_audits": 10,
+  "deferred_image_tasks": 1310,
+  "tests": {
+    "status": "passed",
+    "count": 27
+  },
+  "browser": {
+    "status": "passed",
+    "browser": "headless Edge",
+    "user_browser_control": false,
+    "checks": [
+      "load",
+      "resource search",
+      "select text region",
+      "confirm",
+      "image conclusion",
+      "draw missed region",
+      "download",
+      "reload review"
+    ],
+    "page_errors": []
+  },
+  "proposal_import_ui": {
+    "status": "passed",
+    "checks": [
+      "offline proposal displayed",
+      "vision filter",
+      "manual confirmation",
+      "manual provenance retained on download"
+    ],
+    "synthetic_fixture": true,
+    "user_browser_control": false
+  },
+  "online_model_requests": 0,
+  "real_local_ocr_used": "Existing 1666-image inference evidence retained; no full-dataset rerun or changed detector claimed. Default model fingerprint and newspaper OCR separately compared with baseline and matched.",
+  "english_model_probe": "Four actual local images tested; high-score texture errors remain. Explicit en option only; default unchanged.",
+  "limits": [
+    "No proof of zero detection false negatives; raw not-detected images remain pending.",
+    "Low-priority status only schedules review; it does not remove any candidate.",
+    "75 positives/12 negatives are development samples, not a held-out benchmark.",
+    "Proposal import tests use synthetic offline fixtures, not real multimodal verdicts.",
+    "No paid API transport or actual provider cost comparison; task reduction is not a measured billing reduction."
+  ]
+}

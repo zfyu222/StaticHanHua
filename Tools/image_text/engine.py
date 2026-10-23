@@ -12,13 +12,19 @@ ENGINE_VERSION = 3
 class Engine:
     def __init__(self, threads=4, box_threshold=.35, language='ch'):
         from rapidocr import RapidOCR
-        self.ocr = RapidOCR(params={
+        from rapidocr.utils.typings import LangRec, ModelType, OCRVersion
+        params={
             'Global.log_level': 'error', 'Global.use_cls': False,
             'EngineConfig.onnxruntime.intra_op_num_threads': threads,
             'EngineConfig.onnxruntime.inter_op_num_threads': 1,
             'Det.box_thresh': box_threshold, 'Det.limit_side_len': 960, 'Det.limit_type': 'max',
-            'Rec.lang_type': language,
-        })
+            'Rec.lang_type': LangRec(language),
+        }
+        if language == 'en':
+            # PP-OCRv6's bundled small recognizer is multilingual; the English-only
+            # model is published under PP-OCRv5/mobile in the pinned backend.
+            params.update({'Rec.ocr_version': OCRVersion.PPOCRV5, 'Rec.model_type': ModelType.MOBILE})
+        self.ocr = RapidOCR(params=params)
         # Load explicitly so fingerprints include actual selected model files, not just names.
         self.ocr._load_det_model()
         self.ocr._load_rec_model()
