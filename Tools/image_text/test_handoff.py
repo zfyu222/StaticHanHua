@@ -26,7 +26,9 @@ class HandoffTests(unittest.TestCase):
 
     def tearDown(self):self.temp.cleanup()
 
-    def queue(self,**kw):return prepare(self.out,**kw)
+    def queue(self,**kw):
+        kw.setdefault('policy','recall-first')
+        return prepare(self.out,**kw)
 
     def reply(self,queue,job=None,presence='text'):
         job=job or queue['jobs'][0]

@@ -80,7 +80,8 @@ def review_page(args):
 
 def queue(args):
     from handoff import prepare
-    result=prepare(args.out,args.max_jobs,args.negative_samples,getattr(args,'low_signal_samples',10),args.seed,getattr(args,'policy','recall-first'))
+    result=prepare(args.out,args.max_jobs,args.negative_samples,getattr(args,'low_signal_samples',10),args.seed,
+                   getattr(args,'policy','screened'),getattr(args,'screen_score',.6),getattr(args,'screen_script','any'))
     print(json.dumps({k:result[k] for k in ('mode','total_candidates','selected','deferred','raw_uncertain_regions','reserved_negative_audit','reserved_low_signal_audit')}))
 
 
@@ -150,8 +151,14 @@ def main():
     p.add_argument('--max-jobs', type=int, default=100)
     p.add_argument('--negative-samples', type=int, default=20)
     p.add_argument('--low-signal-samples', type=int, default=10)
-    p.add_argument('--policy', choices=['recall-first','uncertain-only','full-audit'], default='recall-first')
+    p.add_argument('--policy', choices=['screened','recall-first','uncertain-only','full-audit'], default='screened')
+    p.add_argument('--screen-score',type=float,default=.6)
+    p.add_argument('--screen-script',choices=['any','latin'],default='any')
     p.add_argument('--seed', type=int, default=42)
+    p = commands.add_parser('screen-report')
+    p.add_argument('--out',required=True)
+    p.add_argument('--truth')
+    p.add_argument('--screen-script',choices=['any','latin'],default='any')
     p = commands.add_parser('triage')
     p.add_argument('--out', required=True)
     p = commands.add_parser('import-findings')
@@ -185,6 +192,12 @@ def main():
         result=prioritize(read_json(out/'scan.json'),read_json(out/'manifest.json'))
         write_json(out/'triage.json',result)
         print(json.dumps(dict(Counter(x['priority'] for x in result['images']))))
+    elif args.command == 'screen-report':
+        from screening import compare
+        out=Path(args.out)
+        result=compare(read_json(out/'scan.json'),read_json(out/'manifest.json'),read_json(args.truth) if args.truth else None,script=args.screen_script)
+        write_json(out/'screen_comparison.json',result)
+        print(json.dumps(result))
     elif args.command == 'import-findings':
         from handoff import import_findings
         print(json.dumps(import_findings(args.out,args.reply,args.binding)))

@@ -8,6 +8,17 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||path.join(process.env.US
  const page=await browser.newPage({viewport:{width:1500,height:1000},acceptDownloads:true});
  const errors=[];page.on('pageerror',error=>errors.push(String(error)));
  await page.goto(pathToFileURL(path.join(root,'review.html')).href);
+ let excludedFilterChecked=false;
+ if(await page.locator('#filter option[value="screen_excluded"]').count()){
+  await page.locator('#filter').selectOption('screen_excluded');
+  if(await page.locator('#images button').count()){
+   await page.locator('#images button').first().click();
+   assert.ok((await page.locator('#status').innerText()).includes('预测排除'));
+   assert.equal(await page.locator('#imageDecision').inputValue(),'unreviewed');
+   excludedFilterChecked=true;
+  }
+  await page.locator('#filter').selectOption('all');
+ }
  await page.locator('#search').fill('1078.png');
  await page.locator('#images button').first().click();
  await page.locator('#picture').evaluate(im=>im.decode());
@@ -31,7 +42,7 @@ const {chromium}=require(process.env.PLAYWRIGHT_MODULE||path.join(process.env.US
  await page.screenshot({path:path.join(root,'review-ui.png'),fullPage:true});
  assert.deepEqual(errors,[]);
  const checks={status:'passed',browser:'headless Edge',user_browser_control:false,
-  checks:['load','resource search','select text region','confirm','image conclusion','draw missed region','download','reload review'],page_errors:errors};
+  checks:['load','resource search','select text region','confirm','image conclusion','draw missed region','download','reload review'],excludedFilterChecked,page_errors:errors};
  fs.writeFileSync(path.join(root,'browser-test.json'),JSON.stringify(checks,null,2));
  console.log(JSON.stringify(checks));await browser.close();
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -18,12 +18,17 @@ def build_review(out):
     if triage and triage['scan_hash']!=digest(canonical(scan)):
         raise ValueError('Triage belongs to another scan')
     tiers={x['image_id']:x['priority'] for x in triage['images']} if triage else {}
+    screening=read_json(out/'screening.json') if (out/'screening.json').exists() else None
+    if screening and screening['scan_hash']!=digest(canonical(scan)):
+        raise ValueError('Screening belongs to another scan')
+    screened={x['image_id']:x for x in screening['images']} if screening else {}
     items = []
     for image in manifest['images']:
         item = dict(image)
         item.update(records.get(image['image_id'], dict(status='not_scanned', regions=[], errors=[])))
         item['vision']=proposals.get(image['image_id'],[])
         item['priority']=tiers.get(image['image_id'],'unassigned')
+        item['screen_keep']=screened.get(image['image_id'],{}).get('keep')
         item['regions']=list(item['regions'])+[p for row in item['vision'] for p in row['proposals']]
         items.append(item)
     data = dict(scan_hash=digest(canonical(scan)), images=items, inventory_errors=manifest['errors'])

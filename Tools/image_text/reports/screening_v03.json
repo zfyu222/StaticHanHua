@@ -1,0 +1,170 @@
+{
+  "version": "0.3",
+  "date": "2026-10-23",
+  "raw_ocr_unchanged": true,
+  "online_model_requests": 0,
+  "general_comparison": {
+    "schema": 1,
+    "script": "any",
+    "scan_hash": "ffd572cc664168fd602e0d26f1bff4a14884f5fddb380ad6e73e6ad0aaa11b33",
+    "rows": [
+      {
+        "score": 0.5,
+        "kept_images": 444,
+        "excluded_images": 1222,
+        "known_positive_images": 84,
+        "known_positive_misses": 1,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png"
+        ]
+      },
+      {
+        "score": 0.6,
+        "kept_images": 353,
+        "excluded_images": 1313,
+        "known_positive_images": 84,
+        "known_positive_misses": 1,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png"
+        ]
+      },
+      {
+        "score": 0.75,
+        "kept_images": 239,
+        "excluded_images": 1427,
+        "known_positive_images": 84,
+        "known_positive_misses": 2,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png",
+          "0234.png"
+        ]
+      },
+      {
+        "score": 0.85,
+        "kept_images": 182,
+        "excluded_images": 1484,
+        "known_positive_images": 84,
+        "known_positive_misses": 5,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png",
+          "0234.png",
+          "0323.png",
+          "0359.png",
+          "0496.png"
+        ]
+      }
+    ],
+    "scope": "Development sample only, not measured full-game recall or billing. Counts exclude audit add-ons."
+  },
+  "latin_comparison": {
+    "schema": 1,
+    "script": "latin",
+    "scan_hash": "ffd572cc664168fd602e0d26f1bff4a14884f5fddb380ad6e73e6ad0aaa11b33",
+    "rows": [
+      {
+        "score": 0.5,
+        "kept_images": 223,
+        "excluded_images": 1443,
+        "known_positive_images": 84,
+        "known_positive_misses": 1,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png"
+        ]
+      },
+      {
+        "score": 0.6,
+        "kept_images": 182,
+        "excluded_images": 1484,
+        "known_positive_images": 84,
+        "known_positive_misses": 1,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png"
+        ]
+      },
+      {
+        "score": 0.75,
+        "kept_images": 145,
+        "excluded_images": 1521,
+        "known_positive_images": 84,
+        "known_positive_misses": 2,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png",
+          "0234.png"
+        ]
+      },
+      {
+        "score": 0.85,
+        "kept_images": 129,
+        "excluded_images": 1537,
+        "known_positive_images": 84,
+        "known_positive_misses": 5,
+        "known_negative_images": 12,
+        "known_negative_passes": 0,
+        "missed_paths": [
+          "0130.png",
+          "0234.png",
+          "0323.png",
+          "0359.png",
+          "0496.png"
+        ]
+      }
+    ],
+    "scope": "Development sample only, not measured full-game recall or billing. Counts exclude audit add-ons."
+  },
+  "selected_policy": {
+    "policy": "screened",
+    "score": 0.6,
+    "script": "latin",
+    "kept": 182,
+    "excluded": 1484
+  },
+  "total_images": 1666,
+  "main_candidates": 182,
+  "audit_addons": 30,
+  "total_vision_candidates": 212,
+  "first_package": 100,
+  "deferred": 112,
+  "previous_vision_candidates": 1410,
+  "browser": {
+    "status": "passed",
+    "browser": "headless Edge",
+    "user_browser_control": false,
+    "checks": [
+      "load",
+      "resource search",
+      "select text region",
+      "confirm",
+      "image conclusion",
+      "draw missed region",
+      "download",
+      "reload review"
+    ],
+    "excludedFilterChecked": true,
+    "page_errors": []
+  },
+  "tests": {
+    "status": "passed",
+    "count": 32
+  },
+  "limitations": [
+    "84 positives and 12 negatives are development examples; no full-game false-negative rate measured.",
+    "One known image 0130.png (glitched ERROR artwork) is screened out at score 0.6.",
+    "Latin-script screening is appropriate only when source text is expected to use Latin script.",
+    "Filtering changes routing, not raw detection. Excluded images remain available to audit and rescue.",
+    "Image counts are not provider billing. No paid multimodal verdicts have been obtained."
+  ]
+}
