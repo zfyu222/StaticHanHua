@@ -1,6 +1,39 @@
-# 游戏图片文字扫描工具 v0.4
+# 游戏图片文字工具 v0.5
 
-三级工作流设计见 [WORKFLOW.md](WORKFLOW.md)：全量Paddle、难例Qwen、当前对话Agent争议裁决与看图验收。此为设计规范，自动路由尚未实现，下面的 `local-pipeline` 命令仍采用原有策略。
+三级流程见 [WORKFLOW.md](WORKFLOW.md)：全量Paddle、难例Qwen、当前对话Agent争议裁决与看图验收。新 `image_workflow.py` 已接入基础闭环；下面旧的 `local-pipeline` 命令保留原策略，不会自动重置旧队列。
+
+实现与实测范围见 [v0.5验收记录](reports/tiered_v05.md)。
+
+## 可选图片翻译与两个Skill
+
+项目开始由 `start-translate` 询问是否加入图片翻译，保存根目录 `localization_project.json` 的enabled/disabled/undecided。已有选择沿用，未答复不默认启用。初始化脚本支持 `--image-translation`。
+
+- 翻译前：[game-image-extract](../../.agents/skills/game-image-extract/SKILL.md)，三级抽取、Agent真实看图确认、单列CSV及来源坐标mapping。
+- 翻译后：[game-image-repack](../../.agents/skills/game-image-repack/SKILL.md)，校验正式图片译文、字体覆盖和排版，生成中文贴图或overlay资源，交引擎适配器。
+
+正式图片源文/译文在项目根目录，常规文本不变。`prepare-translation`在 `TranslateFiles/image-text/` 建立隔离子工程，复用game-translate；`collect-translation`校验导出哈希后收回译文。
+
+```powershell
+$py = 'Tools/image_text/.venv-gpu/Scripts/python.exe'
+$flow = 'Tools/image_text/image_workflow.py'
+# 项目初始化时已保存选择的，无需再次configure
+& $py $flow configure --project <项目> --choice enabled --reason '用户明确加入图片翻译'
+# 先用cli.py inventory得到图片快照，再执行：
+& $py $flow pipeline --project <项目> --out <项目/ImageText/work> --policy <实际校准策略JSON>
+& $py $flow agent-pack --out <work> --limit 20
+# 对话Agent实际看证据图后，导入它的真实回复：
+& $py $flow agent-import --out <work> --package <package.json> --reply <reply.json> --reviewer conversation_agent --model-label <用户当前模型标签>
+& $py $flow export --out <work> --csv <项目/game_images_text.csv>
+& $py $flow prepare-translation --project <项目> --source <项目/game_images_text.csv>
+# game-translate完成隔离子工程后：
+& $py $flow collect-translation --project <项目>
+```
+
+参数和策略示例见两个Skill。未知字体族默认不能跳过Qwen；极小可信文字可直接Agent。Agent包包含清晰逐图PNG、联系表、短编号和原图/候选绑定。普通候选仍需批量视觉验收才能正式导出；Agent确认与human确认分别记录。
+
+`build --out <work> --source <原文CSV> --translated <正式译文CSV> --validation <正式导出报告> --font <中文字体> --destination <新载荷目录> --mode texture|overlay` 使用CPU生成合入资源。检查preview.html/PNG和manifest；文字放不下会失败，overlay模式交运行时适配器。输出状态为ready_for_engine_adapter，installed=false，不能当作实机或部署通过。默认灰色蒙版alpha224，可变字重字体使用400；字体缺字拒绝构建。
+
+v0.5提高了合并器版本，会拒绝把旧设置的OCR缓存/审阅当作新扫描。旧工作目录和272张已保存Qwen证据不修改，升级试跑使用新目录。截图分块裁掉的后缀可并入完整行，冲突片段保留为带原框的替代证据；罗马数字III不再因重复字母规则直接被筛除。
 
 本地两模型的20张分层小样本对照见 [评测报告](reports/comparison_v1.md)：正常文字两者均全对，艺术字/场景字Qwen更完整，极小像素字双方都有明显失败。报告包含Paddle单图控制，单独说明分块合并重复；不将工具误差全部归因于模型。可运行 `compare_models.py all --work <新的实验目录>` 重现，并查看输出的 `comparison.html` 原图/参考/双模型对照。自定义标签用 `--cases <JSON>`；非拉丁文字的筛选配置须显式设 `script: "any"`。
 

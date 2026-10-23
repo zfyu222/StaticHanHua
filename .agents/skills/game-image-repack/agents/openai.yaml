@@ -1,0 +1,4 @@
+interface:
+  display_name: "游戏图片文字合入"
+  short_description: "校验正式图片译文并构建中文贴图或运行时覆盖层载荷与排版预览"
+  default_prompt: "使用 $game-image-repack 将已验收图片译文合入本游戏的图片载荷。"

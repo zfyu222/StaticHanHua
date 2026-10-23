@@ -1,8 +1,9 @@
 """Cost-oriented image screening. Rejected means predicted low value, never proven no text."""
 import unicodedata
+import re
 from core import canonical, digest
 
-SCREEN_VERSION=1
+SCREEN_VERSION=2
 
 
 def readable(region, score=.6, script='any'):
@@ -15,6 +16,7 @@ def readable(region, score=.6, script='any'):
     if len(chars)==1:
         # One CJK/other uncased letter can be a complete word or button caption.
         return script=='any' and unicodedata.category(chars[0])=='Lo'
+    if 2<=len(text)<=8 and re.fullmatch(r'(?=[MDCLXVI])M{0,3}(CM|CD|D?C{0,3})(XC|XL|L?X{0,3})(IX|IV|V?I{0,3})',text):return True
     return len({c.casefold() for c in chars})>=2 or all(c.isdecimal() for c in chars)
 
 

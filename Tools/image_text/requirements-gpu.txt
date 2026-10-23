@@ -1,3 +1,4 @@
 rapidocr==3.10.0
 onnxruntime-gpu[cuda,cudnn]==1.31.0
 Pillow==13.0.0
+fonttools==4.63.0

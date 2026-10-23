@@ -18,6 +18,8 @@ description: |
 
 ## 共同边界
 
+图片文字可选分支由 `game-image-extract` 提供已确认的 `{game}_images_text.csv` 与mapping。用 `Tools/image_text/image_workflow.py prepare-translation` 建立 `TranslateFiles/image-text/` 隔离子工程；以该子工程为本技能的project，其源文快照位于子工程根，图片逐条上下文见image_context.json。沿用用户已选路线/接口，执行相同术语、翻译、语义审校和导出门槛；不要在原项目的既有TranslateFiles/state中再次init。完成后collect-translation收回根目录图片译文，交 `game-image-repack`。只准备子工程不代表授权开始正文翻译。
+
 API 正文交接使用批内短编号（字符串 `1`、`2`…），模型仅返回 records 及本阶段实际字段，不抄写任务 ID、哈希或版本；程序通过 session 绑定映射恢复完整协议。占位符使用句内 `[P1]` 等短标记，原文冲突时自动换前缀。正式审校的真实证据要求保持不变。
 
 API 术语提取仅返回 analysis，术语审校仅返回 decisions；任务及来源/快照哈希由程序绑定。术语项用 e编号，冲突用 f编号，修改和隔离用 ref，关联项只读；reviewed_refs 从完整、不重复的 entry_reviews 恢复。仍须明确返回 review_complete、真实 summary、逐项四维证据与已核对冲突清单，程序不代填语义结论。输入过滤提取任务 ID 等追踪字段，保留候选、次数、出处和实际语义理由。新增条目仍输出实际 table、完整 row 及依据。

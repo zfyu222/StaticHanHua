@@ -6,7 +6,7 @@ import numpy as np
 from PIL import Image
 from core import digest, canonical, rect_of, merge_regions, region_id
 
-ENGINE_VERSION = 3
+ENGINE_VERSION = 5
 
 
 class Engine:

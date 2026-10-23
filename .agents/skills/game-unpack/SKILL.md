@@ -16,6 +16,7 @@ Extract readable text from game files as Step 1 of the 3-step StaticHanHua pipel
 2. **Identify the game engine** — check the game files to determine the engine.
 3. **Extract text** following the engine-specific guide below.
 4. **Save output** as `Projects/{GameName}/{gamename}_text.csv`.
+   用户启用图片文字翻译时，另导出可读图片及引擎资源/精灵来源清单，交 `game-image-extract` 在正式翻译前抽取和视觉确认。不要把OCR候选直接拼入常规原文CSV，也不要因未选择图片步骤就默认全量扫描图片。
 5. **Update README.md** — write extraction tech stack (tools, commands, key steps, issues encountered) into the 文本提取 / 技术栈 sections.
 6. **Commit to git** — in the project directory, stage the CSV + README and commit (README.md is the shared living doc maintained by all three steps; see workspace `CODEBUDDY.md` → Git 与 README 协作规范):
    ```powershell

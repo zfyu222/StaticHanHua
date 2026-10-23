@@ -37,7 +37,11 @@ StaticHanHua/
 └── .mcp.json          # MCP 服务器配置（含 REA + Ghidra MCP）
 ```
 
-## 汉化流程（四步走）
+## 汉化流程（图片文字步骤可选）
+
+项目开始时由 `start-translate` 询问是否加入图片文字翻译，并在根目录 `localization_project.json` 保存 enabled / disabled / undecided。用户已明确选择时沿用，不重复询问；未决定时可先做独立的常规解包，不能默认执行图片步骤。修改偏好不删除既有进度。
+
+主流程：初始化 → 常规文本提取 → **图片文字抽取（可选，game-image-extract）** → 正式翻译 → **图片文字合入（可选，game-image-repack）** → 引擎回填 → 发布。图片原文/译文在项目根目录独立保存，正式翻译复用同一套规范但隔离任务状态。
 
 ### 第 1 步：提取文本（解包）
 
@@ -68,6 +72,8 @@ StaticHanHua/
 
 ### 第 2 步：翻译
 
+启用图片步骤时，先使用 `game-image-extract` 完成三级抽取、对话Agent视觉裁决和确认导出，得到 `{gamename}_images_text.csv` 及 `.mapping.json`。工具 `Tools/image_text/image_workflow.py` 提供路由、选择性本地Qwen和Agent包；默认不把双模型一致当人工确认。图片翻译用 `TranslateFiles/image-text/` 隔离子工程复用 `game-translate`，导出校验后收回 `{gamename}_images_text_translated.csv`，不得重置常规文本翻译状态。
+
 > 使用 `game-translate` Skill 完成翻译阶段。翻译仅提供 SubAgent（Codex 子代理）和 API（程序请求）两条路线，共用同一套流程与验收规则。内部规则与工具见该技能，不在基础文档展开。
 
 开发、诊断或优化翻译流程本身时，使用 `translation-workflow-dev` Skill，遵循减少 API 模型机械负担、优先简单有效方案及基于数据验证的原则；实际翻译继续使用 `game-translate`。
@@ -95,6 +101,8 @@ StaticHanHua/
 **完成后必须**：将翻译方式、占位符/禁翻表、校验结果写入 `README.md` 的「翻译」节，并提交 git（`git add {gamename}_text_translated.csv README.md TranslateFiles/TranslateDoc.md && git commit`）。
 
 ### 第 3 步：打包回填
+
+启用图片步骤时，先使用 `game-image-repack` 验证正式图片译文与mapping，生成同尺寸中文贴图或运行时overlay清单并查看静态预览，再交本节引擎工具导入。工具输出 `ready_for_engine_adapter` 不等于已安装或实机通过；没有通用工具能把任意游戏的PNG/JSON直接视为补丁。
 
 > 使用 `game-repack` Skill 将翻译后的文本重新打包回游戏中。
 
@@ -277,8 +285,10 @@ StaticHanHua/
 |------|-----------|----------|-------------|
 | 初始化 | `start-translate` | `README.md` + `.gitignore`（脚本自动提交） | `初始化汉化项目工作区 (start-translate)` |
 | 提取 | `game-unpack` | `{gamename}_text.csv` + `README.md`（文本提取节） | `提取: 从 resources.assets 提取 1234 条文本` |
+| 图片提取（可选） | `game-image-extract` | `{gamename}_images_text.csv` + mapping + README + 策略/确认报告 | `提取: 完成图片文字视觉确认` |
 | 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateFiles/` 内适合入库的配置、术语审校及交付报告 | `翻译: 完成 SubAgent/API 翻译并校验通过` |
 | 回填 | `game-repack` | `README.md`（回填/已知问题节）+ 汉化产物（视体积） | `回填: 替换 12 个 TextAsset，游戏内验证通过` |
+| 图片合入（可选） | `game-image-repack` | README + 图片/overlay载荷清单（大图默认排除） | `回填: 构建图片文字载荷并静态检查` |
 | 发布 | `game-release-patch` | `README.md`（对外发布节）+ 小型说明/清单 | `发布: 生成 v1.0 对外汉化补丁` |
 
 ### 提交规范

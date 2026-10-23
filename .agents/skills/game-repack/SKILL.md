@@ -16,6 +16,8 @@ Repack translated text back into game files as Step 3 of the 3-step StaticHanHua
 
 ## Workflow
 
+项目启用图片文字翻译时，先由 `game-image-repack` 生成已校验中文贴图或overlay清单；本技能负责按真实Texture2D/Sprite/图集/运行时引用导入并整合最终载荷。`ready_for_engine_adapter`仅表示资源准备好，不能当成已安装或实机通过。用户明确要求自行测试时，下面的启动游戏检查改为提供具体测试步骤并记录用户结果，代理不控制桌面。
+
 1. **Read `README.md`** at `Projects/{GameName}/README.md` — it contains:
    - Game engine and version
    - Extraction tech stack (what was done in Step 1)

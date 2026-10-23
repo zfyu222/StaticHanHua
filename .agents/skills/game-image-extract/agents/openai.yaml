@@ -1,0 +1,4 @@
+interface:
+  display_name: "游戏图片文字抽取"
+  short_description: "使用Paddle、Qwen和对话Agent三级复核提取游戏图片原文并保存坐标"
+  default_prompt: "使用 $game-image-extract 提取并视觉确认本游戏的图片文字。"

@@ -3,6 +3,7 @@ import csv
 import hashlib
 import json
 import math
+import re
 from pathlib import Path
 from PIL import Image, ImageOps
 
@@ -89,18 +90,41 @@ def overlap(a, b):
 def merge_regions(candidates):
     """Keep disagreement evidence; merge overlapping passes, never merge adjacent lines."""
     merged = []
+    def partial(a,b):
+        if a['pass']==b['pass']:return False
+        aa,bb=a['box'],b['box']
+        common=max(0,min(aa[2],bb[2])-max(aa[0],bb[0]))*max(0,min(aa[3],bb[3])-max(aa[1],bb[1]))
+        area=lambda box:max(1e-6,(box[2]-box[0])*(box[3]-box[1]))
+        norm=lambda s:''.join(s.split()).casefold()
+        x,y=norm(a['text']),norm(b['text'])
+        small=a if area(aa)<area(bb) else b
+        clipped=re.fullmatch(r'tile-bg\d+-(\d+)-(\d+)',small['pass'])
+        clipped=bool(clipped and (abs(small['box'][0]-int(clipped[1]))<=2 or abs(small['box'][2]-(int(clipped[1])+768))<=2)
+                     and min(area(aa),area(bb))/max(area(aa),area(bb))<.7)
+        return bool(x and y and min(len(x),len(y))>=2 and ((x in y or y in x) or clipped)
+                    and common/min(area(aa),area(bb))>=.85
+                    and min(aa[3],bb[3])-max(aa[1],bb[1])>=.7*min(aa[3]-aa[1],bb[3]-bb[1]))
     for candidate in candidates:
-        target = next((x for x in merged if overlap(x['box'], candidate['box']) >= .55), None)
-        evidence = {k: candidate[k] for k in ('text', 'recognition_score', 'detection_score', 'pass')}
+        target = next((x for x in merged if overlap(x['box'], candidate['box']) >= .55 or partial(x,candidate)), None)
+        evidence = {k: candidate[k] for k in ('text', 'recognition_score', 'detection_score', 'pass','box')}
         if target is None:
             target = dict(candidate, alternatives=[evidence])
             merged.append(target)
         else:
+            contained=partial(target,candidate) and ''.join(target['text'].split()).casefold()!=''.join(candidate['text'].split()).casefold()
+            area=lambda x:(x['box'][2]-x['box'][0])*(x['box'][3]-x['box'][1])
+            longer=area(candidate)>area(target)
+            if contained:
+                if longer:
+                    for previous in target['alternatives']:
+                        if ''.join(previous['text'].split()).casefold() in ''.join(candidate['text'].split()).casefold():previous['partial_duplicate']=True
+                elif ''.join(candidate['text'].split()).casefold() in ''.join(target['text'].split()).casefold():evidence['partial_duplicate']=True
+                else:evidence['partial_competing_reading']=True
             target['alternatives'].append(evidence)
-            if candidate['recognition_score'] > target['recognition_score']:
+            if (contained and longer) or (not contained and candidate['recognition_score'] > target['recognition_score']):
                 target.update({k: candidate[k] for k in ('text', 'recognition_score', 'detection_score', 'box', 'polygon')})
     for row in merged:
-        words = {x['text'].strip().casefold() for x in row['alternatives'] if x['text'].strip()}
+        words = {x['text'].strip().casefold() for x in row['alternatives'] if x['text'].strip() and not x.get('partial_duplicate')}
         row['disagreement'] = len(words) > 1
         row['status'] = 'needs_review' if not row['text'].strip() or row['recognition_score'] < .85 or row['disagreement'] else 'candidate'
     return sorted(merged, key=lambda x: (round(x['box'][1]/8), x['box'][0]))
