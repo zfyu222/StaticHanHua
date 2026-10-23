@@ -1,0 +1,45 @@
+{
+  "scope": "Three real visual adjudication illustrations. Prior candidate answers were already known; not blind or held-out. This is not execution or validation of the planned three-tier router.",
+  "reviewer_type": "conversation_agent",
+  "actual_runtime_model_identifier": null,
+  "user_selected_model_label": "Sol 6.1",
+  "evidence_view": "verification/workflow_design/agent_checks.png",
+  "records": [
+    {
+      "id": "1",
+      "source": "Projects/lakeview-cabin-collection/Analysis/image_audit/images/0379.png",
+      "source_sha256": "bcb609ea2e057bb2f20944586a525dd66facfff4050140f69bc75e1c0fb9baab",
+      "image_id": "173ed19156e229a506e0f83d851e953bab1509cca0412ab92647e92f0657d766",
+      "transcription": "GAME OVER",
+      "decision": "rewrite",
+      "visible_evidence": "The sixth glyph has the diagonal pixel structure of V; eight block letters read GAME OVER.",
+      "status": "agent_visual_confirmed",
+      "written_to_game_source": false
+    },
+    {
+      "id": "2",
+      "source": "Projects/lakeview-cabin-collection/Analysis/image_audit/images/0496.png",
+      "source_sha256": "6524d043ee6ae89dee060fdf766eb38621891462d90c0e32d7ee9230d1dd230d",
+      "image_id": "6ea094357c59020bdc2b3d89704dc1da93fa0df77cf8b6566b9aada1159e9ba7",
+      "transcription": "DRAW",
+      "decision": "rewrite",
+      "visible_evidence": "Four green glyphs read D R A W; this is visibly a word, not BH.",
+      "status": "agent_visual_confirmed",
+      "written_to_game_source": false
+    },
+    {
+      "id": "3",
+      "source": "Projects/lakeview-cabin-collection/Analysis/image_audit/images/1211.png",
+      "source_sha256": "5c12a50f2e0be82c1a72c9a75a11498e2d58d95fcf7e6e32eaa7fa9f44ea6892",
+      "image_id": "eefb40515a1afc3a8e0b415cf4355eaf56cca0fc02aa2fb48e5e0160a01ba048",
+      "transcription": "LAKEVIEW\nCABIN\nIII",
+      "decision": "use_paddle",
+      "visible_evidence": "The title has no additional Y; three separate I glyphs appear below CABIN.",
+      "status": "agent_visual_confirmed",
+      "written_to_game_source": false
+    }
+  ],
+  "human_approval": false,
+  "paid_api_requests": 0,
+  "session_usage": "unknown"
+}
