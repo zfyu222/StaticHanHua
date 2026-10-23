@@ -1023,11 +1023,15 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             path = folder / 'built/glossary_reviewed.json'
             new = read_json(path)
             affected = []
+            from workflow_quality import glossary_revision_probes, glossary_match_meaning
+            probes = glossary_revision_probes(old, new)
             contexts = self.meta(db, 'contexts', {})
             rules = self.rules(db, config)
             for row in db.execute('SELECT * FROM records ORDER BY ordinal').fetchall():
                 texts = [row['source'], contexts.get(str(row['ordinal']), {}).get('speaker', '')]
-                if bridge.matched_terms(old, texts, config, rules=rules) != bridge.matched_terms(new, texts, config, rules=rules):
+                if probes is not None and not any(bridge.matched_terms(probe, texts, config, rules=rules) for probe in probes):
+                    continue
+                if glossary_match_meaning(bridge.matched_terms(old, texts, config, rules=rules)) != glossary_match_meaning(bridge.matched_terms(new, texts, config, rules=rules)):
                     if row['locked']:
                         raise ValueError('Unlock affected confirmed translations before revising glossary')
                     affected.append(row['id'])

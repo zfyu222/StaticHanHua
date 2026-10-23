@@ -17,6 +17,35 @@ GLOSSARY_CHECKS = ('source', 'translation', 'category', 'consistency')
 SOL_SCOPE_POLICY = 'disputes_only_v1'
 
 
+def glossary_match_meaning(matches):
+    # refs are list coordinates, not terminology semantics. Quarantining an
+    # earlier entry renumbers later refs without changing their actual meaning.
+    return [{k: v for k, v in item.items() if k != 'ref'} for item in matches]
+
+
+def glossary_revision_probes(old, new):
+    """Conservative source-match prefilter; callers still compare full results.
+
+    A row with no matching changed source cannot change its match result. Fall
+    back to the old full scan for duplicate identities or reordered common rows.
+    Keep original entries, including applicability and protected-token semantics.
+    """
+    tables = ('characters', 'terms', 'non_translate')
+    def inventory(value):
+        rows = [((table, row['source']), row) for table in tables for row in value.get(table, [])]
+        return [key for key, _ in rows], dict(rows)
+    old_order, a = inventory(old)
+    new_order, b = inventory(new)
+    if len(a) != len(old_order) or len(b) != len(new_order):
+        return None
+    common = set(a).intersection(b)
+    if [k for k in old_order if k in common] != [k for k in new_order if k in common]:
+        return None
+    changed = {k for k in set(a).union(b) if a.get(k) != b.get(k)}
+    return tuple({table: [row for row in value.get(table, []) if (table, row['source']) in changed]
+                  for table in tables} for value in (old, new))
+
+
 def signature(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                     separators=(',', ':')).encode()).hexdigest()
@@ -568,7 +597,13 @@ class QualityMixin:
         if stage == 'glossary_review':
             payload = json.loads(task['payload'])
             ordinals = {n for e in payload.get('entries', []) for n in e['row'].get('evidence_rows', [])}
-            ids.update(r['id'] for r in db.execute('SELECT id,ordinal FROM records') if r['ordinal'] in ordinals)
+            # A glossary entry normally cites only a few source rows. Avoid a
+            # full-corpus scan for every entry while preserving exact ID scope.
+            ordered = sorted(ordinals)
+            for start in range(0, len(ordered), 800):
+                cited = ordered[start:start + 800]
+                ids.update(r['id'] for r in db.execute(
+                    'SELECT id FROM records WHERE ordinal IN (' + ','.join('?' for _ in cited) + ')', cited))
         authored = db.execute('SELECT record_id,stage FROM quality_authors WHERE instance=?', (instance,)).fetchall()
         return not any(r['record_id'] in ids and r['stage'] in preceding for r in authored)
 

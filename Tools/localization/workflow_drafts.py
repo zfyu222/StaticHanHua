@@ -326,7 +326,11 @@ class DraftMixin:
                 matching_rules = self.rules(db, config)
                 def matched(analysis, source):
                     return sorted((t['src'], t['dst']) for t in bridge.matched_terms(analysis, [source], config, rules=matching_rules))
-                affected = {r['id'] for r in rows if matched(old, r['source']) != matched(new, r['source'])}
+                from workflow_quality import glossary_revision_probes
+                probes = glossary_revision_probes(old, new)
+                affected = {r['id'] for r in rows
+                            if (probes is None or any(matched(probe, r['source']) for probe in probes))
+                            and matched(old, r['source']) != matched(new, r['source'])}
                 affected.update(changed)
                 changed = [r['id'] for r in rows if r['id'] in affected]
         findings = {r['id']: json.loads(previous[r['id']]['finding']) for r in rows
