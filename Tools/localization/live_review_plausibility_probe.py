@@ -35,17 +35,19 @@ CANDIDATE_INSTRUCTION = (' 独立审校不能以术语命中、直译可对应�
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--output',required=True)
-    ap.add_argument('--arm',choices=('baseline','candidate','source_only','source_reference'),required=True)
+    ap.add_argument('--arm',choices=('baseline','legacy','candidate','source_only','source_reference'),required=True)
+    ap.add_argument('--held-out',action='store_true',help='Add unseen sense errors and literal controls; case kinds stay outside API input')
     ap.add_argument('--reading-report',help='Actual source-only result; required for the source_reference development arm')
     args=ap.parse_args()
-    if args.arm=='candidate':
+    if args.arm in ('candidate','legacy'):
         original_prompt=w.prompt
         def experimental_prompt(payload,*,api=False):
             instructions,data=original_prompt(payload,api=api)
             if payload['stage'] in ('review','final_review'):
-                if instructions.count(BASELINE_INSTRUCTION)!=1:
+                if instructions.count(w.REVIEW_MEANING_INSTRUCTION)!=1:
                     raise ValueError('Review policy changed; reassess this archived experiment before dispatch')
-                instructions=instructions.replace(BASELINE_INSTRUCTION,CANDIDATE_INSTRUCTION)
+                instructions=instructions.replace(w.REVIEW_MEANING_INSTRUCTION,
+                    BASELINE_INSTRUCTION if args.arm=='legacy' else CANDIDATE_INSTRUCTION)
             return instructions,data
         w.prompt=experimental_prompt
     repo=Path(__file__).resolve().parents[2];base=Path(args.output).resolve()
@@ -68,6 +70,17 @@ def main():
             'before':'变种人的头皮上长满浓密的胡须，他仔细地梳理着。'},
            {'kind':'new_bad_hair_sense','source':'She ran a hand over her close-cropped hair.',
             'before':'她用手抚过剪下来的头发。'}]
+    if args.held_out:
+        cases.extend([
+            {'kind':'held_out_bad_brows','source':'The scholar knitted her brows as she studied the map.',
+             'before':'学者一边研究地图，一边编织她的眉毛。'},
+            {'kind':'held_out_bad_lined_face','source':"Years at sea had left the captain's face deeply lined.",
+             'before':'多年的海上生活让船长的脸上画满了深深的线条。'},
+            {'kind':'held_out_correct_literal_lines','source':"The surgeon drew two lines on the patient's face.",
+             'before':'外科医生在病人的脸上画了两条线。'},
+            {'kind':'held_out_correct_literal_eyebrows',
+             'source':"The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+             'before':'女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。'}])
     base.mkdir(parents=True);project=base/'Review';project.mkdir()
     src=project/'cases_text.csv'
     with src.open('w',encoding='utf-8',newline='') as f:csv.writer(f).writerows([[c['source']] for c in cases])
@@ -96,7 +109,9 @@ def main():
     report={'arm':args.arm,'fixture_cases':cases,'wire_limit':wire_limit,
         'production_sha256_before':hashlib.sha256(translated_path.read_bytes()).hexdigest(),
         'workflow_module_sha256':hashlib.sha256(Path(w.__file__).read_bytes()).hexdigest(),
-        'experimental_instruction':CANDIDATE_INSTRUCTION if args.arm=='candidate' else None,
+        'experimental_instruction':(CANDIDATE_INSTRUCTION if args.arm=='candidate' else
+                                    BASELINE_INSTRUCTION if args.arm=='legacy' else None),
+        'held_out':args.held_out,
         'reading_report':args.reading_report if args.arm=='source_reference' else None,
         'fixture_note':'Developer copied translations, deliberately including historical errors. Empty glossary isolates review; no screenshot, diagnoses, expected corrections, or case kinds sent to API.'}
     calls=[0];lock=threading.Lock()

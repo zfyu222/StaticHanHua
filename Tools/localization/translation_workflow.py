@@ -42,6 +42,19 @@ from workflow_allocation import AllocationMixin, allocation_session
 from workflow_task_contract import WORKER_INSTRUCTION, output_template, render_protocol_input
 
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
+REVIEW_MEANING_INSTRUCTION = (
+    ' 独立审校先从每条原文确定谁对谁做什么、修饰语属于哪个对象及该语境的词义，再对照译文；'
+    '不要先为旧译寻找解释。accuracy检查词义、身体部位、施事/受事、动作结果及物理/比喻关系；'
+    'tone检查中文搭配。术语命中、逐字可对应或旧候选的判断均不能证明正确。'
+    '正反对照：He ran a hand over his stubbled scalp.中的stubbled修饰scalp，'
+    '应理解为手抚过留着短发茬的头皮；“布满胡茬的头皮”把脸部胡须搬到了头部，属于词义错误，必须修正，'
+    '不能只评为文风差异。His chin was covered in stubble.中的对象是chin，译为“下巴上长满胡茬”正确，应保留。'
+    '若原文明说The mutant\'s scalp was covered in a thick beard，则头皮长胡须是明确设定，应保留，不能按现实常识删改。'
+    '这些只是修饰关系的示例，不是关键词禁用表；对其他部位、物体、动作和多义词同样核对，'
+    '不能凭“这是奇幻游戏”替原文不支持的误译开脱，也不能把原文明说的异常当误译。'
+    '疑似不合常理或搭配别扭时，回查对应原文；确实改变词义或关系则修正并在accuracy证据与changes中举证。'
+    '短UI标签结合已有描述/资源信息判断人物特质还是物理状态；语境不足时明确报告疑点，不把猜测写成已证实。'
+    '正确且自然的译文保持不变，不为展示严格而改写；沿用现有六维证据，不增加输出字段、另写全文释义或新增一轮审校。')
 DEFAULT = {
     'workflow': 'custom', 'backend': 'codex', 'model': 'gpt-6-luna',
     'record_constraints': {}, 'escalation_backend': 'codex',
@@ -1359,10 +1372,7 @@ def prompt(payload, *, api=False):
             common += (' independent_source_reading是另一次只读原文的未审定API读法，可能有错，'
                        '只帮助发现词义分歧；以本条原文为准，不把它当标准答案，也不照抄其文风差异。'
                        '仅修复确实有误的原译，正确译文保持不变，仍须给出完整审校证据。')
-        common += (' 独立审校不能以术语命中、直译可对应或沿用候选判断为语义正确依据。accuracy核对词语实际修饰对象、'
-                   '身体部位、施事/受事及物理/比喻词义，例如stubbled scalp是短发茬头皮，不能搬用脸部胡茬；'
-                   'tone核对整句中文搭配是否自然。短UI标签结合已有描述/资源信息判断人物特质还是物理状态；'
-                   '语境不足时明确报告疑点，不把猜测写成已证实。只对具体问题举证，不新增一轮审校或冗余输出字段。')
+        common += REVIEW_MEANING_INSTRUCTION
     if stage in ('extract', 'glossary_review'):
         common += (' 优先检查全文关联的corpus_evidence_rows及对应完整原文；它们是候选定义/机制说明，不代表语义已经确认。'
                    '不能因词条本身很短就忽略原文已有定义。结合定义判断人物特质、物理状态、能力和普通词义，'
