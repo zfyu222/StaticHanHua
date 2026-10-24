@@ -176,5 +176,9 @@
     "Development/review_plausibility_baseline_20261024",
     "Development/review_plausibility_candidate_20261024",
     "Development/review_plausibility_source_only_20261024"
-  ]
+  ],
+  "follow_up": {
+    "report": "source_blind_resume_20261024.json",
+    "summary": "Source-only generation resumed successfully with correct target senses; using independent drafts as review context timed out, so the complete repair method remains unverified. Earlier history retained."
+  }
 }

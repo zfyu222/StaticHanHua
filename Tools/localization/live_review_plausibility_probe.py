@@ -35,7 +35,8 @@ CANDIDATE_INSTRUCTION = (' 独立审校不能以术语命中、直译可对应�
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument('--output',required=True)
-    ap.add_argument('--arm',choices=('baseline','candidate','source_only'),required=True)
+    ap.add_argument('--arm',choices=('baseline','candidate','source_only','source_reference'),required=True)
+    ap.add_argument('--reading-report',help='Actual source-only result; required for the source_reference development arm')
     args=ap.parse_args()
     if args.arm=='candidate':
         original_prompt=w.prompt
@@ -76,12 +77,27 @@ def main():
                         'pilot_translate':'api' if args.arm=='source_only' else 'codex','translate':'codex'},
         style='忠实原意，自然简体中文。保留原文明确的科幻奇幻设定；只修复明确错误，不为偏好改写。',
         game_background='科幻奇幻角色扮演游戏的叙事和对白。'))
+    if args.arm=='source_reference':
+        if not args.reading_report:raise ValueError('Source-reference arm needs a real source-only report')
+        reading_path=Path(args.reading_report).resolve()
+        if not reading_path.is_relative_to(repo/'Development'):
+            raise ValueError('Source reading must come from an isolated Development probe')
+        readings=w.read_json(reading_path)['after']
+        if (len(readings)!=len(cases) or any(r['ordinal']!=i+1 or r['source']!=c['source']
+                or not isinstance(r['translation'],str) or not r['translation'].strip()
+                for i,(r,c) in enumerate(zip(readings,cases)))):
+            raise ValueError('Independent reading source/ordinal mismatch or missing translation')
+        contexts={str(r['ordinal']):dict(independent_source_reading=r['translation'],
+            reading_provenance='Independent API draft generated from the source only. Unreviewed candidate, not an approved answer; it can contain errors. Compare with the source, preserve correct existing meanings, and do not copy stylistic differences.') for r in readings}
+        flow.pause(True);flow.replace_context(contexts,
+            'Development contrast: actual unreviewed blind readings supplied as fallible context; no human corrections');flow.pause(False)
     w.sync_api_batching(flow)
-    wire_limit=1 if args.arm=='source_only' else 2
+    wire_limit=1 if args.arm in ('source_only','source_reference') else 2
     report={'arm':args.arm,'fixture_cases':cases,'wire_limit':wire_limit,
         'production_sha256_before':hashlib.sha256(translated_path.read_bytes()).hexdigest(),
         'workflow_module_sha256':hashlib.sha256(Path(w.__file__).read_bytes()).hexdigest(),
         'experimental_instruction':CANDIDATE_INSTRUCTION if args.arm=='candidate' else None,
+        'reading_report':args.reading_report if args.arm=='source_reference' else None,
         'fixture_note':'Developer copied translations, deliberately including historical errors. Empty glossary isolates review; no screenshot, diagnoses, expected corrections, or case kinds sent to API.'}
     calls=[0];lock=threading.Lock()
     class BoundedAPI(bridge.AINieeAPI):

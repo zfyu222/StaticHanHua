@@ -1,0 +1,155 @@
+{
+  "date": "2026-10-24",
+  "status": "source_only_target_meanings_correct; assisted_review_timed_out_not_verified",
+  "method": "Public run_api(pilot_translate, resume=True) on the original failed isolated fixture, preserving all old requests/attempts. Current configured API and concurrency/thinking unchanged. No screenshots, old translation or proposed correction in the source-only wire input.",
+  "wire_input_verified": {
+    "records": 6,
+    "all_translations_null": true,
+    "no_proposed_chinese_answers": true,
+    "sha256": "3b0b1e08e589a036c7bad93c93fafcda645cbcc0e84d47d70180d56d19bb4942"
+  },
+  "manual_target_sense_checks": {
+    "actual_scalp_4147": "short scalp hair stubble, not beard: correct",
+    "actual_scalp_4257": "short scalp hair stubble, not beard: correct",
+    "scalp_control": "short scalp hair stubble: correct",
+    "chin_control": "beard stubble on chin: correct",
+    "explicit_mutant_control": "source explicitly gives beard on scalp; preserved: correct",
+    "close_cropped_control": "short attached hair, not cut-off hair: correct"
+  },
+  "scope_limit": "These are manual checks of the six target word senses, not a certification of all phrasing or full-game translation quality. Two actual cases repeat the same phrase; one source-only response is not a reliability estimate.",
+  "cases": [
+    {
+      "kind": "actual_bad_scalp_4147",
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "historical_or_control_translation": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+      "blind_translation": "但尽管他话说得难听，他的目光还是落在了你身上。端详着。斟酌着。他的嘴抿成一条不耐烦的线。\r\n\r\n“听着，”他一边说，一边用手摸了摸自己长着短发茬的头皮。“你藏得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费解答。”"
+    },
+    {
+      "kind": "actual_bad_scalp_4257",
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "historical_or_control_translation": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+      "blind_translation": "他盯着她，咬着嘴唇，显然在努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出一丝苦笑，转回身看向你。\r\n\r\n“听着，”他一边说，一边用手摸了摸自己长着短发茬的头皮。“你藏得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费解答。”"
+    },
+    {
+      "kind": "correct_scalp_control",
+      "source": "He ran a hand over his stubbled scalp.",
+      "historical_or_control_translation": "他用手抚过留着短发茬的头皮。",
+      "blind_translation": "他用手摸了摸自己长着短发茬的头皮。"
+    },
+    {
+      "kind": "correct_chin_control",
+      "source": "His chin was covered in stubble.",
+      "historical_or_control_translation": "他的下巴上长满胡茬。",
+      "blind_translation": "他下巴上满是胡茬。"
+    },
+    {
+      "kind": "source_explicit_fantasy_control",
+      "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+      "historical_or_control_translation": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+      "blind_translation": "那个变异体的头皮上长着浓密的胡须，他仔细地梳理着。"
+    },
+    {
+      "kind": "new_bad_hair_sense",
+      "source": "She ran a hand over her close-cropped hair.",
+      "historical_or_control_translation": "她用手抚过剪下来的头发。",
+      "blind_translation": "她用手抚过自己剪得很短的头发。"
+    }
+  ],
+  "known_usage": [
+    {
+      "prompt_tokens": 1358,
+      "completion_tokens": 4340,
+      "total_tokens": 5698,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": 0,
+        "audio_tokens": 0,
+        "cached_tokens": 0,
+        "reasoning_tokens": 4034,
+        "rejected_prediction_tokens": 0
+      },
+      "response_model": "deepseek-v4.1-flash"
+    }
+  ],
+  "new_actual_wire_requests": 2,
+  "new_wire_limit_combined": 2,
+  "known_tokens": 5698,
+  "unknown_usage_actual_wire_calls": 1,
+  "local_guard_note": "A recovery attempt after assisted-review timeout was blocked before transport. It is not a third actual API request; the timed-out request usage is unknown, not zero.",
+  "blind_resume_result": {
+    "accepted": 1,
+    "failed": 0,
+    "paused": false,
+    "needs_attention": [],
+    "pending_handoffs": [],
+    "next_action": "pilot-decide"
+  },
+  "blind_attempts_before": [
+    {
+      "id": "extract-r2-00001-95589069",
+      "stage": "extract",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "glossary_review-r2-00001-332b8685",
+      "stage": "glossary_review",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "pilot_translate-r2-00001-97f4bdb4",
+      "stage": "pilot_translate",
+      "status": "running",
+      "attempt": 2
+    }
+  ],
+  "blind_attempts_after": [
+    {
+      "id": "extract-r2-00001-95589069",
+      "stage": "extract",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "glossary_review-r2-00001-332b8685",
+      "stage": "glossary_review",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "pilot_translate-r2-00001-97f4bdb4",
+      "stage": "pilot_translate",
+      "status": "done",
+      "attempt": 3
+    }
+  ],
+  "reference_review_result": {
+    "accepted": 0,
+    "failed": 2,
+    "stage_clean": false,
+    "needs_attention": [
+      {
+        "session_id": "5119c11b1f2d4c3e9059a72844402394",
+        "error": "probe_wire_limit_before_transport"
+      }
+    ],
+    "pending_handoffs": [
+      {
+        "session_id": "5119c11b1f2d4c3e9059a72844402394",
+        "status": "waiting",
+        "input_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_reference_20261024\\Review\\TranslateFiles\\tasks\\review-r4-00001-3d8040e9\\handoffs\\5119c11b1f2d4c3e9059a72844402394\\input.md",
+        "result_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_reference_20261024\\Review\\TranslateFiles\\tasks\\review-r4-00001-3d8040e9\\handoffs\\5119c11b1f2d4c3e9059a72844402394\\result.json"
+      }
+    ]
+  },
+  "reference_review_method": "Actual independently generated drafts were supplied as unreviewed, fallible per-record context in a separate development fixture. No human answer injected; one review wire call timed out at configured 300s. No revised candidate accepted, so no evidence yet that existing wrong translations are fixed by this method.",
+  "causal_limit": "Same reported response_model as earlier failed reviews, but a different request/time and potentially relay behavior. Results are consistent with old-translation anchoring; they do not prove it is the sole cause.",
+  "production_translation_sha256": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "production_changed": false,
+  "validation": "23 existing evidence/API regression tests passed. Actual source-only input verified. All development requests ended, both fixtures publicly paused. No production auto-stage or full-game repair enabled.",
+  "artifacts": [
+    "Development\\review_plausibility_source_only_20261024\\resume_report_5071238f.json",
+    "Development/review_plausibility_source_reference_20261024/report.json",
+    "Development/resume_source_probe_20261024.py"
+  ]
+}

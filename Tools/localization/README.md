@@ -209,6 +209,8 @@ run-api 在拆批前同步 batching，通过现有 configure 修订机制只更�
 
 审校策略开发应另查[常识与词义对照验证](reports/review_plausibility_20261024.md)：程序接收的六维结果仍可能有明确语义错误。`live_review_plausibility_probe.py`在新Development目录中测试真实坏例、正确译法及原文明说的奇异情形；baseline/candidate最多各两次出站请求，source_only最多一次。candidate只在开发脚本内启用归档的失败实验，不改变正式提示词；策略或模型测试须报告漏检与误改，未改善时不能把程序通过当作优化有效。本次任务实际合计四次请求，不自动启动这些测试或增加正式游戏阶段。
 
+`source_reference --reading-report <Development中的实际盲核报告>`可在独立开发夹具中将API原文独立译法作为未审定参考，再审校旧译，最多一次出站请求；校验六条原文和记录号对应，不将参考认定为正确答案。接口恢复后的[接续结果](reports/source_blind_resume_20261024.md)仅确认独立生成能选对本组目标词义，后续审校请求超时，不能宣称闭环已通过，也未自动用于正式游戏。
+
 ## API 阶段执行与等待
 
 API 自动执行统一通过 `run_api_round.py`，由新的 Luna 执行代理管理一个阶段的常规多轮；主代理用原生 `wait_agent` 等待终结事件，不轮询进程或运行日志。具体派发模板及边界见 [API 阶段执行与等待](../../.agents/skills/game-translate/references/api_execution_wait.md)。
