@@ -1,0 +1,828 @@
+{
+  "date": "2026-10-24",
+  "status": "semantic_findings_observed_but_full_assisted_review_not_collected",
+  "method": "Resume the same paused assisted-review fixture through public run_api(review,resume=True), retaining actual unapproved blind readings, old translations, old timeout, partial output and counters. Current configured API; no model or concurrency override.",
+  "new_actual_wire_requests": 2,
+  "wire_limit": 2,
+  "reported_usage": [
+    {
+      "prompt_tokens": 3266,
+      "completion_tokens": 3634,
+      "total_tokens": 6900,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 1749,
+        "rejected_prediction_tokens": null
+      },
+      "response_model": "deepseek-flash",
+      "response_transport": "stream"
+    },
+    {
+      "prompt_tokens": 2996,
+      "completion_tokens": 3125,
+      "total_tokens": 6121,
+      "completion_tokens_details": {
+        "accepted_prediction_tokens": null,
+        "audio_tokens": null,
+        "reasoning_tokens": 2622,
+        "rejected_prediction_tokens": null
+      },
+      "response_model": "deepseek-flash",
+      "response_transport": "stream"
+    }
+  ],
+  "known_total_tokens": 13021,
+  "local_guard_note": "One further repair dispatch was blocked before transport. It is not a third actual API request; its unreported usage is not a missing server bill for this run.",
+  "semantic_observations": {
+    "actual_bad_scalp_4147": "First reply explicitly identified beard-vs-scalp error and proposed 留着短发茬的头皮. Later repair returned a complete candidate with that change.",
+    "actual_bad_scalp_4257": "First reply explicitly identified beard-vs-scalp error and proposed 满是短发茬的头皮, but did not supply a complete translation.",
+    "correct_scalp_control": "Explicit keep; original complete translation preserved.",
+    "correct_chin_control": "Explicit keep; original complete translation preserved.",
+    "explicit_mutant_control": "Explicit keep; source-supported beard-on-scalp retained.",
+    "close_cropped_error": "Correctly identified cut-short vs detached-hair error; complete revised translation missing."
+  },
+  "format_result": {
+    "initial_changed_rows_missing_translation": [
+      "1",
+      "2",
+      "6"
+    ],
+    "valid_controls_preserved": 3,
+    "complete_repaired_candidates_saved": 1,
+    "remaining_incomplete_rows": [
+      "2",
+      "6"
+    ],
+    "stage_clean": false,
+    "why_not_complete": "Missing full translation is rejected, not reconstructed from prose reasons or automatically copied from an independent draft. Two actual requests reached the bounded test cap; remaining repair parts retained."
+  },
+  "raw_wire_matches_parsed_reply": true,
+  "actual_initial_reply": {
+    "records": [
+      {
+        "id": "1",
+        "reason": {
+          "ref": "e1"
+        },
+        "checks": {
+          "accuracy": [
+            "corrected",
+            {
+              "ref": "e1"
+            }
+          ],
+          "completeness": [
+            "pass",
+            {
+              "ref": "e2"
+            }
+          ],
+          "terminology": [
+            "not_applicable",
+            {
+              "ref": "e3"
+            }
+          ],
+          "tone": [
+            "pass",
+            {
+              "ref": "e4"
+            }
+          ],
+          "logic": [
+            "pass",
+            {
+              "ref": "e5"
+            }
+          ],
+          "placeholders": [
+            "not_applicable",
+            {
+              "ref": "e6"
+            }
+          ]
+        },
+        "changes": [
+          {
+            "category": "accuracy",
+            "severity": "minor",
+            "source_excerpt": "running a hand over his stubbled scalp",
+            "reason": "stubbled scalp 指头皮上留着的短发茬；原译“布满胡茬的头皮”把通常修饰下巴的“胡茬”套到头皮上，身体部位修饰对象有误；现改为“留着短发茬的头皮”。"
+          }
+        ],
+        "issues": [],
+        "evidence": {
+          "e1": "原文”running a hand over his stubbled scalp“修饰头皮的 stubbled 应译为短发茬；原译“胡茬”属脸部用词误植，已修正，其余动作（目光落在你身上、端详、斟酌、抿嘴）对应正确。",
+          "e2": "原文短句与整段对话（听着→掩饰得好→新来的→不喜欢让人独自待着→愿意免费回答）逐句均有对应，无漏译或增译。",
+          "e3": "本条未提供 terms/shared_terms 或 term_refs，无冻结译名可用。",
+          "e4": "“他话说得硬”“烦躁的直线”及对话里粗直的口吻与原文 hard words、irritated line、ent trying to offend 相符。",
+          "e5": "“尽管……却”保留转折；“我不是想冒犯你，只是我……不喜欢……”的双重否定与转折关系与原文一致，未改变否定数量。",
+          "e6": "原文无变量或标签，仅含句末空格与 CRLF 段落换行，由程序按绑定源文恢复。"
+        }
+      },
+      {
+        "id": "2",
+        "reason": {
+          "ref": "e1"
+        },
+        "checks": {
+          "accuracy": [
+            "corrected",
+            {
+              "ref": "e1"
+            }
+          ],
+          "completeness": [
+            "pass",
+            {
+              "ref": "e2"
+            }
+          ],
+          "terminology": [
+            "not_applicable",
+            {
+              "ref": "e3"
+            }
+          ],
+          "tone": [
+            "pass",
+            {
+              "ref": "e4"
+            }
+          ],
+          "logic": [
+            "pass",
+            {
+              "ref": "e5"
+            }
+          ],
+          "placeholders": [
+            "not_applicable",
+            {
+              "ref": "e6"
+            }
+          ]
+        },
+        "changes": [
+          {
+            "category": "accuracy",
+            "severity": "minor",
+            "source_excerpt": "running a hand over his stubbled scalp",
+            "reason": "头皮上的 stubbled 应为“短发茬”，原译“满是胡茬的头皮”把脸部胡茬用词搬到头皮，修饰对象错误；现改为“满是短发茬的头皮”。"
+          }
+        ],
+        "issues": [],
+        "evidence": {
+          "e1": "”chewing his lip“咬嘴唇、”work up the courage to talk to her... to convince her of something“鼓起勇气说话/想说服她、”wry twist of his mouth“嘴角一歪苦笑、”turns back at you“重新转向你，译文动作与施受对象均正确；唯 stubbled scalp 误用“胡茬”，已改。",
+          "e2": "前后两段及整段对话内容均有对应翻译，无遗漏或添加情节。",
+          "e3": "本条未提供 terms/shared_terms 或 term_refs，无冻结译名可用。",
+          "e4": "叙述句紧凑、引语口吻与第一段一致的直率试探语气保留。",
+          "e5": "“显然正努力……”“最后……”时序清楚；“我不是想冒犯你，只是我……不喜欢……”保留原文否定加转折结构。",
+          "e6": "原文无变量或标签，仅段落换行，由程序恢复。"
+        }
+      },
+      {
+        "id": "3",
+        "reason": {
+          "ref": "e1"
+        },
+        "checks": {
+          "accuracy": [
+            "pass",
+            {
+              "ref": "e1"
+            }
+          ],
+          "completeness": [
+            "pass",
+            {
+              "ref": "e2"
+            }
+          ],
+          "terminology": [
+            "not_applicable",
+            {
+              "ref": "e3"
+            }
+          ],
+          "tone": [
+            "pass",
+            {
+              "ref": "e4"
+            }
+          ],
+          "logic": [
+            "pass",
+            {
+              "ref": "e5"
+            }
+          ],
+          "placeholders": [
+            "not_applicable",
+            {
+              "ref": "e6"
+            }
+          ]
+        },
+        "changes": [],
+        "issues": [],
+        "keep": true,
+        "source_ref": "whole",
+        "evidence": {
+          "e1": "”ran a hand over his stubbled scalp“译为“用手抚过留着短发茬的头皮”，stubbled 正确指向头皮短发茬，动作与身体部位对应准确。",
+          "e2": "主语、动作、受事（头皮）均完整译出，无增删。",
+          "e3": "本条未提供术语条目或 term_refs，不涉及专名。",
+          "e4": "叙述句简洁客观，与原句平直描写相符。",
+          "e5": "单一动作句，无否定、条件或数量关系需核对。",
+          "e6": "原文无变量或标签。"
+        }
+      },
+      {
+        "id": "4",
+        "reason": {
+          "ref": "e1"
+        },
+        "checks": {
+          "accuracy": [
+            "pass",
+            {
+              "ref": "e1"
+            }
+          ],
+          "completeness": [
+            "pass",
+            {
+              "ref": "e2"
+            }
+          ],
+          "terminology": [
+            "not_applicable",
+            {
+              "ref": "e3"
+            }
+          ],
+          "tone": [
+            "pass",
+            {
+              "ref": "e4"
+            }
+          ],
+          "logic": [
+            "pass",
+            {
+              "ref": "e5"
+            }
+          ],
+          "placeholders": [
+            "not_applicable",
+            {
+              "ref": "e6"
+            }
+          ]
+        },
+        "changes": [],
+        "issues": [],
+        "keep": true,
+        "source_ref": "whole",
+        "evidence": {
+          "e1": "stubble 在此确为下巴胡茬，“他的下巴上长满胡茬”修饰对象与身体部位正确，covered in 译为“长满”程度相当。",
+          "e2": "主语、部位、状态齐全，无漏译增译。",
+          "e3": "本条未提供术语条目或 term_refs。",
+          "e4": "平直叙述，中文自然。",
+          "e5": "静态描写，无否定或数量关系。",
+          "e6": "原文无变量或标签。"
+        }
+      },
+      {
+        "id": "5",
+        "reason": {
+          "ref": "e1"
+        },
+        "checks": {
+          "accuracy": [
+            "pass",
+            {
+              "ref": "e1"
+            }
+          ],
+          "completeness": [
+            "pass",
+            {
+              "ref": "e2"
+            }
+          ],
+          "terminology": [
+            "not_applicable",
+            {
+              "ref": "e3"
+            }
+          ],
+          "tone": [
+            "pass",
+            {
+              "ref": "e4"
+            }
+          ],
+          "logic": [
+            "pass",
+            {
+              "ref": "e5"
+            }
+          ],
+          "placeholders": [
+            "not_applicable",
+            {
+              "ref": "e6"
+            }
+          ]
+        },
+        "changes": [],
+        "issues": [],
+        "keep": true,
+        "source_ref": "whole",
+        "evidence": {
+          "e1": "”the mutant's scalp was covered in a thick beard“保留“头皮上长满浓密胡须”的异形设定，未误改为面部胡须；which 指胡须，“梳理着”的对象正确。",
+          "e2": "主体（变种人）、部位（头皮）、状态（浓密胡须）及后续动作（仔细梳理）均译出。",
+          "e3": "本条未提供术语条目或 term_refs；mutant 作普通名词处理。",
+          "e4": "叙述口吻平实，保留原文略带荒诞的描写，不额外解释。",
+          "e5": "”which“定语从句指向胡须而非头皮，梳理逻辑正确，无否定或数量问题。",
+          "e6": "原文无变量或标签。"
+        }
+      },
+      {
+        "id": "6",
+        "reason": {
+          "ref": "e1"
+        },
+        "checks": {
+          "accuracy": [
+            "corrected",
+            {
+              "ref": "e1"
+            }
+          ],
+          "completeness": [
+            "pass",
+            {
+              "ref": "e2"
+            }
+          ],
+          "terminology": [
+            "not_applicable",
+            {
+              "ref": "e3"
+            }
+          ],
+          "tone": [
+            "pass",
+            {
+              "ref": "e4"
+            }
+          ],
+          "logic": [
+            "pass",
+            {
+              "ref": "e5"
+            }
+          ],
+          "placeholders": [
+            "not_applicable",
+            {
+              "ref": "e6"
+            }
+          ]
+        },
+        "changes": [
+          {
+            "category": "accuracy",
+            "severity": "major",
+            "source_excerpt": "her close-cropped hair",
+            "reason": "close-cropped 指头发剪得很短、贴近头皮，是仍长在她头上的发型；原译“剪下来的头发”理解为已剪落的头发，词义与所属关系均错，现改为“剪得极短的头发”。"
+          }
+        ],
+        "issues": [],
+        "evidence": {
+          "e1": "”ran a hand over her close-cropped hair“：close-cropped 修饰发型为“剪得极短”，动作是抚过自己头发；原译“剪下来的头发”误为断发，已修正。",
+          "e2": "主语 she、动作 ran a hand over、对象 her hair 均已译出，无增删。",
+          "e3": "本条未提供术语条目或 term_refs。",
+          "e4": "叙述句简洁，修正后仍为平实描写。",
+          "e5": "单一动作句，无否定、条件或数量关系。",
+          "e6": "原文无变量或标签。"
+        }
+      }
+    ]
+  },
+  "partial_collector_state": [
+    {
+      "record_id": "R0000002_58abdf6a8a",
+      "valid": 0,
+      "error": "Uncollected API record format: Record R0000002_58abdf6a8a: return keep:true or an explicit translation",
+      "item": {
+        "_format_error": "Record R0000002_58abdf6a8a: return keep:true or an explicit translation",
+        "_raw_api_item": {
+          "changes": [
+            {
+              "category": "accuracy",
+              "reason": "头皮上的 stubbled 应为“短发茬”，原译“满是胡茬的头皮”把脸部胡茬用词搬到头皮，修饰对象错误；现改为“满是短发茬的头皮”。",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp"
+            }
+          ],
+          "checks": {
+            "accuracy": [
+              "corrected",
+              {
+                "ref": "e1"
+              }
+            ],
+            "completeness": [
+              "pass",
+              {
+                "ref": "e2"
+              }
+            ],
+            "logic": [
+              "pass",
+              {
+                "ref": "e5"
+              }
+            ],
+            "placeholders": [
+              "not_applicable",
+              {
+                "ref": "e6"
+              }
+            ],
+            "terminology": [
+              "not_applicable",
+              {
+                "ref": "e3"
+              }
+            ],
+            "tone": [
+              "pass",
+              {
+                "ref": "e4"
+              }
+            ]
+          },
+          "evidence": {
+            "e1": "”chewing his lip“咬嘴唇、”work up the courage to talk to her... to convince her of something“鼓起勇气说话/想说服她、”wry twist of his mouth“嘴角一歪苦笑、”turns back at you“重新转向你，译文动作与施受对象均正确；唯 stubbled scalp 误用“胡茬”，已改。",
+            "e2": "前后两段及整段对话内容均有对应翻译，无遗漏或添加情节。",
+            "e3": "本条未提供 terms/shared_terms 或 term_refs，无冻结译名可用。",
+            "e4": "叙述句紧凑、引语口吻与第一段一致的直率试探语气保留。",
+            "e5": "“显然正努力……”“最后……”时序清楚；“我不是想冒犯你，只是我……不喜欢……”保留原文否定加转折结构。",
+            "e6": "原文无变量或标签，仅段落换行，由程序恢复。"
+          },
+          "id": "2",
+          "issues": [],
+          "reason": {
+            "ref": "e1"
+          }
+        },
+        "id": "R0000002_58abdf6a8a"
+      }
+    },
+    {
+      "record_id": "R0000003_2200a8fc3c",
+      "valid": 1,
+      "error": null,
+      "item": {
+        "changes": [],
+        "checks": {
+          "accuracy": {
+            "evidence": "”ran a hand over his stubbled scalp“译为“用手抚过留着短发茬的头皮”，stubbled 正确指向头皮短发茬，动作与身体部位对应准确。",
+            "status": "pass"
+          },
+          "completeness": {
+            "evidence": "主语、动作、受事（头皮）均完整译出，无增删。",
+            "status": "pass"
+          },
+          "logic": {
+            "evidence": "单一动作句，无否定、条件或数量关系需核对。",
+            "status": "pass"
+          },
+          "placeholders": {
+            "evidence": "原文无变量或标签。",
+            "status": "not_applicable"
+          },
+          "terminology": {
+            "evidence": "本条未提供术语条目或 term_refs，不涉及专名。",
+            "status": "not_applicable"
+          },
+          "tone": {
+            "evidence": "叙述句简洁客观，与原句平直描写相符。",
+            "status": "pass"
+          }
+        },
+        "id": "R0000003_2200a8fc3c",
+        "issues": [],
+        "reason": "”ran a hand over his stubbled scalp“译为“用手抚过留着短发茬的头皮”，stubbled 正确指向头皮短发茬，动作与身体部位对应准确。",
+        "reviewed": true,
+        "source_excerpt": "He ran a hand over his stubbled scalp.",
+        "translation": "他用手抚过留着短发茬的头皮。"
+      }
+    },
+    {
+      "record_id": "R0000004_254c68d273",
+      "valid": 1,
+      "error": null,
+      "item": {
+        "changes": [],
+        "checks": {
+          "accuracy": {
+            "evidence": "stubble 在此确为下巴胡茬，“他的下巴上长满胡茬”修饰对象与身体部位正确，covered in 译为“长满”程度相当。",
+            "status": "pass"
+          },
+          "completeness": {
+            "evidence": "主语、部位、状态齐全，无漏译增译。",
+            "status": "pass"
+          },
+          "logic": {
+            "evidence": "静态描写，无否定或数量关系。",
+            "status": "pass"
+          },
+          "placeholders": {
+            "evidence": "原文无变量或标签。",
+            "status": "not_applicable"
+          },
+          "terminology": {
+            "evidence": "本条未提供术语条目或 term_refs。",
+            "status": "not_applicable"
+          },
+          "tone": {
+            "evidence": "平直叙述，中文自然。",
+            "status": "pass"
+          }
+        },
+        "id": "R0000004_254c68d273",
+        "issues": [],
+        "reason": "stubble 在此确为下巴胡茬，“他的下巴上长满胡茬”修饰对象与身体部位正确，covered in 译为“长满”程度相当。",
+        "reviewed": true,
+        "source_excerpt": "His chin was covered in stubble.",
+        "translation": "他的下巴上长满胡茬。"
+      }
+    },
+    {
+      "record_id": "R0000005_fae7a5eed3",
+      "valid": 1,
+      "error": null,
+      "item": {
+        "changes": [],
+        "checks": {
+          "accuracy": {
+            "evidence": "”the mutant's scalp was covered in a thick beard“保留“头皮上长满浓密胡须”的异形设定，未误改为面部胡须；which 指胡须，“梳理着”的对象正确。",
+            "status": "pass"
+          },
+          "completeness": {
+            "evidence": "主体（变种人）、部位（头皮）、状态（浓密胡须）及后续动作（仔细梳理）均译出。",
+            "status": "pass"
+          },
+          "logic": {
+            "evidence": "”which“定语从句指向胡须而非头皮，梳理逻辑正确，无否定或数量问题。",
+            "status": "pass"
+          },
+          "placeholders": {
+            "evidence": "原文无变量或标签。",
+            "status": "not_applicable"
+          },
+          "terminology": {
+            "evidence": "本条未提供术语条目或 term_refs；mutant 作普通名词处理。",
+            "status": "not_applicable"
+          },
+          "tone": {
+            "evidence": "叙述口吻平实，保留原文略带荒诞的描写，不额外解释。",
+            "status": "pass"
+          }
+        },
+        "id": "R0000005_fae7a5eed3",
+        "issues": [],
+        "reason": "”the mutant's scalp was covered in a thick beard“保留“头皮上长满浓密胡须”的异形设定，未误改为面部胡须；which 指胡须，“梳理着”的对象正确。",
+        "reviewed": true,
+        "source_excerpt": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+        "translation": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。"
+      }
+    },
+    {
+      "record_id": "R0000006_ac3cbca845",
+      "valid": 0,
+      "error": "Uncollected API record format: Record R0000006_ac3cbca845: return keep:true or an explicit translation",
+      "item": {
+        "_format_error": "Record R0000006_ac3cbca845: return keep:true or an explicit translation",
+        "_raw_api_item": {
+          "changes": [
+            {
+              "category": "accuracy",
+              "reason": "close-cropped 指头发剪得很短、贴近头皮，是仍长在她头上的发型；原译“剪下来的头发”理解为已剪落的头发，词义与所属关系均错，现改为“剪得极短的头发”。",
+              "severity": "major",
+              "source_excerpt": "her close-cropped hair"
+            }
+          ],
+          "checks": {
+            "accuracy": [
+              "corrected",
+              {
+                "ref": "e1"
+              }
+            ],
+            "completeness": [
+              "pass",
+              {
+                "ref": "e2"
+              }
+            ],
+            "logic": [
+              "pass",
+              {
+                "ref": "e5"
+              }
+            ],
+            "placeholders": [
+              "not_applicable",
+              {
+                "ref": "e6"
+              }
+            ],
+            "terminology": [
+              "not_applicable",
+              {
+                "ref": "e3"
+              }
+            ],
+            "tone": [
+              "pass",
+              {
+                "ref": "e4"
+              }
+            ]
+          },
+          "evidence": {
+            "e1": "”ran a hand over her close-cropped hair“：close-cropped 修饰发型为“剪得极短”，动作是抚过自己头发；原译“剪下来的头发”误为断发，已修正。",
+            "e2": "主语 she、动作 ran a hand over、对象 her hair 均已译出，无增删。",
+            "e3": "本条未提供术语条目或 term_refs。",
+            "e4": "叙述句简洁，修正后仍为平实描写。",
+            "e5": "单一动作句，无否定、条件或数量关系。",
+            "e6": "原文无变量或标签。"
+          },
+          "id": "6",
+          "issues": [],
+          "reason": {
+            "ref": "e1"
+          }
+        },
+        "id": "R0000006_ac3cbca845"
+      }
+    },
+    {
+      "record_id": "R0000001_abbc502838",
+      "valid": 0,
+      "error": null,
+      "item": {
+        "changes": [
+          {
+            "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+            "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+            "category": "accuracy",
+            "reason": "stubbled 修饰 scalp，指头皮上留着的短发茬；原译“胡茬”通常指胡须茬，身体部位修饰对象不符，改为“留着短发茬的头皮”。",
+            "severity": "minor",
+            "source_excerpt": "running a hand over his stubbled scalp"
+          }
+        ],
+        "checks": {
+          "accuracy": {
+            "evidence": "原文“stubbled scalp”中 stubbled 修饰头皮，指短发茬，原译“布满胡茬的头皮”把胡须用词移到头皮上；已修正，其余动作与施受事对应正确。",
+            "status": "corrected"
+          },
+          "completeness": {
+            "evidence": "原文的短句、引语及对话后半段（掩饰得好、新来、不愿让人独自待着、免费回答）均有对应，无漏译或增译。",
+            "status": "pass"
+          },
+          "logic": {
+            "evidence": "“尽管……却”保留让步转折；“我不是想冒犯你，只是我……不喜欢……”保持原文的否定与转折关系，未改变条件或数量。",
+            "status": "pass"
+          },
+          "placeholders": {
+            "evidence": "原文无变量、标签或占位符；段落数与句末空格保持不变。",
+            "status": "not_applicable"
+          },
+          "terminology": {
+            "evidence": "本条未提供 terms/shared_terms 或 term_refs，无冻结译名需要核对。",
+            "status": "not_applicable"
+          },
+          "tone": {
+            "evidence": "“话说得硬”“烦躁的直线”“不收钱”等措辞保持原文粗直口吻，对话语气自然。",
+            "status": "pass"
+          }
+        },
+        "exceptions": [],
+        "id": "R0000001_abbc502838",
+        "issues": [],
+        "reason": "原文“stubbled scalp”中 stubbled 修饰头皮，指短发茬，原译“布满胡茬的头皮”把胡须用词移到头皮上；已修正，其余动作与施受事对应正确。",
+        "reviewed": true,
+        "source_excerpt": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+        "translation": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”"
+      }
+    }
+  ],
+  "runner_receipt": {
+    "accepted": 0,
+    "failed": 1,
+    "paused": true,
+    "stage_clean": false,
+    "needs_attention": [
+      {
+        "session_id": "f13bd237bb5548938bde46072f0d0858",
+        "error": "reference_resume_wire_limit_before_transport"
+      }
+    ],
+    "pending_handoffs": [
+      {
+        "session_id": "416bcf6c250b4939be45dad485649001",
+        "status": "repair_required",
+        "input_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_reference_20261024\\Review\\TranslateFiles\\tasks\\review-r4-00001-3d8040e9\\handoffs\\416bcf6c250b4939be45dad485649001\\input.md",
+        "result_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_reference_20261024\\Review\\TranslateFiles\\tasks\\review-r4-00001-3d8040e9\\handoffs\\416bcf6c250b4939be45dad485649001\\result.json"
+      },
+      {
+        "session_id": "f13bd237bb5548938bde46072f0d0858",
+        "status": "waiting",
+        "input_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_reference_20261024\\Review\\TranslateFiles\\tasks\\review-r4-00001-3d8040e9\\handoffs\\f13bd237bb5548938bde46072f0d0858\\input.md",
+        "result_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_reference_20261024\\Review\\TranslateFiles\\tasks\\review-r4-00001-3d8040e9\\handoffs\\f13bd237bb5548938bde46072f0d0858\\result.json"
+      }
+    ],
+    "next_action": "resolve_execution"
+  },
+  "attempts_before": [
+    {
+      "id": "extract-r3-00001-f20ca9e3",
+      "stage": "extract",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "glossary_review-r3-00001-97e847a3",
+      "stage": "glossary_review",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "pilot_translate-r3-00001-99367d68",
+      "stage": "pilot_translate",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "translate-r3-00001-29e140ca",
+      "stage": "translate",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "review-r4-00001-3d8040e9",
+      "stage": "review",
+      "status": "running",
+      "attempt": 2
+    }
+  ],
+  "attempts_after": [
+    {
+      "id": "extract-r3-00001-f20ca9e3",
+      "stage": "extract",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "glossary_review-r3-00001-97e847a3",
+      "stage": "glossary_review",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "pilot_translate-r3-00001-99367d68",
+      "stage": "pilot_translate",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "translate-r3-00001-29e140ca",
+      "stage": "translate",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "review-r4-00001-3d8040e9",
+      "stage": "review",
+      "status": "running",
+      "attempt": 4
+    }
+  ],
+  "causal_limit": "Reported model alias now deepseek-flash versus earlier deepseek-v4.1-flash. No no-reference control was rerun with this current API. These findings support feasibility for this sample, but do not isolate the effect of independent readings or establish broader reliability. Two actual bad cases repeat one phrase; old prompt also included that example.",
+  "validation": "25 local tests passed, including replay of actual missing-translation reply and one genuine full repaired candidate through shared validation. No production review stage or automatic blind pass enabled.",
+  "production_translation_sha256": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "production_changed": false,
+  "state": "All real requests finished; development fixture publicly paused; all old/partial results retained.",
+  "artifacts": [
+    "Development\\review_plausibility_source_reference_20261024\\resume_report_7c145e58.json",
+    "Development/resume_reference_probe_20261024.py"
+  ]
+}

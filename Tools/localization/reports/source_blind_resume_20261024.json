@@ -151,5 +151,9 @@
     "Development\\review_plausibility_source_only_20261024\\resume_report_5071238f.json",
     "Development/review_plausibility_source_reference_20261024/report.json",
     "Development/resume_source_probe_20261024.py"
-  ]
+  ],
+  "follow_up": {
+    "report": "source_reference_resume_20261024.json",
+    "summary": "Assisted reviewer returned and found target errors while keeping all correct controls. Missing full translation fields prevent complete collection; one repaired candidate saved, two incomplete items retained. No production change."
+  }
 }
