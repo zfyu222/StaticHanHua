@@ -178,7 +178,7 @@ class BatchMixin:
             constraint = bridge.record_constraint(source_row, config)
             if constraint:
                 row['metadata'] = dict(row.get('metadata', {}), validated_record_constraints=constraint)
-            row['terms'] = [{k: t[k] for k in ('src', 'dst', 'src_state', 'info') if t.get(k)}
+            row['terms'] = [{k: t[k] for k in ('src', 'dst', 'src_state', 'info', 'enforcement', 'term_kind', 'term_reason') if t.get(k)}
                             for t in terms]
             if original.get('exceptions'):
                 row['exceptions'] = original['exceptions']
@@ -203,7 +203,7 @@ class BatchMixin:
                 except ValueError:
                     exempt = set()  # Preserve malformed evidence for validation.
                 findings = [{'source': t['src'], 'expected_translation': t['dst']}
-                            for t in terms if t['src'] not in exempt and t['dst'] not in current
+                            for t in terms if bridge.term_required(t) and t['src'] not in exempt and t['dst'] not in current
                             and not bridge.helper().is_keep_original_translation(t['dst'])]
                 if findings:
                     row['terminology_findings'] = findings
@@ -247,7 +247,7 @@ class BatchMixin:
                         row.pop(field, None)
             if shared_terms:
                 lines[-2:-2] = [
-                    'shared_terms 为批次术语表；每条仅使用 term_refs 指向的术语，未列出的术语不套用。',
+                    'shared_terms 为批次术语表；仅用本条 term_refs。enforcement=required（旧表未标注时亦然）保持术语一致，语义冲突须说明例外；reference仅供参考，原句语境优先，不强制命中译名、不需为自然用词申请例外。',
                     json.dumps({'shared_terms': shared_terms}, ensure_ascii=False, separators=(',', ':'))]
             if id_transport is not None:
                 # Bind to the exact rendered packet, including session repair scope.
@@ -255,6 +255,14 @@ class BatchMixin:
                 id_transport['record_terms'] = {row['id']: {
                     ref: shared_terms[ref]['src'] for ref in row.get('term_refs', [])} for row in rows}
                 id_transport['record_exceptions'] = record_exceptions
+                id_transport['require_explicit_translation'] = [row['id'] for row in rows
+                    if isinstance(row.get('candidate'), dict)
+                    and isinstance(row['candidate'].get('translation'), str)
+                    and row['candidate']['translation'] != row.get('translation')]
+                for row in rows:
+                    if row['id'] in id_transport['require_explicit_translation']:
+                        row['translation_choice'] = ('原译与未接收候选不同，必须显式输出完整translation；'
+                            '禁止keep:true。keep仅表示保留translation字段中的原译，不能表示采用candidate。')
         if id_transport:
             from workflow_task_contract import transport_id_fields
             short_ids = {canonical: short for short, canonical in id_transport['short_to_canonical'].items()}

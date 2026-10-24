@@ -49,9 +49,9 @@ class ReviewRoundMixin:
         exceptions = exceptions if isinstance(exceptions, list) else []
         exempt = {e['source'].casefold() for e in exceptions if isinstance(e, dict) and isinstance(e.get('source'), str)}
         return {'satisfied_terms': [{'src': t['src'], 'dst': t['dst']} for t in terms
-                                    if t['dst'] in (translation or '') and not bridge.helper().is_keep_original_translation(t['dst'])],
+                                    if bridge.term_required(t) and t['dst'] in (translation or '') and not bridge.helper().is_keep_original_translation(t['dst'])],
                 'context_exceptions': exceptions,
-                'missing_terms': [t['src'] for t in terms if t['src'].casefold() not in exempt
+                'missing_terms': [t['src'] for t in terms if bridge.term_required(t) and t['src'].casefold() not in exempt
                                   and t['dst'] not in (translation or '') and not bridge.helper().is_keep_original_translation(t['dst'])]}
 
     def repair_regression(self, db, config, stage, record_id, original, translation, exceptions, glossary, task_id):

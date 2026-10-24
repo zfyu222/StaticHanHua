@@ -1,0 +1,75 @@
+{
+  "date": "2026-10-24",
+  "status": "completed",
+  "distinct_local_tests_passed": 64,
+  "real_api_requests": 5,
+  "reported_tokens": 28765,
+  "records": [
+    {
+      "ordinal": 1,
+      "source": "Might",
+      "translation": "力量",
+      "stage": "review"
+    },
+    {
+      "ordinal": 2,
+      "source": "I might return tomorrow.",
+      "translation": "我明天可能回来。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 3,
+      "source": "May opens the gate.",
+      "translation": "梅打开了门。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 4,
+      "source": "You may enter.",
+      "translation": "你可以进去。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 5,
+      "source": "  Alice has {0} gold.\r\nWait here. \t",
+      "translation": "  爱丽丝有{0}金币。\r\n在这里等候。 \t",
+      "stage": "review"
+    },
+    {
+      "ordinal": 6,
+      "source": "The gate is not locked.",
+      "translation": "门没有上锁。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 7,
+      "source": "He runs a hand over his stubbled scalp.",
+      "translation": "他用手抚过留着发茬的头皮。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 8,
+      "source": "Child {Female}",
+      "translation": "孩童 {Female}",
+      "stage": "review"
+    },
+    {
+      "ordinal": 9,
+      "source": "When activated, the orb absorbs its user and transports them nearby.",
+      "translation": "激活后，圆球会吸入用户，并将其传送到附近。",
+      "stage": "review"
+    }
+  ],
+  "review_scan_clean": true,
+  "first_review_rejected_for": "two missing top-level source excerpts",
+  "first_format_followup_semantic_failure": "model used keep for the corrected unaccepted candidate; old transport restored wrong original despite correct narrative evidence",
+  "guard_test": "replayed two unchanged real first candidates under new program-bound envelope; new repair session requires explicit translation; actual API supplied full corrected text, scan passed",
+  "raw_replies_preserved": true,
+  "production_game_modified": false,
+  "limitations": [
+    "ordinary device user translation remained 用户 without frozen term; no forced replacement to 使用者",
+    "semantic classification and review remain fallible",
+    "hidden-marker wrapper check currently limited to known Male/Female metadata",
+    "legacy snapshots/handoffs unchanged"
+  ]
+}

@@ -1,0 +1,182 @@
+[
+  {
+    "source": "The gate is not locked.",
+    "before": "门锁上了。",
+    "accepted": true,
+    "item": {
+      "id": "R0000006_4cad1b3ce1",
+      "reason": "原句 The gate is not locked 的主语是 the gate，not 否定 locked，正确含义为门未上锁；现译“门没有上锁。”完整保留否定和陈述关系，无增删。",
+      "checks": {
+        "accuracy": {
+          "status": "pass",
+          "evidence": "原句 The gate is not locked 的主语是 the gate，not 否定 locked，正确含义为门未上锁；现译“门没有上锁。”完整保留否定和陈述关系，无增删。"
+        },
+        "completeness": {
+          "status": "pass",
+          "evidence": "原句 The gate is not locked 的主语是 the gate，not 否定 locked，正确含义为门未上锁；现译“门没有上锁。”完整保留否定和陈述关系，无增删。"
+        },
+        "terminology": {
+          "status": "not_applicable",
+          "evidence": "本条 gate/locked 无术语表条目或 required 译名，术语不适用。"
+        },
+        "tone": {
+          "status": "pass",
+          "evidence": "短句为客观陈述，现译简洁自然，口吻一致。"
+        },
+        "logic": {
+          "status": "pass",
+          "evidence": "原句 The gate is not locked 的主语是 the gate，not 否定 locked，正确含义为门未上锁；现译“门没有上锁。”完整保留否定和陈述关系，无增删。"
+        },
+        "placeholders": {
+          "status": "not_applicable",
+          "evidence": "原句不含变量、标签或 {Male}/{Female} 标记，占位符不适用。"
+        }
+      },
+      "changes": [],
+      "issues": [],
+      "exceptions": [],
+      "source_excerpt": "The gate is not locked.",
+      "translation": "门锁上了。",
+      "reviewed": true
+    }
+  },
+  {
+    "source": "He runs a hand over his stubbled scalp.",
+    "before": "他用手抚过布满胡茬的头皮。",
+    "accepted": true,
+    "item": {
+      "id": "R0000007_0c9bb70286",
+      "reason": "原句 He runs a hand over his stubbled scalp 中 stubbled 修饰 scalp，指头皮上的短硬发茬；现译“留着发茬的头皮”保留施事“他”、动作“用手抚过”和身体部位“头皮”，无漏译或增译。",
+      "checks": {
+        "accuracy": {
+          "status": "pass",
+          "evidence": "原句 He runs a hand over his stubbled scalp 中 stubbled 修饰 scalp，指头皮上的短硬发茬；现译“留着发茬的头皮”保留施事“他”、动作“用手抚过”和身体部位“头皮”，无漏译或增译。"
+        },
+        "completeness": {
+          "status": "pass",
+          "evidence": "原句 He runs a hand over his stubbled scalp 中 stubbled 修饰 scalp，指头皮上的短硬发茬；现译“留着发茬的头皮”保留施事“他”、动作“用手抚过”和身体部位“头皮”，无漏译或增译。"
+        },
+        "terminology": {
+          "status": "not_applicable",
+          "evidence": "本条 scalp/stubbled 无术语表条目或 required 译名，术语不适用。"
+        },
+        "tone": {
+          "status": "pass",
+          "evidence": "第三人称动作描写，现译自然简洁，保持客观叙述口吻。"
+        },
+        "logic": {
+          "status": "pass",
+          "evidence": "原句 He runs a hand over his stubbled scalp 中 stubbled 修饰 scalp，指头皮上的短硬发茬；现译“留着发茬的头皮”保留施事“他”、动作“用手抚过”和身体部位“头皮”，无漏译或增译。"
+        },
+        "placeholders": {
+          "status": "not_applicable",
+          "evidence": "原句不含变量、标签或 {Male}/{Female} 标记，占位符不适用。"
+        }
+      },
+      "changes": [],
+      "issues": [],
+      "exceptions": [],
+      "source_excerpt": "He runs a hand over his stubbled scalp.",
+      "translation": "他用手抚过布满胡茬的头皮。",
+      "reviewed": true
+    }
+  },
+  {
+    "source": "The gate is not locked.",
+    "before": "门锁上了。",
+    "accepted": false,
+    "item": {
+      "id": "R0000006_4cad1b3ce1",
+      "reason": "原句 The gate is not locked 中 not 否定 locked，正确含义是门未上锁；候选译文删去否定导致事实反转，已在新译文中恢复“没有”否定。",
+      "checks": {
+        "accuracy": {
+          "status": "corrected",
+          "evidence": "原句 The gate is not locked 中 not 否定 locked，正确含义是门未上锁；候选译文删去否定导致事实反转，已在新译文中恢复“没有”否定。"
+        },
+        "completeness": {
+          "status": "pass",
+          "evidence": "主语 the gate、状态 locked 均已译出，无漏译或增译其他信息。"
+        },
+        "terminology": {
+          "status": "not_applicable",
+          "evidence": "本条无术语表条目涉及 gate/locked，无需术语一致性核对。"
+        },
+        "tone": {
+          "status": "pass",
+          "evidence": "告示式短句，新译文“门没有上锁。”保持简洁陈述口吻。"
+        },
+        "logic": {
+          "status": "corrected",
+          "evidence": "原句 The gate is not locked 中 not 否定 locked，正确含义是门未上锁；候选译文删去否定导致事实反转，已在新译文中恢复“没有”否定。"
+        },
+        "placeholders": {
+          "status": "not_applicable",
+          "evidence": "本条不含变量或标签，不适用占位符核对。"
+        }
+      },
+      "changes": [
+        {
+          "category": "accuracy",
+          "severity": "critical",
+          "source_excerpt": "not locked",
+          "reason": "原句为否定判断“门没上锁”，候选译文“门锁上了”把否定变成肯定，语义相反；改为“门没有上锁。”保留否定。",
+          "before": "门锁上了。",
+          "after": "门没有上锁。"
+        }
+      ],
+      "issues": [],
+      "exceptions": [],
+      "translation": "门没有上锁。",
+      "reviewed": true
+    }
+  },
+  {
+    "source": "He runs a hand over his stubbled scalp.",
+    "before": "他用手抚过布满胡茬的头皮。",
+    "accepted": false,
+    "item": {
+      "id": "R0000007_0c9bb70286",
+      "reason": "原句动词短语 runs a hand over 的受事是 his stubbled scalp（他自己留着短茬的头顶皮肤），非脸部；候选“布满胡茬的头皮”把面部特征搬到头皮，已改为“留着发茬的头皮”，施事“他”、身体部位“头皮”均对应。",
+      "checks": {
+        "accuracy": {
+          "status": "corrected",
+          "evidence": "原句动词短语 runs a hand over 的受事是 his stubbled scalp（他自己留着短茬的头顶皮肤），非脸部；候选“布满胡茬的头皮”把面部特征搬到头皮，已改为“留着发茬的头皮”，施事“他”、身体部位“头皮”均对应。"
+        },
+        "completeness": {
+          "status": "pass",
+          "evidence": "hand over 的动作、his 反身所有关系与 scalp 均已译出，无漏译。"
+        },
+        "terminology": {
+          "status": "not_applicable",
+          "evidence": "本条无术语表条目命中，不涉及专名。"
+        },
+        "tone": {
+          "status": "pass",
+          "evidence": "第三人称动作描写，新译文“用手抚过……头皮”自然，未添加原文没有的情绪或修饰。"
+        },
+        "logic": {
+          "status": "pass",
+          "evidence": "单一肯定动作，无否定、条件或数量关系。"
+        },
+        "placeholders": {
+          "status": "not_applicable",
+          "evidence": "本条不含变量或标签，不适用占位符核对。"
+        }
+      },
+      "changes": [
+        {
+          "category": "accuracy",
+          "severity": "minor",
+          "source_excerpt": "his stubbled scalp",
+          "reason": "stubbled 修饰 scalp，指头皮上短硬的发茬，而“胡茬”在中文专指面部胡须残茬，误换了身体部位；改为“发茬”，动作对象仍是头皮。",
+          "before": "他用手抚过布满胡茬的头皮。",
+          "after": "他用手抚过留着发茬的头皮。"
+        }
+      ],
+      "issues": [],
+      "exceptions": [],
+      "translation": "他用手抚过留着发茬的头皮。",
+      "reviewed": true
+    }
+  }
+]

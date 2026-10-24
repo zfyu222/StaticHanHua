@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 from workflow_profile import profiled, increment
+from workflow_term_policy import term_required, hidden_marker_wrapper_issues
 
 ROOT = Path(__file__).resolve().parents[2]
 AINIEE = ROOT / 'Tools' / 'AINiee'
@@ -68,6 +69,8 @@ def glossary_rows(analysis):
     rows = []
     for table in ('characters', 'terms', 'non_translate'):
         for index, row in enumerate(analysis.get(table, [])):
+            from workflow_term_policy import validate_term_policy
+            validate_term_policy(row, table, required=analysis.get('terminology_policy') == 1)
             rows.append({**row, 'ref': f'{table}:{index}', 'src': row['source'],
                          'dst': row.get('recommended_translation', '保留原文'),
                          'src_state': row.get('src_state', 'valid')})
@@ -77,7 +80,7 @@ def glossary_rows(analysis):
 _FROZEN_MATCHERS = {}
 _MATCH_CONTEXTS = OrderedDict()
 _MATCH_LOCK = threading.RLock()
-TERM_MATCH_VERSION = 4
+TERM_MATCH_VERSION = 5
 
 
 def _visible_term_match(start, end, protected_spans):
@@ -107,6 +110,9 @@ def _frozen_matcher(helper_class):
                 normalized = super().normalize_row(row)
                 if isinstance(row, dict) and 'applicability' in row:
                     normalized['applicability'] = copy.deepcopy(row['applicability'])
+                for field in ('enforcement', 'term_kind', 'term_reason'):
+                    if isinstance(row, dict) and field in row:
+                        normalized[field] = row[field]
                 # Frozen source strings are literal unless their author explicitly
                 # marked a regex. Punctuation in game text is not regex syntax.
                 stored = row.get(cls.VALID_KEY) if isinstance(row, dict) else None
@@ -265,7 +271,12 @@ def matched_terms(analysis, texts, options, *, rules=None):
                 candidates.append({'start': match.start(), 'end': match.end(), 'priority': priority,
                                    'match_text': match.group(0), 'row': row})
     matched, seen = [], set()
-    for candidate in FrozenMatcher.resolve_overlapping_matches(candidates):
+    # Advisory phrases must not hide a required name nested inside them.
+    resolved = []
+    for strict in (True, False):
+        resolved.extend(FrozenMatcher.resolve_overlapping_matches(
+            [c for c in candidates if term_required(c['row']) == strict]))
+    for candidate in resolved:
         row = dict(candidate['row'], src=candidate['match_text'])
         row['dst'] = FrozenMatcher.normalize_translation(row.get('dst', ''))
         key = (row['src'] if options['case_sensitive'] else row['src'].casefold(), row['dst'])
@@ -421,7 +432,7 @@ def record_structural_issues(row, translation, rules, config):
 
 
 def structural_issues(source, translation, rules, expected_newlines=None):
-    issues = []
+    issues = hidden_marker_wrapper_issues(source, translation)
     if source.strip() and not translation.strip():
         issues.append('empty_translation')
     if not source.strip() and translation.strip():

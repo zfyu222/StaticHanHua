@@ -614,6 +614,8 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                 if original is not None:
                     if original.get('applicability_policy') == 1:
                         payload['applicability_policy'] = 1
+                    if original.get('terminology_policy') == 1:
+                        payload['terminology_policy'] = 1
                     payload['entries'] = review_groups[group_index]
                     payload['related_entries'] = related_groups[group_index]
                     payload['term_families'] = glossary_families.batch_hints(
@@ -831,7 +833,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                                   config['case_sensitive'], config['whole_word']]) if db is not None else None)
         if db is None or not db.execute('SELECT 1 FROM checks WHERE signature=?', (signature,)).fetchone():
             exempt = {e['source'] for e in exceptions}
-            missing = [t['src'] for t in terms if not bridge.helper().is_keep_original_translation(t['dst'])
+            missing = [t['src'] for t in terms if bridge.term_required(t) and not bridge.helper().is_keep_original_translation(t['dst'])
                        and t['src'] not in exempt and t['dst'] not in translation]
             if missing:
                 raise ValueError(f'{item["id"]}: terminology mismatch {missing}')
@@ -1290,7 +1292,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             for index, row in enumerate(records, 1):
                 exempt = {e['source'] for e in json.loads(row['exceptions'])}
                 terms = bridge.record_matched_terms(analysis, row, config, rules, term_cache)
-                if any(t['dst'] not in row['translation'] and t['src'] not in exempt
+                if any(bridge.term_required(t) and t['dst'] not in row['translation'] and t['src'] not in exempt
                        and not bridge.helper().is_keep_original_translation(t['dst'])
                        for t in terms):
                     raise ValueError('Final terminology validation failed: ' + row['id'])
@@ -1341,7 +1343,22 @@ def prompt(payload, *, api=False):
         else:
             common = common.replace('原样复制 task_id、input_hash 和 ID；',
                                     '任务标识及哈希由程序绑定，无需返回；出处使用输入 ordinal；')
+    if stage not in ('extract', 'glossary_review'):
+        common += (' terms/shared_terms中enforcement=required及旧表未标注条目保持名称一致；reference仅供参考，语境优先，'
+                   '不用为了参考译名提交例外或改坏正文。保留原文的性别控制标记{Male}/{Female}，不将它们解释成可见姓名，'
+                   '不得新增仅包住隐藏标记的括号，避免运行时出现空括号。')
+    if stage in ('review', 'final_review'):
+        common += (' 独立审校不能以术语命中、直译可对应或沿用候选判断为语义正确依据。accuracy核对词语实际修饰对象、'
+                   '身体部位、施事/受事及物理/比喻词义，例如stubbled scalp是短发茬头皮，不能搬用脸部胡茬；'
+                   'tone核对整句中文搭配是否自然。短UI标签结合已有描述/资源信息判断人物特质还是物理状态；'
+                   '语境不足时明确报告疑点，不把猜测写成已证实。只对具体问题举证，不新增一轮审校或冗余输出字段。')
     if stage in ('extract', 'glossary_review'):
+        common += (' 术语以专有名称及确有特定游戏义的词为主；user/human等普通称谓和常用动作/形容词不收录，'
+                   '不能只因机器说过或出现频繁就冻结。不要将Child {Female}这类普通NPC称谓及性别控制标记组合当专名。'
+                   '每个保留的characters/terms条目须带term_kind=proper_name或game_term、enforcement=required或reference、'
+                   'term_reason=简短原文依据。人名/地名/法术名等专名为required；游戏特定但多义、只能提供暂定译名的条目为reference，'
+                   '同时注明applicability和语境。普通词不放入reference兜底；应不提取或quarantine。'
+                   '术语审校用edits.patch补齐并独立核对这些字段，不盲信提取分类；non_translate维持运行保护，不降为reference。')
         common += (' 只提取/保留游戏特有名称或确有游戏义的术语。普通代词、助动词、常用动词/形容词不因频繁出现就成为术语；'
                    'I/like/back/might 等若只是普通词义应不提取或隔离。运行时标记优先由保护规则处理，不将裸字母扩成全局禁翻。'
                    '确有游戏义且容易与普通词混淆时，提供 applicability={mode:text|whole_record|literal_context,'
@@ -1413,7 +1430,7 @@ def prompt(payload, *, api=False):
     if stage not in ('extract', 'glossary_review'):
         exception_key = 'term_ref' if api else 'source'
         exception_hint = '本条term_refs中的t编号' if api else '该疑问的source原样值'
-        common += ' 正文沿用已冻结术语，不自行新增或修改术语表。'
+        common += ' 正文仅对required/旧表未标级条目遵守冻结译名；reference服从语境，不自行新增或修改术语表。'
         common += (' terminology_findings 是程序按字面匹配提出的术语疑问，不代表译文一定错误。'
                    '逐项结合原句判断：确有错误就修正译文；坚持现译正确时可保留译文，'
                    f'并返回 exceptions=[{{{exception_key}:{exception_hint},reason:引用具体原句语境并说明现译为何正确、为何不套用该译名}}]。'

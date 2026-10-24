@@ -205,6 +205,24 @@ def validate_glossary_reviews(decisions, payload):
                 'do not join paraphrases or insert ellipses.')
 
     validate_glossary_applicability(decisions, payload)
+    validate_glossary_term_policy(decisions, payload)
+
+
+def validate_glossary_term_policy(decisions, payload):
+    if payload.get('terminology_policy') != 1:
+        return
+    from workflow_term_policy import validate_term_policy
+    edits = {f'{e["table"]}:{e["index"]}': e for e in decisions.get('edits', [])}
+    removed = {f'{e["table"]}:{e["index"]}' for e in decisions.get('quarantine', [])}
+    for entry in payload['entries']:
+        if entry['ref'] in removed:
+            continue
+        edit = edits.get(entry['ref'], {})
+        if any(k in edit.get('patch', {}) for k in ('enforcement', 'term_kind', 'term_reason')) and not edit.get('evidence_rows'):
+            raise ValueError('Term policy edit requires actual source evidence rows')
+        validate_term_policy(dict(entry['row'], **edit.get('patch', {})), entry['table'], required=True)
+    for addition in decisions.get('additions', []):
+        validate_term_policy(addition['row'], addition['table'], required=True)
 
 
 def validate_glossary_applicability(decisions, payload):

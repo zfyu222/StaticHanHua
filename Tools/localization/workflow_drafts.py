@@ -152,7 +152,7 @@ class DraftMixin:
                 exempt = {e['source'] for e in exceptions if e['source'] in known}
             except ValueError as exc:
                 errors.append(str(exc)); exempt = set()
-            missing = [t['src'] for t in terms if t['src'] not in exempt and t['dst'] not in row['translation']
+            missing = [t['src'] for t in terms if bridge.term_required(t) and t['src'] not in exempt and t['dst'] not in row['translation']
                        and not bridge.helper().is_keep_original_translation(t['dst'])]
             structure = bridge.record_structural_issues(row, row['translation'], rules, config)
             if missing:
@@ -325,7 +325,7 @@ class DraftMixin:
             else:
                 matching_rules = self.rules(db, config)
                 def matched(analysis, source):
-                    return sorted((t['src'], t['dst']) for t in bridge.matched_terms(analysis, [source], config, rules=matching_rules))
+                    return sorted((t['src'], t['dst'], t.get('enforcement', 'required')) for t in bridge.matched_terms(analysis, [source], config, rules=matching_rules))
                 from workflow_quality import glossary_revision_probes
                 probes = glossary_revision_probes(old, new)
                 affected = {r['id'] for r in rows

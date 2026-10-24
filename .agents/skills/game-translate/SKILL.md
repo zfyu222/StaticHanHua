@@ -18,6 +18,8 @@ description: |
 
 ## 共同边界
 
+新术语冻结需区分required/参考reference与普通词排除；完整字段、旧表兼容及独立审校语义要求见 [术语审校规则](references/glossary_review.md)。参考译名不触发字面返修；普通词不得用reference兜底。
+
 图片文字可选分支由 `game-image-extract` 提供已确认的 `{game}_images_text.csv` 与mapping。用 `Tools/image_text/image_workflow.py prepare-translation` 建立 `TranslateFiles/image-text/` 隔离子工程；以该子工程为本技能的project，其源文快照位于子工程根，图片逐条上下文见image_context.json。沿用用户已选路线/接口，执行相同术语、翻译、语义审校和导出门槛；不要在原项目的既有TranslateFiles/state中再次init。完成后collect-translation收回根目录图片译文，交 `game-image-repack`。只准备子工程不代表授权开始正文翻译。
 
 API 正文交接使用批内短编号（字符串 `1`、`2`…），模型仅返回 records 及本阶段实际字段，不抄写任务 ID、哈希或版本；程序通过 session 绑定映射恢复完整协议。占位符使用句内 `[P1]` 等短标记，原文冲突时自动换前缀。正式审校的真实证据要求保持不变。

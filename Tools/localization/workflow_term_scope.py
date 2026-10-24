@@ -6,7 +6,8 @@ AMBIGUOUS_WORDS = frozenset(('i', 'like', 'back', 'take', 'might', 'will', 'may'
                            'whatever', 'voice', 'sound', 'image', 'dead', 'light',
                            'eye', 'heavy', 'the first', 'the one', 'he', 'she', 'it',
                            'you', 'we', 'they', 'me', 'us', 'him', 'her', 'them',
-                           'my', 'our', 'your', 'his', 'its', 'their'))
+                           'my', 'our', 'your', 'his', 'its', 'their',
+                           'user', 'users', 'human', 'child', 'man', 'woman', 'hardened', 'bonded'))
 
 
 def scope_risk(source):

@@ -40,6 +40,8 @@ def validate_shape(analysis):
                 raise ValueError(f'Invalid translation at {table}:{index}')
             from workflow_term_scope import validate_applicability
             validate_applicability(row)
+            from workflow_term_policy import validate_term_policy
+            validate_term_policy(row, table)
 
 
 def source_rows(path):
@@ -174,7 +176,7 @@ def build(snapshot, source, decisions_path, output):
                     raise ValueError('patch must be an object.')
                 if any(key in patch for key in ('source', 'recommended_translation')) and not item.get('evidence_rows'):
                     raise ValueError('Source/translation edits need evidence_rows: ' + str(ref))
-                if 'applicability' in patch and not item.get('evidence_rows'):
+                if any(k in patch for k in ('applicability', 'enforcement', 'term_kind', 'term_reason')) and not item.get('evidence_rows'):
                     raise ValueError('Applicability edits need evidence_rows: ' + str(ref))
                 revised[table][index].update(patch)
                 after = copy.deepcopy(revised[table][index])
@@ -197,6 +199,11 @@ def build(snapshot, source, decisions_path, output):
         for table in TABLES:
             for row in revised[table]:
                 validate_applicability(row, required=True)
+    if revised.get('terminology_policy') == 1:
+        from workflow_term_policy import validate_term_policy
+        for table in TABLES:
+            for row in revised[table]:
+                validate_term_policy(row, table, required=True)
     final = findings(revised, texts)
     exceptions = {item['source'].casefold(): item['reason'] for item in decisions.get('allow_no_match', []) if str(item.get('reason', '')).strip()}
     for item in final:

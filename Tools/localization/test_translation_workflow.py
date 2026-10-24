@@ -107,6 +107,10 @@ class WorkflowTests(unittest.TestCase):
                                             'gender': '女性', 'evidence_rows': [1]})
                 table['terms'].append({'source': 'Wolf', 'recommended_translation': '狼',
                                       'category_path': '种族', 'evidence_rows': [1, 2]})
+            for name in ('characters', 'terms'):
+                for entry in table[name]:
+                    entry.update(term_kind='proper_name' if name == 'characters' else 'game_term',
+                                 enforcement='required', term_reason='Synthetic named character or game species in fixture source')
             self.flow.submit(claim['task_id'], claim['lease_token'], {**self.envelope(claim), 'analysis': table})
 
     @staticmethod

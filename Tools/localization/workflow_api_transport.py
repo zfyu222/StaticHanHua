@@ -227,6 +227,8 @@ def restore_body_result(value, transport):
         before = originals[item['id']]
         if 'keep' in item and type(item['keep']) is not bool:
             raise ValueError(f'Record {item["id"]}: keep must be a boolean')
+        if item['id'] in transport.get('require_explicit_translation', []) and ('translation' not in item or item.get('keep') is True):
+            raise ValueError('Original and unaccepted candidate differ; return explicit translation without keep:true')
         if item.pop('keep', False):
             if 'translation' in item and item['translation'] != before:
                 raise ValueError('API keep conflicts with translation')

@@ -57,3 +57,23 @@ README 记录术语版本、数量、审校范围、隔离问题及冻结结果�
 ## 新快照的术语适用范围
 
 新提取合并快照标记 applicability_policy=1。普通代词/助动词/常用词和单字母候选必须结合出处审校：确为普通词则隔离，确为专名、属性或技术义则提供 applicability。text/whole_record/literal_context 分别表示正文匹配、完整记录标签、指定紧邻字串；case_sensitive 为逐词布尔设置，reason 为具体来源依据。literal_context 需实际 prefix/suffix，不能编造语法。edits.patch.applicability 仍需 evidence_rows，提交时检查而非拖到冻结。旧快照不加标记、不自动修表。
+
+
+## 术语范围与遵守等级（2026-10-24）
+
+新提取合并标记 `terminology_policy=1`。保留的characters/terms条目由术语语义审校确认 `term_kind`、`enforcement`、`term_reason`，缺失时不能冻结：
+
+- `proper_name`：人名、地名、组织、法术等确定专名，`enforcement=required`。
+- `game_term`：具有原文证据的游戏特定义。确定的专用称谓为required；多义或暂定、只能作参考的译名为reference，并注明applicability。reference不强制字面命中，不为缺少参考译名产生修复任务，也不要求额外例外。
+- 通常语义的user、human等普通称谓、常用词不提取；已混入的应quarantine，不能降为reference兜底。常见歧义词确属游戏属性/专名时必须提供whole_record或literal_context范围及出处，不能全局套用。程序仅能验证分类与范围契约及已知高风险词，不能替代模型判断所有词的常见程度。
+
+提取和审校沿用原阶段、批量及四维语义证据，不新增一轮模型任务。API与SubAgent共用等级；任务原样传递字段。普通词是否被误标成专名仍须语义审校，结构通过不代表语义正确。
+
+旧冻结快照未标级时保持既有required语义，不自动修改旧项目、已有审校结论或在途输入。需要治理已有词表时必须显式revise-glossary，绑定证据并按实际受影响条目复查，不直接改库。参考条目不能遮挡嵌套的必须遵守专名。
+
+独立审校accuracy核对修饰对象、身体部位、动作参与者和物理/比喻词义；tone核对中文搭配，不能把术语命中当作准确性依据。例如stubbled scalp应结合scalp判断为短发茬，而不是胡茬。使用现有六维证据，不新增冗余报告或承诺杜绝全部语义错误。
+
+结构检查新增对已知不显示的{Male}/{Female}标记新增独占括号的拦截；源文已有括号可保持/本地化。普通可见数值变量{0}不推定为隐藏标记，不作全局禁止括号。其他引擎标记需有实际证据后扩展，不删除标记或凭猜测恢复空值。
+
+
+返修候选与keep的边界：新API包在原译与未接收candidate.translation不同的条目上绑定require_explicit_translation。该条必须返回完整translation，不能使用keep:true；否则程序拒收。keep只代表保留原译，不表示采用尚未接收候选。此约束不回写旧交接映射，不自动修改模型回复、源文摘录或语义证据；已接受的旧结果也不悄悄改写。开发实测曾出现模型证据解释正确候选却用keep恢复错误原译，因此加入此门槛及真实回归夹具。
