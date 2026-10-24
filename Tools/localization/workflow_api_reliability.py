@@ -96,6 +96,13 @@ def normalize_local_ids(result, mapping):
     return value
 
 
+def groupable_translation_omissions(stage, errors, finish_reason=None):
+    """Group complete-JSON field omissions; never relax collection or budgets."""
+    return (stage in ('review', 'final_review', 'polish') and finish_reason != 'length'
+            and bool(errors) and all(isinstance(error, str) and error.startswith('Uncollected API record format: Record ')
+                and error.endswith(': return keep:true or an explicit translation') for error in errors))
+
+
 def format_retry_feedback(result_file, stage=None):
     """Bounded diagnostic data for the next independent request, not instructions
     copied from a model reply. Source text and semantic evidence stay in the pack.

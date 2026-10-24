@@ -168,7 +168,7 @@ class BatchMixin:
             raw = db.execute('SELECT source FROM records WHERE id=?', (original['id'],)).fetchone()['source']
             source_row = {'id': original['id'], 'source': raw}
             row = {k: original[k] for k in ('id', 'ordinal', 'source', 'translation', 'metadata', 'locked') if k in original}
-            for field in ('diagnostic', 'diagnostic_detail', 'candidate', 'repair_constraints'):
+            for field in ('diagnostic', 'diagnostic_detail', 'candidate', 'repair_constraints', 'independent_source_reading'):
                 if field in original:
                     row[field] = original[field]
             row['protection'] = original.get('protection', [])
@@ -665,8 +665,14 @@ class BatchMixin:
                 from translation_workflow import read_json
                 metadata_file = Path(run['result_file']).with_name('response.metadata.json')
                 metadata = read_json(metadata_file) if metadata_file.exists() else {}
-                constrained = (len(scope) > 1 and (self.effective_attempts(db, task) >= 2
-                               or isinstance(metadata, dict) and metadata.get('finish_reason') == 'length'))
+                from workflow_api_reliability import groupable_translation_omissions
+                finish_reason = metadata.get('finish_reason') if isinstance(metadata, dict) else None
+                omissions = groupable_translation_omissions(task['stage'], [items[i]['error'] for i in scope], finish_reason)
+                constrained = (len(scope) > 1 and (finish_reason == 'length'
+                               or self.effective_attempts(db, task) >= 2 and not omissions))
+                if omissions and len(scope) > 1:
+                    self.event(db, 'grouped_translation_omissions', {'task':task['id'],'ids':scope,
+                        'note':'Complete translations and review evidence still required; normal allocation budgets apply.'})
                 limit = max(1, len(scope) // 2) if constrained else None
                 planned = self.plan_task_allocation(db, payload, task['backend'], fixed_identity=True,
                                                     reliability_limit=limit)

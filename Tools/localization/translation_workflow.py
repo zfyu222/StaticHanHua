@@ -31,6 +31,7 @@ from workflow_api_budget import budget_requests, effective_attempts, service_fai
 from workflow_tokens import count_tokens, record_limit, batch_limit, record_tokens
 from workflow_profile import RunProfile, profiled, progress, usage_totals, measure
 from workflow_batches import BatchMixin
+from workflow_review_readings import ReviewReadingsMixin
 from workflow_drafts import DraftMixin
 from workflow_review_rounds import ReviewRoundMixin
 from workflow_sol_rounds import SolRoundMixin
@@ -272,7 +273,7 @@ def validate_config(config):
             raise ValueError('Exclusion must not match empty text')
 
 
-class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin):
+class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin, ReviewReadingsMixin):
     effective_attempts = staticmethod(effective_attempts)
     def __init__(self, project):
         requested = Path(project).absolute()
@@ -1353,6 +1354,11 @@ def prompt(payload, *, api=False):
                    '不用为了参考译名提交例外或改坏正文。保留原文的性别控制标记{Male}/{Female}，不将它们解释成可见姓名，'
                    '不得新增仅包住隐藏标记的括号，避免运行时出现空括号。')
     if stage in ('review', 'final_review'):
+        if any(r.get('independent_source_reading') or r.get('metadata',{}).get('independent_source_reading')
+               for r in payload.get('records',[])):
+            common += (' independent_source_reading是另一次只读原文的未审定API读法，可能有错，'
+                       '只帮助发现词义分歧；以本条原文为准，不把它当标准答案，也不照抄其文风差异。'
+                       '仅修复确实有误的原译，正确译文保持不变，仍须给出完整审校证据。')
         common += (' 独立审校不能以术语命中、直译可对应或沿用候选判断为语义正确依据。accuracy核对词语实际修饰对象、'
                    '身体部位、施事/受事及物理/比喻词义，例如stubbled scalp是短发茬头皮，不能搬用脸部胡茬；'
                    'tone核对整句中文搭配是否自然。短UI标签结合已有描述/资源信息判断人物特质还是物理状态；'
@@ -1712,6 +1718,21 @@ def resume_api_tasks(flow, stage):
                 # resume diagnostic, not another blind replay.
                 write_json(path.with_name('rejection.resume.json'),
                            {'task_id':task['id'],'error':str(error)[:1000],'status':'rejected_on_resume'})
+        if run and not path.exists() and not raw.exists():
+            with flow.db() as db:
+                plan = db.execute('SELECT 1 FROM batch_repair_plans WHERE session_id=? AND status="dispatched"',
+                                  (run['id'],)).fetchone()
+                if plan:
+                    # Only this interrupted repair part is reissued. A new task
+                    # lease would strand saved controls and completed siblings.
+                    db.execute('UPDATE batch_repair_plans SET status="pending",session_id=NULL WHERE session_id=?', (run['id'],))
+                    db.execute('UPDATE batch_runs SET status="interrupted" WHERE id=?', (run['id'],))
+                    if 'session_id' in {r[1] for r in db.execute('PRAGMA table_info(api_calls)')}:
+                        db.execute('UPDATE api_calls SET status="interrupted" WHERE session_id=? AND status="reserved"', (run['id'],))
+                    else:
+                        db.execute('UPDATE api_calls SET status="interrupted" WHERE task_id=? AND status="reserved"', (task['id'],))
+                    flow.event(db,'resume_repair_part',{'session':run['id'],'task':task['id'],'saved_items_preserved':True})
+                    continue
         flow.recover(task['id'], worker_stopped=True)
         with flow.db() as db:
             db.execute('UPDATE batch_runs SET status="interrupted" WHERE task_id=? AND token=? AND status="waiting"',
@@ -2077,6 +2098,8 @@ def main():
     p = sub.add_parser('configure'); p.add_argument('--file', required=True); p.add_argument('--reason', required=True)
     p.add_argument('--impact', choices=('auto', 'none', 'ids', 'all'), default='auto'); p.add_argument('--ids', nargs='+')
     p = sub.add_parser('replace-context'); p.add_argument('--file', required=True); p.add_argument('--reason', required=True)
+    p = sub.add_parser('import-review-readings'); p.add_argument('--source-project', required=True)
+    p.add_argument('--ids', nargs='+', required=True); p.add_argument('--reason', required=True)
     p = sub.add_parser('revise-glossary'); p.add_argument('--snapshot', required=True); p.add_argument('--decisions', required=True); p.add_argument('--reason', required=True)
     for command in ('lock', 'unlock'):
         p = sub.add_parser(command); p.add_argument('--record', required=True); p.add_argument('--reason', required=True)
@@ -2136,6 +2159,7 @@ def main():
         elif args.command == 'release-check': result = flow.release_check()
         elif args.command == 'configure': result = flow.configure(read_json(args.file), args.reason, args.impact, args.ids)
         elif args.command == 'replace-context': result = flow.replace_context(read_json(args.file), args.reason)
+        elif args.command == 'import-review-readings': result = flow.import_review_readings(args.source_project, args.ids, args.reason)
         elif args.command == 'freeze-glossary': result = flow.freeze_glossary()
         elif args.command == 'revise-glossary': result = flow.revise_glossary(args.snapshot, args.decisions, args.reason)
         elif args.command in ('lock', 'unlock'): result = flow.lock(args.record, args.command == 'lock', args.reason)

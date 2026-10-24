@@ -62,6 +62,8 @@ extract/glossary_review 完成本阶段任务及原有格式重试后交回；pi
 
 `--resume` 检查遗留 runner 的父子进程均已结束，先收集保存的完整回复，再重试没有可用回复的未完成批次；保留原尝试预算。已成功提交的批次不重做。旧版在途协议不兼容，勿对旧交接直接使用新映射；重开项目应由正常初始化入口执行，不直接改库。尚未保存回复的请求可能需要重发。
 
+缺少回复的返修子包恢复时，沿用原任务租约，只将该子包转回待发；已保存的兄弟子包、通过对照及候选不重做。原始attempt与请求历史保留；有落盘回复仍优先收集。仅完整JSON漏掉完整translation、没有其他错误时，补全任务按正常输入/输出预算合批，不因尝试较多就必拆成逐条；输出截断仍缩小范围，累计上限及验收不变。
+
 局部性能对比（2026-10-18）：Expeditions Viking 冻结术语 3,529 项、分散抽样 80 条，原逐句匹配 3.437 秒，新首次匹配 2.588 秒、缓存复用 0.0017 秒，逐项结果一致。该数据不代表全文启动或 API 服务耗时。
 
 翻译仅提供 SubAgent 和 API 两条路线，程序入口是 `translation_workflow.py`；路线选择及子代理派发由 `game-translate` 技能管理。所有翻译中间产物放在游戏汉化项目 `TranslateFiles/`，正式原文/译文保持项目根目录的单列 CSV 格式。
@@ -212,6 +214,18 @@ run-api 在拆批前同步 batching，通过现有 configure 修订机制只更�
 `source_reference --reading-report <Development中的实际盲核报告>`可在独立开发夹具中将API原文独立译法作为未审定参考，再审校旧译，最多一次出站请求；校验六条原文和记录号对应，不将参考认定为正确答案。接口恢复后的[接续结果](reports/source_blind_resume_20261024.md)仅确认独立生成能选对本组目标词义，后续审校请求超时，不能宣称闭环已通过，也未自动用于正式游戏。
 
 后续通过公开resume接续的[审校结果](reports/source_reference_resume_20261024.md)已识别两处真实胡茬错误和一处头发状态错误，并保留三条正确对照；但修改项缺完整translation，只有一个修订候选已补全，另两项仍待补全，不能宣称整批通过。`test_source_reference_reply.py`重放真实缺字段回复及完整修订候选，确保不从修改理由或独立参考中代填译文。
+
+### 可选原文独立解读与回复可靠性
+
+2026-10-24后续[流程优化验证](reports/review_optimization_20261024.md)补齐剩余两条，原六条整批审校通过。新API示例对多条审校分别展示完整修改与keep路径；单条示例及文字说明同样要求依真实判断选择，不因示例ID或示例改动类别推定结论。修改项须返回完整translation及本条来源，程序不从reason、changes或参考中推造译文。
+
+新增`import-review-readings`，只把另一个已完成的原文API试译作为指定ID的未审定参考。默认禁用，不自动发起额外盲译；导入本身零请求，参考生成和随后审校仍各有实际费用，来源项目预算单独保存，执行者须限制并汇总。来源须保留真实API接收及源文/任务/结果绑定，不含旧译、候选、逐条元数据或译例。目标需暂停、无在途/待办、所选ID未锁定且同属translate或review阶段；已完成review仅重开指定ID，预算耗尽不能导入绕过停止条件。
+
+```powershell
+& $python Tools/localization/translation_workflow.py --project '<目标项目绝对路径>' import-review-readings --source-project '<原文独立试译项目绝对路径>' --ids '<ID1>' '<ID2>' --reason '核对指定记录的词义分歧'
+```
+
+参考经共用分配器绑定原文、计入预算，API与SubAgent均可读取；不改在途包，不直接替换译文，仍须完整审校和整轮验收。当前样本带参考和无参考均能修对，不能据此声称参考更可靠或默认应当采用。完整边界见[流程说明](../../.agents/skills/game-translate/references/quality_workflow.md#可选的原文独立解读参考)。`test_review_readings.py`、`test_review_omission_recovery.py`及真实回复回归覆盖范围、锁定、来源、预算回滚、遗漏补全与部分接续。
 
 ## API 阶段执行与等待
 

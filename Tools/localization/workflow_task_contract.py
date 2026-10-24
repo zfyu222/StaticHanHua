@@ -60,18 +60,23 @@ def api_output_template(payload, scope=None):
             item['evidence_rows'] = []
             item['checks'] = {key: ['按实际核对选择状态', '填写本维度具体依据'] for key in item['checks']}
     elif 'records' in result:
-        # Each stage needs only one example of each output structure.
+        # Review needs both choices visible. Missing translation on corrected
+        # items was repeatedly observed when the skeleton showed only keep.
         examples, shapes = [], set()
         for item in result['records']:
-            shape = 'detailed' if 'checks' in item else 'simple'
+            reusable = payload['stage'] in ('review', 'final_review', 'polish')
+            shape = ('revise' if not examples else 'keep') if reusable else ('detailed' if 'checks' in item else 'simple')
             if shape in shapes:
                 continue
             shapes.add(shape)
             example = copy.deepcopy(item)
             if 'translation' in example:
-                if payload['stage'] in ('review', 'final_review', 'polish'):
+                if reusable and shape == 'keep':
                     example.pop('translation')
                     example['keep'] = True
+                    example.pop('reviewed', None)
+                elif reusable:
+                    example['translation'] = '填写本条完整新译文；不能只在reason或changes中描述修改'
                     example.pop('reviewed', None)
                 else:
                     example['translation'] = ''
@@ -93,6 +98,9 @@ def api_output_template(payload, scope=None):
                         'terminology': 'e2', 'tone': 'e3', 'placeholders': 'e4'}
                 for key, check in example['checks'].items():
                     check[1] = {'ref': refs[key]}
+                if reusable and shape == 'revise':
+                    example['changes'] = [{'category': 'accuracy', 'severity': 'major',
+                        'source_ref': 'whole', 'reason': {'ref': 'e1'}}]
             examples.append(example)
         result['records'] = examples
     return result
@@ -109,12 +117,14 @@ def api_template_instruction(stage):
                 '现有条目的 allow_no_match 也使用 ref 和真实 reason。acknowledged_findings 明确确认本批 audit.findings 的 f编号；'
                 'checks 每维用 [status, evidence] 两项数组，均由模型真实填写；程序恢复 status/evidence 对象。'
                 '不得自动确认未核对项；哈希、任务标识和 reviewed_refs 由程序绑定恢复，无需返回。')
-    instruction = 'records 仅示范结构；必须返回输入的全部 ID 各一次，不限于示例。'
+    instruction = ('records 仅示范结构，不表示示例中的ID应修改或保留；每条依实际核对选择路径。'
+                   '必须返回输入的全部 ID 各一次，不限于示例。')
     if stage in ('review', 'final_review', 'polish'):
         instruction += ('未改译文返回 keep:true 并省略 translation；修改时仅返回一次完整 translation，可省略 keep。'
                         '两种路径的字段片段分别为 {"id":"1","keep":true} 和 '
                         '{"id":"1","translation":"本条完整新译文"}；两者都须填写本阶段其余实际理由和证据。'
-                        '不以缺少字段表示通过；reason 说明实际判断。')
+                        'changes非空或checks出现corrected时必须有完整translation，且须有本条来源引用；'
+                        'reason/changes里的替换短语不能代替完整译文。不以缺少字段表示通过；reason说明实际判断。')
         if stage != 'polish':
             instruction += ('审校 checks、source_excerpt、changes 必须真实填写。'
                             'checks 每维使用 [status,evidence] 两项数组；两个值都须由本次真实检查填写，'

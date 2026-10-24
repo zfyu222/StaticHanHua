@@ -71,9 +71,13 @@ class APICompactionTests(unittest.TestCase):
                 full = output_template(payload)
                 template = api_output_template(payload)
                 self.assertEqual(len(full['records']), 40)
-                self.assertEqual(len(template['records']), 1)
-                self.assertNotIn('translation', template['records'][0])
-                self.assertIs(template['records'][0]['keep'], True)
+                self.assertEqual(len(template['records']), 2)
+                self.assertIn('translation', template['records'][0])
+                self.assertNotIn('keep', template['records'][0])
+                self.assertNotIn('translation', template['records'][1])
+                self.assertIs(template['records'][1]['keep'], True)
+                self.assertNotEqual(template['records'][0]['id'], template['records'][1]['id'])
+                self.assertNotIn('原译文必须只在输入记录中出现。',json.dumps(template,ensure_ascii=False))
                 if stage != 'polish':
                     self.assertEqual(set(template['records'][0]['checks']), {
                         'accuracy', 'completeness', 'terminology', 'tone', 'logic', 'placeholders'})

@@ -56,6 +56,7 @@ class AllocationMixin:
             raise ValueError('Task allocation: invalid language/style/background fields')
         if not isinstance(value.get('records'), list):
             raise ValueError('Task allocation: records must be a list')
+        review_readings = self.meta(db, 'review_readings', {}) if stage in ('review', 'final_review') else {}
         seen = set()
         for row in value['records']:
             if not isinstance(row, dict) or not isinstance(row.get('id'), str) or row['id'] in seen:
@@ -74,6 +75,7 @@ class AllocationMixin:
             restored = bridge.restore(row['source'], protection) if protection else row['source']
             if restored != original['source']:
                 raise ValueError('Task allocation: source/protection does not match the source snapshot')
+            self.add_review_reading(db, row, original['source'], stage, review_readings)
             row['locked'] = bool(original['locked'])
             if row['locked'] and row.get('translation') != original['translation']:
                 raise ValueError('Task allocation: prepared input conflicts with a locked translation')
