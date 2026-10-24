@@ -1,0 +1,180 @@
+{
+  "date": "2026-10-24",
+  "status": "all_four_real_feedback_categories_corrected_in_isolated_copy",
+  "case_checks": {
+    "person_descriptor": true,
+    "device_user": true,
+    "gender_wrapper": true,
+    "scalp_branches": true
+  },
+  "real_api_requests": 5,
+  "reported_tokens": 48216,
+  "original_ordinals": [
+    57207,
+    63811,
+    62257,
+    4147,
+    4257
+  ],
+  "original_sources_unchanged": [
+    "Hardened",
+    "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight.",
+    "Child {Female}",
+    "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+    "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\""
+  ],
+  "original_bad_translations": [
+    "硬化",
+    "这枚棕色圆球沉重而坚实，摸起来像一块被源源不断的水流磨得光滑的岩石。球体一侧有一处恰好贴合人类手掌的凹槽。激活后，这件跃迁会吸收用户，并将其传送至视线范围内的附近地点。",
+    "孩童（{Female}）",
+    "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+    "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”"
+  ],
+  "original_bad_glossary": {
+    "characters": [
+      {
+        "source": "Child {Female}",
+        "recommended_translation": "孩童（女性）",
+        "gender": "女性",
+        "evidence_rows": [
+          3
+        ]
+      }
+    ],
+    "terms": [
+      {
+        "source": "user",
+        "recommended_translation": "用户",
+        "category_path": "身份",
+        "evidence_rows": [
+          2
+        ]
+      },
+      {
+        "source": "Hardened",
+        "recommended_translation": "硬化",
+        "category_path": "其他",
+        "evidence_rows": [
+          1
+        ]
+      }
+    ],
+    "non_translate": []
+  },
+  "reviewed_glossary": {
+    "characters": [],
+    "terms": [
+      {
+        "category_path": "其他",
+        "recommended_translation": "坚韧",
+        "source": "Hardened",
+        "evidence_rows": [
+          1
+        ],
+        "extraction_candidates": [
+          {
+            "table": "terms",
+            "row": {
+              "category_path": "其他",
+              "recommended_translation": "硬化",
+              "source": "Hardened"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              1
+            ],
+            "extraction_tasks": [
+              "extract-r3-00001-a6629b72"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen",
+        "applicability": {
+          "case_sensitive": true,
+          "mode": "whole_record",
+          "reason": "仅当整条记录文本恰为 'Hardened' 时命中；正文中作普通形容词的 hardened 不在范围内"
+        },
+        "enforcement": "reference",
+        "term_kind": "game_term",
+        "term_reason": "metadata 注 'A set of bonuses granted by the Hardened descriptor.'，且 ordinal 1 整条即为角色特质名 'Hardened'"
+      }
+    ],
+    "non_translate": [],
+    "applicability_policy": 1,
+    "terminology_policy": 1,
+    "stats": {
+      "character_count": 0,
+      "term_count": 1,
+      "non_translate_count": 0,
+      "total_hits": 1
+    }
+  },
+  "actual_after": [
+    {
+      "ordinal": 1,
+      "source": "Hardened",
+      "translation": "坚韧",
+      "stage": "review"
+    },
+    {
+      "ordinal": 2,
+      "source": "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight.",
+      "translation": "这枚棕色圆球沉重而坚实，摸起来像一块被源源不断的水流磨得光滑的岩石。球体一侧有一处恰好贴合人类手掌的凹槽。激活后，这件跃迁器会吸收使用者，并将其传送至视线范围内的附近地点。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 3,
+      "source": "Child {Female}",
+      "translation": "孩童{Female}",
+      "stage": "review"
+    },
+    {
+      "ordinal": 4,
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+      "stage": "review"
+    },
+    {
+      "ordinal": 5,
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+      "stage": "review"
+    }
+  ],
+  "context_supplied": {
+    "1": {
+      "original_ordinal": "57207",
+      "text_type": "人物特质名称",
+      "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+      "note": "截图显示阿利格恩人物标题下为“Hardened, a Nano who Fights With His Demons”；原文另有“A set of bonuses granted by the Hardened descriptor.”。"
+    },
+    "2": {
+      "original_ordinal": "63811",
+      "text_type": "物品说明",
+      "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+      "note": ""
+    },
+    "3": {
+      "original_ordinal": "62257",
+      "text_type": "NPC通用称谓",
+      "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+      "note": "原文{Female}为不显示的性别控制标记。"
+    },
+    "4": {
+      "original_ordinal": "4147",
+      "text_type": "对白叙述",
+      "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+      "note": ""
+    },
+    "5": {
+      "original_ordinal": "4257",
+      "text_type": "对白叙述",
+      "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+      "note": ""
+    }
+  },
+  "production_translation_sha256": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "production_modified": false,
+  "limits": "Uses supplied screenshot facts for Hardened descriptor and known nonprinting Female marker. Not a blind-context test, not proof against every future semantic error. No new game export/repack/publication.",
+  "raw_evidence_directory": "Development\\real_feedback_probe_20261024_run2\\Regression\\TranslateFiles"
+}
