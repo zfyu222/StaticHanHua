@@ -26,7 +26,10 @@ def validate_term_policy(row, table, required=False):
     if scope_risk(row['source']):
         scope = row.get('applicability', {})
         if scope.get('mode') not in ('whole_record', 'literal_context'):
-            raise ValueError('Ordinary word cannot be a global/reference term; quarantine or prove a scoped game meaning')
+            raise ValueError('Ordinary word cannot be a global/reference term: ' + repr(row['source'])
+                + '; applicability.mode=' + repr(scope.get('mode'))
+                + '. Use whole_record for a complete label or literal_context with a real source prefix/suffix; '
+                  'case_sensitive text is still global. Quarantine ordinary meanings.')
     if kind == 'proper_name' and level != 'required':
         raise ValueError('Confirmed proper names require consistent naming')
 

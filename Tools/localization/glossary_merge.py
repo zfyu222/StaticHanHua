@@ -18,7 +18,8 @@ def merge_extractions(extractions):
             for entry in analysis[table]:
                 source = entry['source'].strip().casefold()
                 candidates = groups.setdefault(source, {})
-                row = {k: copy.deepcopy(v) for k, v in entry.items() if k != 'evidence_rows'}
+                row = {k: copy.deepcopy(v) for k, v in entry.items()
+                       if k not in ('evidence_rows', 'corpus_evidence_rows', 'corpus_evidence_note')}
                 identity = (table, json.dumps(row, ensure_ascii=False, sort_keys=True))
                 if identity not in candidates:
                     candidates[identity] = {'table': table, 'row': row, 'extraction_count': 0,
@@ -53,6 +54,7 @@ def merge_extractions(extractions):
 def review_evidence_rows(row):
     """Include representative source evidence for every retained candidate."""
     evidence = set(row.get('evidence_rows', [])[:2])
+    evidence.update(row.get('corpus_evidence_rows', []))
     for candidate in row.get('extraction_candidates', []):
         evidence.update(candidate.get('evidence_rows', [])[:2])
     return sorted(evidence)

@@ -201,7 +201,11 @@ run-api 在拆批前同步 batching，通过现有 configure 修订机制只更�
 
 最大并发只配置 `api.concurrency`；默认值、请求速率与修改方式统一见 [API 并发配置](../../.agents/skills/game-translate/references/custom_workflow.md#api-执行)。`test_api_concurrency.py` 用阻塞式模拟请求验证实际并发峰值、项目覆盖值和并发下的累计请求预算。
 
-术语提取与术语审校的 API 输入只列出本批随附原文的证据行号：`compact_term_input` 会按 `records` 裁剪 `evidence_rows`，条目自身若一条都不可见则保留原样，只读关联项和候选列表裁空不留。程序侧 payload、任务哈希与验收门槛不变，因此无需重开任务；被隐藏的行号本来也无法引用或核验。出处比对在 `quote_matches` 中忽略空白与换行差异，引文文字仍须逐字连续，改写、拼接和省略号照旧拒绝。`test_glossary_input_fixes.py` 覆盖这两项。
+术语提取与术语审校的 API 输入只列出本批随附原文的证据行号：`compact_term_input` 会按 `records` 裁剪 `evidence_rows`与`corpus_evidence_rows`，条目自身原提取出处若一条都不可见则保留原样，只读关联项和候选列表裁空不留。程序侧 payload、任务哈希与验收门槛不变，因此无需重开任务；被隐藏的行号本来也无法引用或核验。出处比对在 `quote_matches` 中忽略空白与换行差异，引文文字仍须逐字连续，改写、拼接和省略号照旧拒绝。`test_glossary_input_fixes.py` 覆盖基础引用边界。
+
+新审校快照在绑定哈希前，通过`glossary_corpus_evidence.py`本地检索全文定义，最多每词补两条完整原文；可从明确“原词+类别”再找一层类别说明，总数不增长。检索不推定词义、不使用CSV邻接关系，不新增模型阶段，现有输入预算与拆批继续生效。确认含义由审校者写入已有`term_reason`并沿匹配术语传入正文和独立审校；相关出处仍须真实引用。当前定义提示词以英语为限，不能声称穷尽所有语境；旧审校/冻结快照不自动更改。规则见[从全文取得定义](../../.agents/skills/game-translate/references/glossary_review.md#从全文取得定义避免短标签丢失语境)。`test_glossary_corpus_evidence.py`验证远处定义、同形干扰、类别关联、完整出处、可见引用及旧快照稳定；`live_game_feedback_probe.py --source-only --output Development/<新目录>`在隔离副本中做有界真实API回归，历史错误译文为复制夹具，非模型产出或语义通过结论。
+
+完整短标签因literal_context范围未命中词条时，`label_meaning_hints`仍传递精确同名词条的已审含义，避免单独分批后丢失语境；它是只读提示，不扩大术语范围或产生例外。该查找复用冻结快照的内存索引，不对每条重新扫描全表。无截图回归的真实通过与失败范围见[报告](reports/source_context_20261024.md)，其中“胡茬的头皮”仍被未接收候选漏检，不能宣称独立审校已消除此类错误。
 
 ## API 阶段执行与等待
 

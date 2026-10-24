@@ -517,6 +517,9 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                 folder.mkdir(parents=True, exist_ok=True)
                 # Shared audit accepts AINiee cache shape, never a bare analysis object.
                 if not (folder / 'audit/glossary_original.json').exists():
+                    from glossary_corpus_evidence import attach_corpus_evidence
+                    evidence_stats = attach_corpus_evidence(original, records)
+                    write_json(folder / 'corpus_evidence_report.json', evidence_stats)
                     wrapper = folder / 'analysis_input.json'
                     write_json(wrapper, {'extra': {'analysis_v1': original}})
                     glossary_tool.audit(wrapper, self.meta(db, 'source_path'), folder / 'audit')
@@ -1344,6 +1347,8 @@ def prompt(payload, *, api=False):
             common = common.replace('原样复制 task_id、input_hash 和 ID；',
                                     '任务标识及哈希由程序绑定，无需返回；出处使用输入 ordinal；')
     if stage not in ('extract', 'glossary_review'):
+        common += (' label_meaning_hints只提供与完整标签同名的已审含义，帮助理解短UI；'
+                   '它不是本句术语约束或截图确认，不据此强制字面译名或填写术语例外。')
         common += (' terms/shared_terms中enforcement=required及旧表未标注条目保持名称一致；reference仅供参考，语境优先，'
                    '不用为了参考译名提交例外或改坏正文。保留原文的性别控制标记{Male}/{Female}，不将它们解释成可见姓名，'
                    '不得新增仅包住隐藏标记的括号，避免运行时出现空括号。')
@@ -1353,6 +1358,10 @@ def prompt(payload, *, api=False):
                    'tone核对整句中文搭配是否自然。短UI标签结合已有描述/资源信息判断人物特质还是物理状态；'
                    '语境不足时明确报告疑点，不把猜测写成已证实。只对具体问题举证，不新增一轮审校或冗余输出字段。')
     if stage in ('extract', 'glossary_review'):
+        common += (' 优先检查全文关联的corpus_evidence_rows及对应完整原文；它们是候选定义/机制说明，不代表语义已经确认。'
+                   '不能因词条本身很短就忽略原文已有定义。结合定义判断人物特质、物理状态、能力和普通词义，'
+                   '术语属于某机制不等于其字面译法准确，还须核对修饰对象、物理/比喻义及中文搭配。'
+                   'term_reason记录实际含义与使用范围，使后续翻译/审校能理解该义；不要只写“符合术语表”。')
         common += (' 术语以专有名称及确有特定游戏义的词为主；user/human等普通称谓和常用动作/形容词不收录，'
                    '不能只因机器说过或出现频繁就冻结。不要将Child {Female}这类普通NPC称谓及性别控制标记组合当专名。'
                    '每个保留的characters/terms条目须带term_kind=proper_name或game_term、enforcement=required或reference、'
@@ -1364,6 +1373,7 @@ def prompt(payload, *, api=False):
                    '确有游戏义且容易与普通词混淆时，提供 applicability={mode:text|whole_record|literal_context,'
                    'case_sensitive:布尔值,reason:具体原文依据}；literal_context 还须给实际 prefix/suffix，不能编造语法。'
                    'text 用于确属正文专名/术语，whole_record 只匹配完整标签，literal_context 只匹配指定紧邻字串。'
+                   '常见歧义词（含日常形容词用作人物特质）只可选whole_record或literal_context；仅区分大小写的text仍属全局，不够。'
                    '术语审校用 edits.patch.applicability 或有依据的 quarantine；不能仅承认风险却留下无范围的普通词。')
     if payload.get('layout_policy') == 'exact_v1':
         common += (' 首尾横向空白及段落数相同时的 CRLF/LF 编码由程序按绑定源文恢复；不要把这些视为翻译错误或改动理由。'
@@ -1425,6 +1435,8 @@ def prompt(payload, *, api=False):
         schemas['extract'] += (' 不输出分析过程、计划、推理或自然语言说明，回复第一个字符就是 {，'
                                '只输出一个符合 output_template 的 JSON 对象。')
     common += schemas[stage]
+    if api:
+        common += ' 仅返回一个JSON对象；对象闭合后立即结束回复，不加代码围栏、完成声明、解释或其他尾注。思考不写入回复正文。'
     if not api:
         common += WORKER_INSTRUCTION
     if stage not in ('extract', 'glossary_review'):
@@ -1492,7 +1504,7 @@ def prompt(payload, *, api=False):
             glossary_contract = (
                 ' entry_reviews 每项独立核对 source/translation/category/consistency 四维，'
                 'checks 每维固定为两元素数组 [status,evidence]；status 为 pass/corrected/not_applicable，evidence 写具体依据；'
-                'evidence_rows 只能从本条目的 evidence_rows 中选，且该行原文须出现在本批 records；'
+                'evidence_rows 只能从本条目的 evidence_rows 中选，或从本条目的 corpus_evidence_rows 中选，且该行原文须出现在本批 records；'
                 '其他条目或未附原文的行号一律不得引用；'
                 'source_excerpt 必须是所引 ordinal 原文的连续逐字片段，不拼接、不省略、不改写、不翻译；'
                 'entry_reviews 只写 entries 中的 e编号，不得包含 related_entries 或 term_families 条目。'

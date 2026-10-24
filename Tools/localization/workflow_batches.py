@@ -180,6 +180,10 @@ class BatchMixin:
                 row['metadata'] = dict(row.get('metadata', {}), validated_record_constraints=constraint)
             row['terms'] = [{k: t[k] for k in ('src', 'dst', 'src_state', 'info', 'enforcement', 'term_kind', 'term_reason') if t.get(k)}
                             for t in terms]
+            label_hints = [hint for hint in bridge.label_meaning_hints(glossary, raw, config)
+                           if not any(t['src'] == hint['source'] and t.get('term_reason') == hint['meaning'] for t in terms)]
+            if label_hints:
+                row['label_meaning_hints'] = label_hints
             if original.get('exceptions'):
                 row['exceptions'] = original['exceptions']
             if row['id'] in diagnostics:

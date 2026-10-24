@@ -1,0 +1,211 @@
+{
+  "date": "2026-10-24",
+  "status": "source_context_improved_but_independent_review_regression_not_passed",
+  "scope": "Shared workflow only; actual game CSV, glossary, state, binaries and releases were not written.",
+  "method": "Copied real sources and historical errors into isolated fixtures. No screenshots, manual character metadata or hidden-marker hints. Extraction is seeded from the old glossary, not claimed as an extraction-model test.",
+  "benchmark": {
+    "attached_record_links": 1648,
+    "cue_records": 1468,
+    "seconds": 0.648,
+    "source_records": 70163,
+    "entry_count": 5579,
+    "entries_enriched": 1019,
+    "hardened_evidence": [
+      {
+        "ordinal": 57530,
+        "source": "A set of bonuses granted by the Hardened descriptor."
+      },
+      {
+        "ordinal": 67743,
+        "source": "Your Descriptor provides additional modifiers to your starting Stats and Skills.\\nOnce selected, your Descriptor cannot be changed."
+      }
+    ],
+    "raw_link_text_tokens_local_estimate": 99663,
+    "token_estimate_note": "Sum of new linked source text only, before per-batch dedup; excludes prompts, metadata, responses, reasoning and retries. Local o200k estimate, not billing."
+  },
+  "unit_tests_distinct_passed": 102,
+  "stage_results": {
+    "source_only_glossary_review": "accepted: Hardened -> 坚韧 with character descriptor meaning in term_reason; user and Child {Female} quarantined",
+    "draft_check": "accepted: new wrappers removed from Child {Female}",
+    "independent_review": "not accepted: two concatenated JSON objects; additionally unaccepted candidate kept two wrong scalp translations"
+  },
+  "case_results": {
+    "Hardened_context": "Confirmed by real accepted glossary review using only source definitions.",
+    "ordinary_user": "Quarantined by accepted glossary review; unaccepted review proposed 使用者. Body end-to-end not passed.",
+    "hidden_marker_wrapper": "Rejected by draft scan and fixed to 孩童{Female}; draft final scan clean.",
+    "scalp_hair": "FAILED semantic observation: unaccepted review proposed keeping both historical beard/scalp errors despite explicit prompt. Do not claim reliable prevention."
+  },
+  "model_limit": "Full-source evidence retrieval reduces missing context; it does not make this API model reliably detect all bad collocations. No additional whole-corpus review loop or switch of model added.",
+  "api_wire_request_cap_combined": 8,
+  "actual_wire_requests": 8,
+  "reported_usage_tokens": 80933,
+  "wire_usage_reports": [
+    {
+      "fixture": "literal_definition_only",
+      "status": "invalid_model_result",
+      "prompt_tokens": 3729,
+      "completion_tokens": 6325,
+      "total_tokens": 10054,
+      "response_model": "deepseek-v4.1-flash"
+    },
+    {
+      "fixture": "literal_definition_only",
+      "status": "invalid_model_result",
+      "prompt_tokens": 5165,
+      "completion_tokens": 6201,
+      "total_tokens": 11366,
+      "response_model": "deepseek-v4.1-flash"
+    },
+    {
+      "fixture": "definition_plus_role",
+      "status": "invalid_model_result",
+      "prompt_tokens": 3876,
+      "completion_tokens": 10098,
+      "total_tokens": 13974,
+      "response_model": "deepseek-v4.1-flash"
+    },
+    {
+      "fixture": "definition_plus_role",
+      "status": "invalid_model_result",
+      "prompt_tokens": 3888,
+      "completion_tokens": 5011,
+      "total_tokens": 8899,
+      "response_model": "deepseek-v4.1-flash"
+    },
+    {
+      "fixture": "definition_plus_role",
+      "status": "invalid_model_result",
+      "prompt_tokens": 3659,
+      "completion_tokens": 5340,
+      "total_tokens": 8999,
+      "response_model": "deepseek-v4.1-flash"
+    },
+    {
+      "fixture": "definition_plus_role",
+      "status": "received",
+      "prompt_tokens": 3797,
+      "completion_tokens": 7556,
+      "total_tokens": 11353,
+      "response_model": "deepseek-v4.1-flash"
+    },
+    {
+      "fixture": "definition_plus_role",
+      "status": "received",
+      "prompt_tokens": 1319,
+      "completion_tokens": 147,
+      "total_tokens": 1466,
+      "response_model": "deepseek-v4.1-flash"
+    },
+    {
+      "fixture": "definition_plus_role",
+      "status": "invalid_model_result",
+      "prompt_tokens": 5504,
+      "completion_tokens": 9318,
+      "total_tokens": 14822,
+      "response_model": "deepseek-v4.1-flash"
+    }
+  ],
+  "local_guard_note": "A further runner attempt was blocked before transport; its usage is unreported and it is not an actual wire request. No more requests dispatched.",
+  "rejection_history": [
+    {
+      "fixture": "source_only_feedback_probe_20261024",
+      "stage": "glossary_review",
+      "error": "Extra data: line 76 column 2 (char 3446)"
+    },
+    {
+      "fixture": "source_only_feedback_probe_20261024",
+      "stage": "glossary_review",
+      "error": "Ordinary word cannot be a global/reference term; quarantine or prove a scoped game meaning"
+    },
+    {
+      "fixture": "source_only_role_probe_20261024",
+      "stage": "glossary_review",
+      "error": "Ordinary word cannot be a global/reference term; quarantine or prove a scoped game meaning"
+    },
+    {
+      "fixture": "source_only_role_probe_20261024",
+      "stage": "glossary_review",
+      "error": "Extra data: line 1 column 2780 (char 2779)"
+    },
+    {
+      "fixture": "source_only_role_probe_20261024",
+      "stage": "glossary_review",
+      "error": "Ordinary word cannot be a global/reference term; quarantine or prove a scoped game meaning"
+    },
+    {
+      "fixture": "source_only_role_probe_20261024",
+      "stage": "review",
+      "error": "Extra data: line 1 column 5171 (char 5170)"
+    }
+  ],
+  "retry_history": "Original attempts and responses retained. One explicit development-only increase from 3 to 4 task attempts within unchanged six-wire-call fixture cap; no production budget change.",
+  "frozen_hardened": [
+    {
+      "category_path": "其他",
+      "recommended_translation": "坚韧",
+      "source": "Hardened",
+      "evidence_rows": [
+        1
+      ],
+      "extraction_candidates": [
+        {
+          "table": "terms",
+          "row": {
+            "category_path": "其他",
+            "recommended_translation": "硬化",
+            "source": "Hardened"
+          },
+          "extraction_count": 1,
+          "evidence_rows": [
+            1
+          ],
+          "extraction_tasks": [
+            "extract-r2-00001-0bddf94b"
+          ]
+        }
+      ],
+      "provisional_selection": "most_extraction_proposals_then_first_seen",
+      "corpus_evidence_rows": [
+        6,
+        7
+      ],
+      "corpus_evidence_note": "Literal source match in definition/role cue records; may include one definition of the literal role following this term. Candidate evidence, not confirmed semantic equivalence; distinguish homonyms.",
+      "applicability": {
+        "case_sensitive": true,
+        "mode": "literal_context",
+        "prefix": "the ",
+        "reason": "ordinal 6 中仅 'the Hardened descriptor' 这一紧邻字串指 Descriptor 名；单字记录 ordinal 1 为同名 Descriptor 标签，但为避免与普通形容词 hardened 全局误配，不设 text 全局匹配。",
+        "suffix": " descriptor"
+      },
+      "enforcement": "reference",
+      "term_kind": "game_term",
+      "term_reason": "ordinal 6 原文 'A set of bonuses granted by the Hardened descriptor.' 与 ordinal 7 的 Descriptor 说明共同表明 Hardened 是角色创建时赋予初始属性/技能修正的 Descriptor 名称，修饰对象为人物特质（经磨砺而强韧），而非材料'硬化'；该词同时是普通形容词，故仅作 reference 并限定语境。"
+    }
+  ],
+  "review_protocol_failure_trailing_object": "{\"records\":[{\"id\":\"1\",\"translation\":\"坚韧\"},{\"id\":\"2\",\"translation\":\"这枚棕色圆球沉重而坚实，摸起来像一块被源源不断的水流磨得光滑的岩石。球体一侧有一处恰好贴合人类手掌的凹槽。激活后，这枚跃迁球会吸收使用者，并将其传送至视线范围内的附近地点。\"},{\"id\":\"6\",\"translation\":\"由“坚韧”描述符提供的一组加成。\"}]}",
+  "production_translation_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "production_translation_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "raw_artifacts": [
+    "Development/source_only_feedback_probe_20261024",
+    "Development/source_only_role_probe_20261024"
+  ],
+  "fixture_state": "Both development projects publicly paused; all real calls finished.",
+  "fixture_source_scope": {
+    "first": 6,
+    "second": 7,
+    "selection_note": "Selected real original records in isolated development fixtures; whole-corpus retrieval benchmark is separate and read-only. No claim that full-game extraction/translation was rerun."
+  },
+  "unit_suite_counts": {
+    "test_glossary_corpus_evidence": 12,
+    "test_term_policy": 14,
+    "test_glossary_tool": 7,
+    "test_glossary_input_fixes": 8,
+    "test_glossary_revision_probes": 4,
+    "test_workflow_quality": 25,
+    "test_api_prompt_compaction": 6,
+    "test_api_term_refs": 5,
+    "test_workflow_allocation": 10,
+    "test_workflow_context": 11
+  },
+  "label_meaning_hints_validation": "Local API/SubAgent rendering and scoped-label tests passed; not sent through another paid API call. The earlier seven-record live batch must not be claimed as isolated-label online verification."
+}

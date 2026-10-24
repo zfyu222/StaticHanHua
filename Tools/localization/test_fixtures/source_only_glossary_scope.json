@@ -1,0 +1,140 @@
+{
+  "origin": "Selected, unedited real API decision and review from source-only test; accurately identified trait but proposed invalid global applicability.",
+  "payload": {
+    "terminology_policy": 1,
+    "applicability_policy": 1,
+    "entries": [
+      {
+        "ref": "terms:1",
+        "table": "terms",
+        "index": 1,
+        "row": {
+          "category_path": "其他",
+          "recommended_translation": "硬化",
+          "source": "Hardened",
+          "evidence_rows": [
+            1
+          ],
+          "extraction_candidates": [
+            {
+              "table": "terms",
+              "row": {
+                "category_path": "其他",
+                "recommended_translation": "硬化",
+                "source": "Hardened"
+              },
+              "extraction_count": 1,
+              "evidence_rows": [
+                1
+              ]
+            }
+          ],
+          "provisional_selection": "most_extraction_proposals_then_first_seen",
+          "corpus_evidence_rows": [
+            6,
+            7
+          ],
+          "corpus_evidence_note": "Literal source match in definition/role cue records; may include one definition of the literal role following this term. Candidate evidence, not confirmed semantic equivalence; distinguish homonyms."
+        }
+      }
+    ],
+    "records": [
+      {
+        "ordinal": 1,
+        "source": "Hardened",
+        "translation": null,
+        "stage": "source"
+      },
+      {
+        "ordinal": 2,
+        "source": "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight.",
+        "translation": null,
+        "stage": "source"
+      },
+      {
+        "ordinal": 3,
+        "source": "Child {Female}",
+        "translation": null,
+        "stage": "source"
+      },
+      {
+        "ordinal": 4,
+        "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+        "translation": null,
+        "stage": "source"
+      },
+      {
+        "ordinal": 5,
+        "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+        "translation": null,
+        "stage": "source"
+      },
+      {
+        "ordinal": 6,
+        "source": "A set of bonuses granted by the Hardened descriptor.",
+        "translation": null,
+        "stage": "source"
+      },
+      {
+        "ordinal": 7,
+        "source": "Your Descriptor provides additional modifiers to your starting Stats and Skills.\\nOnce selected, your Descriptor cannot be changed.",
+        "translation": null,
+        "stage": "source"
+      }
+    ]
+  },
+  "decisions": {
+    "entry_reviews": [
+      {
+        "ref": "terms:1",
+        "evidence_rows": [
+          1,
+          6
+        ],
+        "source_excerpt": "Hardened",
+        "reason": "经 Descriptor 定义确认为游戏术语，修正字面误译并限定适用范围。",
+        "checks": {
+          "source": {
+            "status": "pass",
+            "evidence": "record 1 为 “Hardened”，record 6 原文 “A set of bonuses granted by the Hardened descriptor.” 证实其为 Descriptor 名称，而非普通形容词用法。"
+          },
+          "translation": {
+            "status": "corrected",
+            "evidence": "原译“硬化”取自物理/病理义；record 6、7 表明该词是角色背景特质（Descriptor），授予属性与技能调整，改译为人物特质名“坚毅”，并因官方译名未确认按 reference 暂定。"
+          },
+          "category": {
+            "status": "pass",
+            "evidence": "维持“其他”：Descriptor 为角色特质模板，不属物品/地名/技能/组织/种族/身份等类，分类合法。"
+          },
+          "consistency": {
+            "status": "pass",
+            "evidence": "本批无其他 Hardened 变体或同源条目，term_families.candidates 为空；通过 text + case_sensitive 的 applicability 与普通词 hardened 区分，不影响其他语境。"
+          }
+        }
+      }
+    ],
+    "edits": [
+      {
+        "patch": {
+          "recommended_translation": "坚毅",
+          "category_path": "其他",
+          "term_kind": "game_term",
+          "enforcement": "reference",
+          "term_reason": "record 6 “A set of bonuses granted by the Hardened descriptor.” 与 record 7 说明 Descriptor 是角色创建时选定的背景特质并调整初始属性/技能；此处 Hardened 修饰人物而非材料，属人物特质名，不取“硬化”的物理/病理义，暂译“坚毅”；官方译名未确认，按 reference 处理。",
+          "applicability": {
+            "mode": "text",
+            "case_sensitive": true,
+            "reason": "record 1 为独立词条 “Hardened”，record 6 为 “the Hardened descriptor”，两处均指 Descriptor 名称且首字母大写，可与普通词 hardened（如材料“硬化”）区分。"
+          }
+        },
+        "reason": "修正 Descriptor 名称的字面误译并补齐术语属性与适用范围，避免“硬化”被套用到人物特质语境。",
+        "evidence_rows": [
+          1,
+          6
+        ],
+        "table": "terms",
+        "index": 1
+      }
+    ]
+  }
+}

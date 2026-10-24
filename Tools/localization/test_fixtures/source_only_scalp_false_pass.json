@@ -1,0 +1,113 @@
+{
+  "origin": "Unaccepted real review output: a negative semantic regression observation, not certified evidence.",
+  "source": "running a hand over his stubbled scalp",
+  "bad_translation": "布满胡茬的头皮",
+  "review_rows": [
+    {
+      "id": "4",
+      "reason": "词义、修饰对象与人物口吻都与原文一致，没有明确错误。",
+      "checks": {
+        "accuracy": [
+          "pass",
+          {
+            "ref": "e1"
+          }
+        ],
+        "completeness": [
+          "pass",
+          {
+            "ref": "e1"
+          }
+        ],
+        "terminology": [
+          "not_applicable",
+          {
+            "ref": "e2"
+          }
+        ],
+        "tone": [
+          "pass",
+          {
+            "ref": "e3"
+          }
+        ],
+        "logic": [
+          "pass",
+          {
+            "ref": "e1"
+          }
+        ],
+        "placeholders": [
+          "pass",
+          {
+            "ref": "e4"
+          }
+        ]
+      },
+      "changes": [],
+      "issues": [],
+      "exceptions": [],
+      "keep": true,
+      "source_ref": "whole",
+      "evidence": {
+        "e1": "“his eyes settle on yours. Studying. Deciding.”译作“目光却落在你身上。端详。斟酌。”，动作主体正确；stubbled scalp 修饰的是头皮，译“布满胡茬的头皮”，没有误搬脸部胡茬；ent(=ain't) trying to offend you 译“不是想冒犯你”义项正确；I'll answer 'em 的省略宾语在译文中补足为“我会回答”。逻辑上“你掩饰得很好，但我看得出来”的转折与“如果…我会回答”的条件句都完整，否定只有“不是想冒犯”“不喜欢让…独自待着”两处，与原文一致。",
+        "e2": "本条未绑定 term_refs；Sagus、Circus Minor 沿用了既有音译，不涉及强制译名。",
+        "e3": "“话说得硬”“嘴抿成一条烦躁的直线”“不收钱”符合该人物粗直、带方言口吻的说话方式。",
+        "e4": "原文段落间有 \\r\\n\\r\\n 分隔，译文中该分隔的位置保持不变；没有变量或标签。"
+      }
+    },
+    {
+      "id": "5",
+      "reason": "施事、目的与俚俗口吻都译得准确，没有明确错误。",
+      "checks": {
+        "accuracy": [
+          "pass",
+          {
+            "ref": "e1"
+          }
+        ],
+        "completeness": [
+          "pass",
+          {
+            "ref": "e1"
+          }
+        ],
+        "terminology": [
+          "not_applicable",
+          {
+            "ref": "e2"
+          }
+        ],
+        "tone": [
+          "pass",
+          {
+            "ref": "e3"
+          }
+        ],
+        "logic": [
+          "pass",
+          {
+            "ref": "e1"
+          }
+        ],
+        "placeholders": [
+          "pass",
+          {
+            "ref": "e4"
+          }
+        ]
+      },
+      "changes": [],
+      "issues": [],
+      "exceptions": [],
+      "keep": true,
+      "source_ref": "whole",
+      "evidence": {
+        "e1": "“He stares at her, chewing his lip… to convince her of something”译“他盯着她，咬着嘴唇……想说服她什么”，施事与目的完整；wry twist of his mouth 译“嘴角一歪，露出苦笑”，贴合 wry 的意味；stubbled scalp 修饰头皮；leaving folk new to Sagus on their own 译“把初到萨古斯的人丢下不管”，语义到位。条件句“如果你…我会免费回答”与否定“不是想冒犯”“不喜欢…”都保留，没有数量或关系变化。",
+        "e2": "本条未绑定 term_refs，Sagus、Circus Minor 沿用既有音译。",
+        "e3": "“听着”“我会免费回答”口语自然，与原文中该人物直白劝说的语气一致。",
+        "e4": "原文段落间的 \\r\\n\\r\\n 分隔位置保留，没有变量或标签改动。"
+      }
+    }
+  ]
+}

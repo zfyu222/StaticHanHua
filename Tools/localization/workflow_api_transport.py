@@ -64,7 +64,7 @@ def prune_unreadable_evidence(value):
             return item
         result = {}
         for key, child in item.items():
-            if key == 'evidence_rows' and isinstance(child, list):
+            if key in ('evidence_rows', 'corpus_evidence_rows') and isinstance(child, list):
                 result[key] = [number for number in child if number in visible]
             else:
                 result[key] = strip(child)

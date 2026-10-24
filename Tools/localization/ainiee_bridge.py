@@ -186,9 +186,7 @@ def _frozen_matcher(helper_class):
     return matcher
 
 
-@profiled('term_match')
-def matched_terms(analysis, texts, options, *, rules=None):
-    h = helper()
+def _term_context(analysis, h):
     # Frozen analysis objects are immutable. Keep a bounded context per snapshot;
     # callers changing a glossary must load a new snapshot object.
     key = (id(analysis), h)
@@ -202,7 +200,37 @@ def matched_terms(analysis, texts, options, *, rules=None):
             _MATCH_CONTEXTS[key] = context
             if len(_MATCH_CONTEXTS) > 4:
                 _MATCH_CONTEXTS.popitem(last=False)
-    _, raw_rows, rows, results, plans = context
+    return context
+
+
+def label_meaning_hints(analysis, text, options):
+    """Exact label meanings are read-only hints, never extra term constraints.
+
+    A scoped term may match its descriptor sentence but not its standalone UI
+    label. Do not lose the reviewed meaning merely because scope excludes it.
+    """
+    if not text.strip():
+        return []
+    _, raw_rows, _, _, plans = _term_context(analysis, helper())
+    with _MATCH_LOCK:
+        labels = plans.get('label_meanings')
+        if labels is None:
+            labels = {}
+            for row in raw_rows:
+                if (row['src_state'] == 'valid' and row.get('term_reason')
+                        and row.get('term_kind') in ('proper_name', 'game_term')):
+                    labels.setdefault(row['src'].strip().casefold(), []).append(row)
+            plans['label_meanings'] = labels
+    return [dict(source=row['src'], meaning=row['term_reason'])
+            for row in labels.get(text.strip().casefold(), [])
+            if not row.get('applicability', {}).get('case_sensitive', options.get('case_sensitive', False))
+            or row['src'].strip() == text.strip()]
+
+
+@profiled('term_match')
+def matched_terms(analysis, texts, options, *, rules=None):
+    h = helper()
+    _, raw_rows, rows, results, plans = _term_context(analysis, h)
     texts = tuple(texts)
     # Scope applies to each record, never to a concatenated batch.
     if len(texts) > 1 and any(row.get('applicability') for row in raw_rows):

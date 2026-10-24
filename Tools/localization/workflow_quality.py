@@ -190,10 +190,11 @@ def validate_glossary_reviews(decisions, payload):
         rows = review.get('evidence_rows')
         excerpt = review.get('source_excerpt')
         entry = refs[review['ref']]['row']
-        if (not isinstance(rows, list) or not rows or any(type(n) is not int or n not in entry.get('evidence_rows', []) for n in rows)
+        available = set(entry.get('evidence_rows', [])) | set(entry.get('corpus_evidence_rows', []))
+        available = sorted(available.intersection(contexts))
+        if (not isinstance(rows, list) or not rows or any(type(n) is not int or n not in available for n in rows)
                 or not nonempty(excerpt) or not any(quote_matches(excerpt, contexts.get(n, '')) for n in rows)
                 or not nonempty(review.get('reason'))):
-            available = sorted(set(entry.get('evidence_rows', [])).intersection(contexts))
             invalid = [n for n in rows if type(n) is not int or n not in available] if isinstance(rows, list) else rows
             matches = ([n for n in rows if type(n) is int and quote_matches(excerpt, contexts.get(n, ''))]
                        if isinstance(rows, list) else [])
@@ -614,7 +615,8 @@ class QualityMixin:
         ids = set(json.loads(task['ids']))
         if stage == 'glossary_review':
             payload = json.loads(task['payload'])
-            ordinals = {n for e in payload.get('entries', []) for n in e['row'].get('evidence_rows', [])}
+            ordinals = {n for e in payload.get('entries', []) for key in ('evidence_rows', 'corpus_evidence_rows')
+                        for n in e['row'].get(key, [])}
             # A glossary entry normally cites only a few source rows. Avoid a
             # full-corpus scan for every entry while preserving exact ID scope.
             ordered = sorted(ordinals)
