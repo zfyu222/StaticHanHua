@@ -1,0 +1,1018 @@
+{
+  "date": "2026-10-24",
+  "question": "Does yjapi review perform worse than official DeepSeek on the actual regression examples?",
+  "conclusion": "Not observed in this small current comparison. Each endpoint corrected all five known errors and preserved all five correct controls in both rounds.",
+  "request_limit": 8,
+  "actual_requests": 4,
+  "order": [
+    "yjapi",
+    "deepseek",
+    "deepseek",
+    "yjapi"
+  ],
+  "elapsed_seconds": 234.641,
+  "prompt": "Same previous review instruction (legacy arm), not the expanded new examples. No independent readings.",
+  "unique_cases": 10,
+  "known_errors": 5,
+  "correct_controls": 5,
+  "repetitions_per_provider": 2,
+  "all_wire_message_hashes_identical": true,
+  "evidence": [
+    {
+      "index": 1,
+      "api": "yjapi",
+      "transport_settings": {
+        "model_name": "deepseek-v4.1-flash",
+        "think_switch": true,
+        "concurrency": 25,
+        "max_completion_tokens": 65536,
+        "temperature": 1,
+        "stream": false,
+        "request_timeout": 300,
+        "host": "yjapi.shop",
+        "sent_thinking": {
+          "type": "enabled"
+        },
+        "sent_reasoning_effort": "high"
+      },
+      "wire_inputs": [
+        {
+          "system_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "user_sha256": "6d6a3e4100f1f0d9e71607d1b75c622388aa63153664223adae20369487a3b9f"
+        }
+      ],
+      "calls": [
+        {
+          "status": "received",
+          "usage": {
+            "completion_tokens": 10849,
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "cached_tokens": 0,
+              "reasoning_tokens": 8496,
+              "rejected_prediction_tokens": 0
+            },
+            "finish_reason": "stop",
+            "prompt_tokens": 3110,
+            "prompt_tokens_details": {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "cache_write_tokens": null,
+              "cached_tokens": 0,
+              "reasoning_tokens": 0,
+              "rejected_prediction_tokens": 0
+            },
+            "response_model": "deepseek-v4.1-flash",
+            "total_tokens": 13959,
+            "usage_reported": true
+          }
+        }
+      ],
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "cases": [
+        {
+          "kind": "actual_bad_scalp_4147",
+          "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文说手抚过 stubbled scalp；stubbled 指头皮上的短发茬，不是脸部胡茬，故改为“布满短发茬的头皮”。其余动作、否定和条件均与原文一致。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "原文说手抚过 stubbled scalp；stubbled 指头皮上的短发茬，不是脸部胡茬，故改为“布满短发茬的头皮”。其余动作、否定和条件均与原文一致。",
+              "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+              "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”"
+            }
+          ]
+        },
+        {
+          "kind": "actual_bad_scalp_4257",
+          "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过布满短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文 stubbled scalp 指头皮上的短发茬，译文改为“布满短发茬的头皮”；盯着她、咬牙、转向你及后半段条件均保留。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "原文 stubbled scalp 指头皮上的短发茬，译文改为“布满短发茬的头皮”；盯着她、咬牙、转向你及后半段条件均保留。",
+              "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+              "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过布满短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”"
+            }
+          ]
+        },
+        {
+          "kind": "correct_scalp_control",
+          "source": "He ran a hand over his stubbled scalp.",
+          "before": "他用手抚过留着短发茬的头皮。",
+          "after": "他用手抚过留着短发茬的头皮。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "“ran a hand over his stubbled scalp”译为“用手抚过留着短发茬的头皮”，动作主体和身体部位准确。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "correct_chin_control",
+          "source": "His chin was covered in stubble.",
+          "before": "他的下巴上长满胡茬。",
+          "after": "他的下巴上长满胡茬。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "“His chin was covered in stubble”译为“他的下巴上长满胡茬”，下巴、胡茬和覆盖状态均准确。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "source_explicit_fantasy_control",
+          "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+          "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "after": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "译文保留“变种人的头皮上长满浓密的胡须”这一原文怪异描写，并译出“他仔细地梳理着”的梳理动作。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "new_bad_hair_sense",
+          "source": "She ran a hand over her close-cropped hair.",
+          "before": "她用手抚过剪下来的头发。",
+          "after": "她用手抚过自己剪得很短的头发。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "close-cropped 指剪得很短、贴着头皮的发型，不是剪下来的头发；改为“自己剪得很短的头发”后动作对象准确。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "her close-cropped hair",
+              "reason": "close-cropped 指剪得很短、贴着头皮的发型，不是剪下来的头发；改为“自己剪得很短的头发”后动作对象准确。",
+              "before": "她用手抚过剪下来的头发。",
+              "after": "她用手抚过自己剪得很短的头发。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_brows",
+          "source": "The scholar knitted her brows as she studied the map.",
+          "before": "学者一边研究地图，一边编织她的眉毛。",
+          "after": "学者一边研究地图，一边皱起眉头。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "knitted her brows 是“皱起眉头”的固定表达，不是“编织眉毛”；译文保留学者研究地图时的动作关系。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "knitted her brows",
+              "reason": "knitted her brows 是“皱起眉头”的固定表达，不是“编织眉毛”；译文保留学者研究地图时的动作关系。",
+              "before": "学者一边研究地图，一边编织她的眉毛。",
+              "after": "学者一边研究地图，一边皱起眉头。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_lined_face",
+          "source": "Years at sea had left the captain's face deeply lined.",
+          "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+          "after": "多年的海上生活让船长的脸上布满了深深的皱纹。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "deeply lined 指脸上布满深深的皱纹，不是“画满线条”；译文准确表达多年海上生活留下的面部痕迹。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "face deeply lined",
+              "reason": "deeply lined 指脸上布满深深的皱纹，不是“画满线条”；译文准确表达多年海上生活留下的面部痕迹。",
+              "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+              "after": "多年的海上生活让船长的脸上布满了深深的皱纹。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_correct_literal_lines",
+          "source": "The surgeon drew two lines on the patient's face.",
+          "before": "外科医生在病人的脸上画了两条线。",
+          "after": "外科医生在病人的脸上画了两条线。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "“drew two lines on the patient's face”译为“在病人的脸上画了两条线”，施事、受事和位置均准确。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "held_out_correct_literal_eyebrows",
+          "source": "The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+          "before": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "after": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "译文保留女巫用银线织出眉毛并固定在玩偶眼睛上方的完整动作链。"
+          },
+          "changes": []
+        }
+      ],
+      "elapsed_seconds": 62.1143,
+      "session": "e2e7878980fd4a2fb2155ccb84bbc1d0",
+      "input_hash": "d6c1d020cb3ca43bb1bffcaee0e4d7160d83519a8330fff253cd67bcbbe2e92d",
+      "raw_sha256": "a33607f1475285083e62c8a2052537ebf4c8f3d6a4a0d94fabceb5a1cb1ebd3d",
+      "raw_reply": "{\"records\":[{\"id\":\"1\",\"translation\":\"但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \\r\\n\\r\\n“听着，”他说，一只手抚过布满短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"pass\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文说手抚过 stubbled scalp；stubbled 指头皮上的短发茬，不是脸部胡茬，故改为“布满短发茬的头皮”。其余动作、否定和条件均与原文一致。\",\"e2\":\"专名 Sagus 音译为“萨古斯”，Circus Minor 译为“小竞技场”，无强制术语表冲突。\",\"e3\":\"口语对白和短句节奏保留，语气自然。\",\"e4\":\"本条无变量、标签或保护标记。\"}},{\"id\":\"2\",\"translation\":\"他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\\r\\n\\r\\n“听着，”他说着，用手抚过布满短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"pass\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文 stubbled scalp 指头皮上的短发茬，译文改为“布满短发茬的头皮”；盯着她、咬牙、转向你及后半段条件均保留。\",\"e2\":\"Sagus 音译为“萨古斯”，Circus Minor 译为“小竞技场”，无强制术语表冲突。\",\"e3\":\"人物犹豫、自嘲式苦笑和口语语气保留。\",\"e4\":\"本条无变量、标签或保护标记。\"}},{\"id\":\"3\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"“ran a hand over his stubbled scalp”译为“用手抚过留着短发茬的头皮”，动作主体和身体部位准确。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"叙述自然。\",\"e4\":\"无变量、标签或保护标记。\"}},{\"id\":\"4\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"“His chin was covered in stubble”译为“他的下巴上长满胡茬”，下巴、胡茬和覆盖状态均准确。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"叙述自然。\",\"e4\":\"无变量、标签或保护标记。\"}},{\"id\":\"5\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"译文保留“变种人的头皮上长满浓密的胡须”这一原文怪异描写，并译出“他仔细地梳理着”的梳理动作。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"叙述口吻自然。\",\"e4\":\"无变量、标签或保护标记。\"}},{\"id\":\"6\",\"translation\":\"她用手抚过自己剪得很短的头发。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"her close-cropped hair\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"close-cropped 指剪得很短、贴着头皮的发型，不是剪下来的头发；改为“自己剪得很短的头发”后动作对象准确。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"“用手抚过”与短发描写搭配自然。\",\"e4\":\"无变量、标签或保护标记。\"}},{\"id\":\"7\",\"translation\":\"学者一边研究地图，一边皱起眉头。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"knitted her brows\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"knitted her brows 是“皱起眉头”的固定表达，不是“编织眉毛”；译文保留学者研究地图时的动作关系。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"学者研究地图的叙述口吻自然。\",\"e4\":\"无变量、标签或保护标记。\"}},{\"id\":\"8\",\"translation\":\"多年的海上生活让船长的脸上布满了深深的皱纹。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"face deeply lined\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"deeply lined 指脸上布满深深的皱纹，不是“画满线条”；译文准确表达多年海上生活留下的面部痕迹。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"叙述自然。\",\"e4\":\"无变量、标签或保护标记。\"}},{\"id\":\"9\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"“drew two lines on the patient's face”译为“在病人的脸上画了两条线”，施事、受事和位置均准确。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"叙述自然。\",\"e4\":\"无变量、标签或保护标记。\"}},{\"id\":\"10\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"译文保留女巫用银线织出眉毛并固定在玩偶眼睛上方的完整动作链。\",\"e2\":\"无专名或术语需要核对。\",\"e3\":\"叙述自然。\",\"e4\":\"无变量、标签或保护标记。\"}}]}"
+    },
+    {
+      "index": 2,
+      "api": "deepseek",
+      "transport_settings": {
+        "model_name": "deepseek-flash",
+        "think_switch": true,
+        "concurrency": 25,
+        "max_completion_tokens": 65536,
+        "temperature": 1,
+        "stream": true,
+        "request_timeout": 200,
+        "host": "api.deepseek.com",
+        "sent_thinking": {
+          "type": "enabled"
+        },
+        "sent_reasoning_effort": "high"
+      },
+      "wire_inputs": [
+        {
+          "system_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "user_sha256": "6d6a3e4100f1f0d9e71607d1b75c622388aa63153664223adae20369487a3b9f"
+        }
+      ],
+      "calls": [
+        {
+          "status": "received",
+          "usage": {
+            "completion_tokens": 10117,
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 7586,
+              "rejected_prediction_tokens": null
+            },
+            "finish_reason": "stop",
+            "prompt_tokens": 3132,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cache_write_tokens": null,
+              "cached_tokens": 2944
+            },
+            "response_model": "deepseek-flash",
+            "response_transport": "stream",
+            "total_tokens": 13249,
+            "usage_reported": true
+          }
+        }
+      ],
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "cases": [
+        {
+          "kind": "actual_bad_scalp_4147",
+          "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文 stubbled scalp 指头皮上短而硬的发茬；原译“胡茬”通常指面部须茬，修饰对象不准，已改为“短发茬”。其余目光、动作与条件句均保留。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "原文 stubbled scalp 指头皮上短而硬的发茬；原译“胡茬”通常指面部须茬，修饰对象不准，已改为“短发茬”。其余目光、动作与条件句均保留。",
+              "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+              "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”"
+            }
+          ]
+        },
+        {
+          "kind": "actual_bad_scalp_4257",
+          "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文 stubbled scalp 是头皮上的短发茬，原译“胡茬的头皮”把面部须茬移到了头皮，已改为“短发茬的头皮”；盯视、咬唇、转向及条件句关系均保留。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "原文 stubbled scalp 是头皮上的短发茬，原译“胡茬的头皮”把面部须茬移到了头皮，已改为“短发茬的头皮”；盯视、咬唇、转向及条件句关系均保留。",
+              "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+              "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”"
+            }
+          ]
+        },
+        {
+          "kind": "correct_scalp_control",
+          "source": "He ran a hand over his stubbled scalp.",
+          "before": "他用手抚过留着短发茬的头皮。",
+          "after": "他用手抚过留着短发茬的头皮。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "原文说手抚过 stubbled scalp；“短发茬的头皮”准确对应头皮上的短发茬，动作和身体部位均保留。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "correct_chin_control",
+          "source": "His chin was covered in stubble.",
+          "before": "他的下巴上长满胡茬。",
+          "after": "他的下巴上长满胡茬。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "chin 对应“下巴”，stubble 对应“胡茬”，身体部位和状态正确。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "source_explicit_fantasy_control",
+          "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+          "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "after": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "mutant 译“变种人”，scalp 译“头皮”，thick beard 译“浓密的胡须”，combed carefully 译“仔细地梳理”，对象与动作完整。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "new_bad_hair_sense",
+          "source": "She ran a hand over her close-cropped hair.",
+          "before": "她用手抚过剪下来的头发。",
+          "after": "她用手抚过自己剪得极短的头发。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "close-cropped hair 指剪得很短、贴着头皮的头发；原译“剪下来的头发”误作已剪落的头发，改变身体所属关系，已改为“自己剪得极短的头发”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "her close-cropped hair",
+              "reason": "close-cropped hair 指剪得很短、贴着头皮的头发；原译“剪下来的头发”误作已剪落的头发，改变身体所属关系，已改为“自己剪得极短的头发”。",
+              "before": "她用手抚过剪下来的头发。",
+              "after": "她用手抚过自己剪得极短的头发。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_brows",
+          "source": "The scholar knitted her brows as she studied the map.",
+          "before": "学者一边研究地图，一边编织她的眉毛。",
+          "after": "学者一边研究地图，一边皱起了眉头。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "knitted her brows 是“皱眉”的固定表达；原译“编织她的眉毛”按字面误解，已改为“皱起了眉头”，同时保留研究地图的伴随动作。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "knitted her brows",
+              "reason": "knitted her brows 是“皱眉”的固定表达；原译“编织她的眉毛”按字面误解，已改为“皱起了眉头”，同时保留研究地图的伴随动作。",
+              "before": "学者一边研究地图，一边编织她的眉毛。",
+              "after": "学者一边研究地图，一边皱起了眉头。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_lined_face",
+          "source": "Years at sea had left the captain's face deeply lined.",
+          "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+          "after": "多年的海上生活让船长的脸上布满了深深的皱纹。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "deeply lined 描述脸上有深皱纹；原译“画满了深深的线条”按字面理解且不自然，已改为“布满了深深的皱纹”，因果和年数保留。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "face deeply lined",
+              "reason": "deeply lined 描述脸上有深皱纹；原译“画满了深深的线条”按字面理解且不自然，已改为“布满了深深的皱纹”，因果和年数保留。",
+              "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+              "after": "多年的海上生活让船长的脸上布满了深深的皱纹。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_correct_literal_lines",
+          "source": "The surgeon drew two lines on the patient's face.",
+          "before": "外科医生在病人的脸上画了两条线。",
+          "after": "外科医生在病人的脸上画了两条线。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "surgeon 译“外科医生”，drew two lines 译“画了两条线”，在病人脸上这一位置关系保留；未把 lines 误作皱纹。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "held_out_correct_literal_eyebrows",
+          "source": "The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+          "before": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "after": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "witch 译“女巫”，wove eyebrows from silver thread 译“用银线织出一对眉毛”，fixed above doll's eyes 译“固定在玩偶眼睛上方”，施事和位置完整。"
+          },
+          "changes": []
+        }
+      ],
+      "elapsed_seconds": 56.448,
+      "session": "54f476d66da047bd9b71b1985a123c2e",
+      "input_hash": "41771adadd714b71c09a3c9205da27e47fc5332ea95efc5bf993c71b4f147f01",
+      "raw_sha256": "6264a9801a23cbad4f5639e6bee70bce598917c2e5fe045ae1c7b2c3da0a093f",
+      "raw_reply": "{\"records\":[{\"id\":\"1\",\"translation\":\"但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \\r\\n\\r\\n“听着，”他说，一只手抚过布满短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"pass\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文 stubbled scalp 指头皮上短而硬的发茬；原译“胡茬”通常指面部须茬，修饰对象不准，已改为“短发茬”。其余目光、动作与条件句均保留。\",\"e2\":\"Sagus 译“萨古斯”、Circus Minor 译“小竞技场”，专名前后一致，无强制术语表冲突。\",\"e3\":\"台词保留硬邦邦又略带克制的口吻，叙述句简洁。\",\"e4\":\"原文无变量、标签或占位符。\"}},{\"id\":\"2\",\"translation\":\"他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\\r\\n\\r\\n“听着，”他说着，用手抚过满是短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"pass\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文 stubbled scalp 是头皮上的短发茬，原译“胡茬的头皮”把面部须茬移到了头皮，已改为“短发茬的头皮”；盯视、咬唇、转向及条件句关系均保留。\",\"e2\":\"Sagus 译“萨古斯”、Circus Minor 译“小竞技场”，专名处理一致，无强制术语表冲突。\",\"e3\":\"叙述与台词保持原文略带犹豫又直率的语气。\",\"e4\":\"原文无变量、标签或占位符。\"}},{\"id\":\"3\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文说手抚过 stubbled scalp；“短发茬的头皮”准确对应头皮上的短发茬，动作和身体部位均保留。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述句简洁，符合原文平实口吻。\",\"e4\":\"无变量、标签或占位符。\"}},{\"id\":\"4\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"chin 对应“下巴”，stubble 对应“胡茬”，身体部位和状态正确。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述自然，符合原文描述口吻。\",\"e4\":\"无变量、标签或占位符。\"}},{\"id\":\"5\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"mutant 译“变种人”，scalp 译“头皮”，thick beard 译“浓密的胡须”，combed carefully 译“仔细地梳理”，对象与动作完整。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述平实，保留原文奇幻设定。\",\"e4\":\"无变量、标签或占位符。\"}},{\"id\":\"6\",\"translation\":\"她用手抚过自己剪得极短的头发。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"her close-cropped hair\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"close-cropped hair 指剪得很短、贴着头皮的头发；原译“剪下来的头发”误作已剪落的头发，改变身体所属关系，已改为“自己剪得极短的头发”。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述句简洁自然，保留“用手抚过”的动作。\",\"e4\":\"无变量、标签或占位符。\"}},{\"id\":\"7\",\"translation\":\"学者一边研究地图，一边皱起了眉头。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"knitted her brows\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"knitted her brows 是“皱眉”的固定表达；原译“编织她的眉毛”按字面误解，已改为“皱起了眉头”，同时保留研究地图的伴随动作。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述自然，符合原文平实描述。\",\"e4\":\"无变量、标签或占位符。\"}},{\"id\":\"8\",\"translation\":\"多年的海上生活让船长的脸上布满了深深的皱纹。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"face deeply lined\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"deeply lined 描述脸上有深皱纹；原译“画满了深深的线条”按字面理解且不自然，已改为“布满了深深的皱纹”，因果和年数保留。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述自然，符合原文描述口吻。\",\"e4\":\"无变量、标签或占位符。\"}},{\"id\":\"9\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"surgeon 译“外科医生”，drew two lines 译“画了两条线”，在病人脸上这一位置关系保留；未把 lines 误作皱纹。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述平实，符合原文口吻。\",\"e4\":\"无变量、标签或占位符。\"}},{\"id\":\"10\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e1\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e2\"}],\"tone\":[\"pass\",{\"ref\":\"e3\"}],\"logic\":[\"pass\",{\"ref\":\"e1\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e4\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"witch 译“女巫”，wove eyebrows from silver thread 译“用银线织出一对眉毛”，fixed above doll's eyes 译“固定在玩偶眼睛上方”，施事和位置完整。\",\"e2\":\"本句无专名、固定术语或术语表条目。\",\"e3\":\"叙述自然，保留原文奇幻描述。\",\"e4\":\"无变量、标签或占位符。\"}}]}"
+    },
+    {
+      "index": 3,
+      "api": "deepseek",
+      "transport_settings": {
+        "model_name": "deepseek-flash",
+        "think_switch": true,
+        "concurrency": 25,
+        "max_completion_tokens": 65536,
+        "temperature": 1,
+        "stream": true,
+        "request_timeout": 200,
+        "host": "api.deepseek.com",
+        "sent_thinking": {
+          "type": "enabled"
+        },
+        "sent_reasoning_effort": "high"
+      },
+      "wire_inputs": [
+        {
+          "system_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "user_sha256": "6d6a3e4100f1f0d9e71607d1b75c622388aa63153664223adae20369487a3b9f"
+        }
+      ],
+      "calls": [
+        {
+          "status": "received",
+          "usage": {
+            "completion_tokens": 7878,
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": null,
+              "audio_tokens": null,
+              "reasoning_tokens": 4208,
+              "rejected_prediction_tokens": null
+            },
+            "finish_reason": "stop",
+            "prompt_tokens": 3132,
+            "prompt_tokens_details": {
+              "audio_tokens": null,
+              "cache_write_tokens": null,
+              "cached_tokens": 2944
+            },
+            "response_model": "deepseek-flash",
+            "response_transport": "stream",
+            "total_tokens": 11010,
+            "usage_reported": true
+          }
+        }
+      ],
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "cases": [
+        {
+          "kind": "actual_bad_scalp_4147",
+          "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原句“his eyes settle on yours. Studying. Deciding.”“His mouth settles into an irritated line”“running a hand over his stubbled scalp”分别对应目光落向对方、端详斟酌、嘴抿成直线、抚过头皮的连续动作；唯一偏差是把stubbled scalp译为“布满胡茬的头皮”，已改为“留着短发茬的头皮”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "胡茬专指面部胡须残茬，用在头皮上搞错了身体部位；stubbled scalp应指头皮上的短发茬，改为“留着短发茬的头皮”。",
+              "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+              "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”"
+            }
+          ]
+        },
+        {
+          "kind": "actual_bad_scalp_4257",
+          "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过留着短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文先写“He stares at her, chewing his lip… trying to work up the courage… to convince her”，再写“turns back at you”，译文动作顺序与施受对象（盯她→转向你）一致；“running a hand over his stubbled scalp”原译“满是胡茬的头皮”部位用词有误，已改为“留着短发茬的头皮”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "“胡茬”只指面部胡须残茬，不能修饰头皮；stubbled scalp指头皮上的短发茬，改为“留着短发茬的头皮”。",
+              "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+              "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过留着短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”"
+            }
+          ]
+        },
+        {
+          "kind": "correct_scalp_control",
+          "source": "He ran a hand over his stubbled scalp.",
+          "before": "他用手抚过留着短发茬的头皮。",
+          "after": "他用手抚过留着短发茬的头皮。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "“He ran a hand over his stubbled scalp”中ran a hand over对应“用手抚过”，stubbled scalp指带短发茬的头皮，译作“留着短发茬的头皮”身体部位与修饰关系均正确。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "correct_chin_control",
+          "source": "His chin was covered in stubble.",
+          "before": "他的下巴上长满胡茬。",
+          "after": "他的下巴上长满胡茬。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "“His chin was covered in stubble”指下巴覆盖短胡须残茬，“下巴上长满胡茬”部位与“covered in”的满布含义都对得上。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "source_explicit_fantasy_control",
+          "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+          "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "after": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "原文“scalp was covered in a thick beard”本就是头皮覆胡须的非常设定，译文“头皮上长满浓密的胡须”忠实呈现；“which he combed carefully”对应“他仔细地梳理着”，动作施事（他梳理胡须）无误。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "new_bad_hair_sense",
+          "source": "She ran a hand over her close-cropped hair.",
+          "before": "她用手抚过剪下来的头发。",
+          "after": "她用手抚过自己剪得很短的头发。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文“She ran a hand over her close-cropped hair”中close-cropped修饰头发长度与发型，手抚过的是她头上剪短的发；“剪下来的头发”指已剪落的头发，与“用手抚过”不搭配，已改为“自己剪得很短的头发”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "her close-cropped hair",
+              "reason": "close-cropped形容发型剪得极短，是仍长在头上的头发；原译“剪下来的头发”变成离体碎发，改变了所指与画面，改为“自己剪得很短的头发”。",
+              "before": "她用手抚过剪下来的头发。",
+              "after": "她用手抚过自己剪得很短的头发。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_brows",
+          "source": "The scholar knitted her brows as she studied the map.",
+          "before": "学者一边研究地图，一边编织她的眉毛。",
+          "after": "学者一边研究地图，一边皱起眉头。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文“knitted her brows as she studied the map”是两个同时发生的动作：研究地图时皱眉；原译“编织她的眉毛”为字面误解，已改为“一边研究地图，一边皱起眉头”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "knitted her brows",
+              "reason": "knit one's brows意为皱眉，原译“编织她的眉毛”把比喻义当实义，动作不成立；改为“皱起眉头”，并以“一边……一边……”对应as引导的同时动作。",
+              "before": "学者一边研究地图，一边编织她的眉毛。",
+              "after": "学者一边研究地图，一边皱起眉头。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_lined_face",
+          "source": "Years at sea had left the captain's face deeply lined.",
+          "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+          "after": "多年的海上生活让船长的脸上布满了深深的皱纹。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "原文“Years at sea had left the captain's face deeply lined”表示海上岁月使船长脸上皱纹深刻；原译“画满了深深的线条”误解lined，已改为“脸上布满了深深的皱纹”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "had left the captain's face deeply lined",
+              "reason": "lined用于面部指皱纹密布，原译“画满了线条”变成字面画线，词义错误；改为“布满了深深的皱纹”，并保留“多年的海上生活”所致因果。",
+              "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+              "after": "多年的海上生活让船长的脸上布满了深深的皱纹。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_correct_literal_lines",
+          "source": "The surgeon drew two lines on the patient's face.",
+          "before": "外科医生在病人的脸上画了两条线。",
+          "after": "外科医生在病人的脸上画了两条线。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "原文“The surgeon drew two lines on the patient's face”是外科医生在病人脸上画两条线（动作施事为医生、对象为病人面部），译文主语与处所一致，未误译为皱纹。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "held_out_correct_literal_eyebrows",
+          "source": "The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+          "before": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "after": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "“wove a pair of eyebrows from silver thread”对应“用银线织出一对眉毛”，“fixed them above the doll's eyes”对应“固定在玩偶眼睛上方”，材料、数量与位置无误。"
+          },
+          "changes": []
+        }
+      ],
+      "elapsed_seconds": 45.3475,
+      "session": "61a97e12d4b44a9794082566142fa2e0",
+      "input_hash": "9e84c8d6b912f0f0f7ae9ae945471e882a8a07f22d1b8a730873f0e359a16d8a",
+      "raw_sha256": "a0b8b5005b8b2b7a4a1235bd25524c9a7e95a3041927abc503f3a5f71949afac",
+      "raw_reply": "{\"records\":[{\"id\":\"1\",\"translation\":\"但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \\r\\n\\r\\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”\",\"reason\":\"仅修正头皮部位的用词：stubbled scalp指头皮上的短发茬，原译“布满胡茬”把面部胡须词套到头皮；其余含义、口吻、否定与段落结构均与原文一致。\",\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"pass\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":\"胡茬专指面部胡须残茬，用在头皮上搞错了身体部位；stubbled scalp应指头皮上的短发茬，改为“留着短发茬的头皮”。\"}],\"issues\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原句“his eyes settle on yours. Studying. Deciding.”“His mouth settles into an irritated line”“running a hand over his stubbled scalp”分别对应目光落向对方、端详斟酌、嘴抿成直线、抚过头皮的连续动作；唯一偏差是把stubbled scalp译为“布满胡茬的头皮”，已改为“留着短发茬的头皮”。\",\"e2\":\"全句无漏译：方言“ent”即ain't，译“我不是想冒犯你”保留否定；“answer 'em”译“我会回答”保留代词对象；“free of charge”译“不收钱”。\",\"e3\":\"本条无强制术语表条目；专名“Sagus/萨古斯”“Circus Minor/小竞技场”译名通顺且前后一致，未自行改动。\",\"e4\":\"“听着”“话说得硬”“不收钱”等口语与原文硬话柔心的市井口吻相称，“我……不喜欢”的停顿也保留了迟疑语气。\",\"e5\":\"否定与条件关系一一对应：“I ent trying to offend you”为单重否定；条件句“如果你……有什么问题，我会回答”与原文if条件+主句结构一致，范围“这座城市——或者尤其是小竞技场”未扩大或缩小。\",\"e6\":\"本条无变量、标签或性别控制标记；段落间“  \\r\\n\\r\\n”为源文空白，已按原文位置保留。\"}},{\"id\":\"2\",\"translation\":\"他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\\r\\n\\r\\n“听着，”他说着，用手抚过留着短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”\",\"reason\":\"仅修正头皮部位的用词，把面部胡须词“胡茬”改为头皮的“短发茬”；其余行为链、口吻与条件句均无问题。\",\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"pass\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":\"“胡茬”只指面部胡须残茬，不能修饰头皮；stubbled scalp指头皮上的短发茬，改为“留着短发茬的头皮”。\"}],\"issues\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文先写“He stares at her, chewing his lip… trying to work up the courage… to convince her”，再写“turns back at you”，译文动作顺序与施受对象（盯她→转向你）一致；“running a hand over his stubbled scalp”原译“满是胡茬的头皮”部位用词有误，已改为“留着短发茬的头皮”。\",\"e2\":\"无漏译增译：“wry twist of his mouth”译“嘴角一歪，露出苦笑”覆盖原文神态；“free of charge”译“免费回答”对应原意。\",\"e3\":\"本条无强制术语表条目；“萨古斯”“小竞技场”与同批其他条目译名一致，未新增或改动专名。\",\"e4\":\"市井口吻保留：“听着”“我不是想冒犯你”“丢下不管”与原文随和又别扭的说话方式相符，省略号迟疑也保留。\",\"e5\":\"否定与条件数量和原文一致：一处否定“我不是想冒犯你”，条件句“如果你对这座城市……有什么疑问，我会免费回答”对应原if句，未增删条件或否定。\",\"e6\":\"本条无变量、标签或性别控制标记；两段之间的“\\r\\n\\r\\n”为源文换行，已保留，未增删段落。\"}},{\"id\":\"3\",\"reason\":\"原译把stubbled scalp准确处理为“短发茬的头皮”，动作与对象无误，无需改动。\",\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"“He ran a hand over his stubbled scalp”中ran a hand over对应“用手抚过”，stubbled scalp指带短发茬的头皮，译作“留着短发茬的头皮”身体部位与修饰关系均正确。\",\"e2\":\"单句信息完整，主语“他”、动作“抚过”、对象“头皮”全部保留，无增译。\",\"e3\":\"本条无专名或术语表条目，不适用术语核对。\",\"e4\":\"叙述句简洁平实，与原文中性描述口吻一致。\",\"e5\":\"单句无否定、条件或数量关系，无逻辑风险。\",\"e6\":\"无变量、标签或性别标记。\"}},{\"id\":\"4\",\"reason\":\"下巴上的stubble译“胡茬”正是指面部胡须残茬，部位与词义吻合，保留。\",\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"“His chin was covered in stubble”指下巴覆盖短胡须残茬，“下巴上长满胡茬”部位与“covered in”的满布含义都对得上。\",\"e2\":\"主语、部位、状态齐全，无漏译增译。\",\"e3\":\"本句无专名或术语表条目。\",\"e4\":\"客观叙述，译文口吻与原文一致。\",\"e5\":\"无否定、条件或数量关系。\",\"e6\":\"无变量、标签或性别标记。\"}},{\"id\":\"5\",\"reason\":\"原文即为“头皮上长满浓密胡须”的怪异设定，译文照实保留，未擅自修正设定。\",\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文“scalp was covered in a thick beard”本就是头皮覆胡须的非常设定，译文“头皮上长满浓密的胡须”忠实呈现；“which he combed carefully”对应“他仔细地梳理着”，动作施事（他梳理胡须）无误。\",\"e2\":\"部位、状态、后续动作均译出，无漏译增译。\",\"e3\":\"本句无专名或术语表条目。\",\"e4\":\"叙述口吻中性，与原文一致；“仔细地梳理着”保留了持续动作语感。\",\"e5\":\"单句无否定、条件或数量关系。\",\"e6\":\"无变量、标签或性别标记。\"}},{\"id\":\"6\",\"translation\":\"她用手抚过自己剪得很短的头发。\",\"reason\":\"close-cropped指头发剪得很短的发型，原译“剪下来的头发”误作剪落的头发，所指对象错误，需修正。\",\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"her close-cropped hair\",\"reason\":\"close-cropped形容发型剪得极短，是仍长在头上的头发；原译“剪下来的头发”变成离体碎发，改变了所指与画面，改为“自己剪得很短的头发”。\"}],\"issues\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文“She ran a hand over her close-cropped hair”中close-cropped修饰头发长度与发型，手抚过的是她头上剪短的发；“剪下来的头发”指已剪落的头发，与“用手抚过”不搭配，已改为“自己剪得很短的头发”。\",\"e2\":\"主语“她”、动作“抚过”、对象“头发”完整保留，未增删信息。\",\"e3\":\"本句无专名或术语表条目。\",\"e4\":\"叙述句平实，改后仍保持原文简洁口吻。\",\"e5\":\"单句无否定、条件或数量关系。\",\"e6\":\"无变量、标签或性别标记。\"}},{\"id\":\"7\",\"translation\":\"学者一边研究地图，一边皱起眉头。\",\"reason\":\"knitted her brows是皱眉的固定说法，原译按字面作“编织眉毛”，意思错误，已改为“皱起眉头”。\",\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"knitted her brows\",\"reason\":\"knit one's brows意为皱眉，原译“编织她的眉毛”把比喻义当实义，动作不成立；改为“皱起眉头”，并以“一边……一边……”对应as引导的同时动作。\"}],\"issues\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文“knitted her brows as she studied the map”是两个同时发生的动作：研究地图时皱眉；原译“编织她的眉毛”为字面误解，已改为“一边研究地图，一边皱起眉头”。\",\"e2\":\"研究地图与皱眉两个动作均保留，未增删内容。\",\"e3\":\"本句无专名或术语表条目。\",\"e4\":\"叙述语体自然，“一边……一边……”符合原文伴随动作的描述口吻。\",\"e5\":\"as引导的同时关系保留，无否定或数量关系。\",\"e6\":\"无变量、标签或性别标记。\"}},{\"id\":\"8\",\"translation\":\"多年的海上生活让船长的脸上布满了深深的皱纹。\",\"reason\":\"deeply lined指面部布满深皱纹，原译“画满了深深的线条”是字面误解，已修正。\",\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"had left the captain's face deeply lined\",\"reason\":\"lined用于面部指皱纹密布，原译“画满了线条”变成字面画线，词义错误；改为“布满了深深的皱纹”，并保留“多年的海上生活”所致因果。\"}],\"issues\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文“Years at sea had left the captain's face deeply lined”表示海上岁月使船长脸上皱纹深刻；原译“画满了深深的线条”误解lined，已改为“脸上布满了深深的皱纹”。\",\"e2\":\"原因（多年海上生活）与结果（脸上深皱纹）俱全，无漏译增译。\",\"e3\":\"本句无专名或术语表条目。\",\"e4\":\"叙述自然，“布满了深深的皱纹”与原文平实描写口吻一致。\",\"e5\":\"因果结构保留，无否定、条件或数量关系变化。\",\"e6\":\"无变量、标签或性别标记。\"}},{\"id\":\"9\",\"reason\":\"原文drew two lines即字面画线，译文“画了两条线”准确，未把lined误作皱纹处理。\",\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"原文“The surgeon drew two lines on the patient's face”是外科医生在病人脸上画两条线（动作施事为医生、对象为病人面部），译文主语与处所一致，未误译为皱纹。\",\"e2\":\"施事、动作、数量（two lines/两条线）、部位齐全。\",\"e3\":\"本句无专名或术语表条目。\",\"e4\":\"客观叙述口吻与原文一致。\",\"e5\":\"数量“两”与原文two对应，无否定或条件关系。\",\"e6\":\"无变量、标签或性别标记。\"}},{\"id\":\"10\",\"reason\":\"银线织眉并固定在玩偶眼上的动作、材料与位置均准确，保留。\",\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"keep\":true,\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"“wove a pair of eyebrows from silver thread”对应“用银线织出一对眉毛”，“fixed them above the doll's eyes”对应“固定在玩偶眼睛上方”，材料、数量与位置无误。\",\"e2\":\"三步信息（织眉、成对、固定位置）均译出，无增删。\",\"e3\":\"本句无专名或术语表条目。\",\"e4\":\"叙述口吻平实，与原句一致。\",\"e5\":\"无否定、条件关系；数量“一对”对应a pair。\",\"e6\":\"无变量、标签或性别标记。\"}}]}"
+    },
+    {
+      "index": 4,
+      "api": "yjapi",
+      "transport_settings": {
+        "model_name": "deepseek-v4.1-flash",
+        "think_switch": true,
+        "concurrency": 25,
+        "max_completion_tokens": 65536,
+        "temperature": 1,
+        "stream": false,
+        "request_timeout": 300,
+        "host": "yjapi.shop",
+        "sent_thinking": {
+          "type": "enabled"
+        },
+        "sent_reasoning_effort": "high"
+      },
+      "wire_inputs": [
+        {
+          "system_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "user_sha256": "6d6a3e4100f1f0d9e71607d1b75c622388aa63153664223adae20369487a3b9f"
+        }
+      ],
+      "calls": [
+        {
+          "status": "received",
+          "usage": {
+            "completion_tokens": 10321,
+            "completion_tokens_details": {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "cached_tokens": 0,
+              "reasoning_tokens": 7622,
+              "rejected_prediction_tokens": 0
+            },
+            "finish_reason": "stop",
+            "prompt_tokens": 3110,
+            "prompt_tokens_details": {
+              "accepted_prediction_tokens": 0,
+              "audio_tokens": 0,
+              "cache_write_tokens": null,
+              "cached_tokens": 2944,
+              "reasoning_tokens": 0,
+              "rejected_prediction_tokens": 0
+            },
+            "response_model": "deepseek-v4.1-flash",
+            "total_tokens": 13431,
+            "usage_reported": true
+          }
+        }
+      ],
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "cases": [
+        {
+          "kind": "actual_bad_scalp_4147",
+          "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "stubbled scalp 指头皮上的短发茬，原译“布满胡茬的头皮”把胡茬用于头皮，容易误解为脸部胡茬；改为“留着短发茬的头皮”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "stubbled scalp 指头皮上的短发茬，原译“布满胡茬的头皮”把胡茬用于头皮，容易误解为脸部胡茬；改为“留着短发茬的头皮”。",
+              "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+              "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”"
+            }
+          ]
+        },
+        {
+          "kind": "actual_bad_scalp_4257",
+          "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+          "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过留着短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "stubbled scalp 指头皮短发茬；原译“满是胡茬的头皮”沿用了脸部胡茬。其余动作：盯着她、咬唇、转向你均对应。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "minor",
+              "source_excerpt": "running a hand over his stubbled scalp",
+              "reason": "stubbled scalp 指头皮短发茬；原译“满是胡茬的头皮”沿用了脸部胡茬。其余动作：盯着她、咬唇、转向你均对应。",
+              "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+              "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过留着短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”"
+            }
+          ]
+        },
+        {
+          "kind": "correct_scalp_control",
+          "source": "He ran a hand over his stubbled scalp.",
+          "before": "他用手抚过留着短发茬的头皮。",
+          "after": "他用手抚过留着短发茬的头皮。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "ran a hand over 对应“用手抚过”；stubbled scalp 对应“留着短发茬的头皮”，未误作脸部胡茬。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "correct_chin_control",
+          "source": "His chin was covered in stubble.",
+          "before": "他的下巴上长满胡茬。",
+          "after": "他的下巴上长满胡茬。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "His chin was covered in stubble 对应“下巴上长满胡茬”，胡茬位于下巴，未误置到头皮。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "source_explicit_fantasy_control",
+          "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+          "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "after": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "scalp was covered in a thick beard 对应“头皮上长满浓密的胡须”；which he combed carefully 对应“他仔细地梳理着”，上下文可明确梳理对象。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "new_bad_hair_sense",
+          "source": "She ran a hand over her close-cropped hair.",
+          "before": "她用手抚过剪下来的头发。",
+          "after": "她用手抚过自己剪得很短的头发。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "close-cropped hair 指剪得很短的头发，原译“剪下来的头发”变成脱落的头发，修饰对象错误；改为“自己剪得很短的头发”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "her close-cropped hair",
+              "reason": "close-cropped hair 指剪得很短的头发，原译“剪下来的头发”变成脱落的头发，修饰对象错误；改为“自己剪得很短的头发”。",
+              "before": "她用手抚过剪下来的头发。",
+              "after": "她用手抚过自己剪得很短的头发。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_brows",
+          "source": "The scholar knitted her brows as she studied the map.",
+          "before": "学者一边研究地图，一边编织她的眉毛。",
+          "after": "学者一边研究地图，一边皱起眉头。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "knitted her brows 是“皱起眉头”，不是“编织眉毛”；原译把习语按字面处理，已改为自然中文。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "knitted her brows",
+              "reason": "knitted her brows 是“皱起眉头”，不是“编织眉毛”；原译把习语按字面处理，已改为自然中文。",
+              "before": "学者一边研究地图，一边编织她的眉毛。",
+              "after": "学者一边研究地图，一边皱起眉头。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_bad_lined_face",
+          "source": "Years at sea had left the captain's face deeply lined.",
+          "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+          "after": "多年的海上生活让船长的脸上刻满了深深的皱纹。",
+          "changed": true,
+          "accuracy": {
+            "status": "corrected",
+            "evidence": "deeply lined 指脸上布满深皱纹，不是字面“画满线条”；改为“刻满了深深的皱纹”。"
+          },
+          "changes": [
+            {
+              "category": "accuracy",
+              "severity": "major",
+              "source_excerpt": "had left the captain's face deeply lined",
+              "reason": "deeply lined 指脸上布满深皱纹，不是字面“画满线条”；改为“刻满了深深的皱纹”。",
+              "before": "多年的海上生活让船长的脸上画满了深深的线条。",
+              "after": "多年的海上生活让船长的脸上刻满了深深的皱纹。"
+            }
+          ]
+        },
+        {
+          "kind": "held_out_correct_literal_lines",
+          "source": "The surgeon drew two lines on the patient's face.",
+          "before": "外科医生在病人的脸上画了两条线。",
+          "after": "外科医生在病人的脸上画了两条线。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "drew two lines 对应“画了两条线”；施事外科医生、对象病人脸部正确。"
+          },
+          "changes": []
+        },
+        {
+          "kind": "held_out_correct_literal_eyebrows",
+          "source": "The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+          "before": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "after": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+          "changed": false,
+          "accuracy": {
+            "status": "pass",
+            "evidence": "wove eyebrows from silver thread 对应“用银线织出一对眉毛”；fixed above the doll's eyes 对应“固定在玩偶眼睛上方”。"
+          },
+          "changes": []
+        }
+      ],
+      "elapsed_seconds": 63.9434,
+      "session": "772c6c6ec3ad425b9bff7901ac0d71e9",
+      "input_hash": "995373c7850707f4638d35a3408d70489cc7bf2b6d02dde1f20bef8fbc0377ce",
+      "raw_sha256": "a81d5f7039078450f83ddbdaf38ba2b64e03d4b6d3a5ab1bf4c6897141f9c8ee",
+      "raw_reply": "{\"records\":[{\"id\":\"1\",\"translation\":\"但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \\r\\n\\r\\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"pass\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"stubbled scalp 指头皮上的短发茬，原译“布满胡茬的头皮”把胡茬用于头皮，容易误解为脸部胡茬；改为“留着短发茬的头皮”。\",\"e2\":\"原文各句及“free of charge”等信息均译出，无漏增。\",\"e3\":\"Sagus 译作萨古斯、Circus Minor 译作小竞技场，本批无强制术语表冲突。\",\"e4\":\"硬话与随后解释的口吻保持，短句“端详。斟酌。”保留。\",\"e5\":\"让步关系、否定“不是想冒犯”及“如果……我会”条件均保持。\",\"e6\":\"本条无变量、标签或保护标记。\"}},{\"id\":\"2\",\"translation\":\"他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\\r\\n\\r\\n“听着，”他说着，用手抚过留着短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"pass\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"minor\",\"source_excerpt\":\"running a hand over his stubbled scalp\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"stubbled scalp 指头皮短发茬；原译“满是胡茬的头皮”沿用了脸部胡茬。其余动作：盯着她、咬唇、转向你均对应。\",\"e2\":\"原文信息完整，包括“想说服她什么”和免费的承诺。\",\"e3\":\"萨古斯与小竞技场译名在本条内保持一致，无强制术语表冲突。\",\"e4\":\"叙述与对白口吻自然，保留犹豫和心理活动。\",\"e5\":\"动作先后、目的及“不是想冒犯”的否定关系保持。\",\"e6\":\"本条无变量、标签或保护标记。\"}},{\"id\":\"3\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"ran a hand over 对应“用手抚过”；stubbled scalp 对应“留着短发茬的头皮”，未误作脸部胡茬。\",\"e2\":\"原句动作和对象完整，无漏译增译。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"叙述简洁，符合叙事句口吻。\",\"e5\":\"单一动作，无否定或条件关系。\",\"e6\":\"无变量、标签或保护标记。\"}},{\"id\":\"4\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"His chin was covered in stubble 对应“下巴上长满胡茬”，胡茬位于下巴，未误置到头皮。\",\"e2\":\"主语、部位和状态均完整。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"简洁陈述，口吻自然。\",\"e5\":\"无复杂逻辑关系。\",\"e6\":\"无变量、标签或保护标记。\"}},{\"id\":\"5\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"scalp was covered in a thick beard 对应“头皮上长满浓密的胡须”；which he combed carefully 对应“他仔细地梳理着”，上下文可明确梳理对象。\",\"e2\":\"变种人、头皮、浓密胡须及梳理动作均译出。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"保留了原文奇异设定的客观叙述口吻。\",\"e5\":\"主从关系清楚，无否定或数量歧义。\",\"e6\":\"无变量、标签或保护标记。\"}},{\"id\":\"6\",\"translation\":\"她用手抚过自己剪得很短的头发。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"her close-cropped hair\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"close-cropped hair 指剪得很短的头发，原译“剪下来的头发”变成脱落的头发，修饰对象错误；改为“自己剪得很短的头发”。\",\"e2\":\"她、手部动作、头发状态均译出。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"叙述动作自然。\",\"e5\":\"单一动作，无关系错误。\",\"e6\":\"无变量、标签或保护标记。\"}},{\"id\":\"7\",\"translation\":\"学者一边研究地图，一边皱起眉头。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"knitted her brows\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"knitted her brows 是“皱起眉头”，不是“编织眉毛”；原译把习语按字面处理，已改为自然中文。\",\"e2\":\"学者、研究地图、皱眉均译出。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"“一边……一边……”符合叙述语境。\",\"e5\":\"同时发生的动作关系保持。\",\"e6\":\"无变量、标签或保护标记。\"}},{\"id\":\"8\",\"translation\":\"多年的海上生活让船长的脸上刻满了深深的皱纹。\",\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"corrected\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[{\"category\":\"accuracy\",\"severity\":\"major\",\"source_excerpt\":\"had left the captain's face deeply lined\",\"reason\":{\"ref\":\"e1\"}}],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"deeply lined 指脸上布满深皱纹，不是字面“画满线条”；改为“刻满了深深的皱纹”。\",\"e2\":\"多年海上生活、船长面部、深刻皱纹均完整。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"叙述自然，保留岁月留下痕迹的意味。\",\"e5\":\"因果关系“多年海上生活导致”保持。\",\"e6\":\"无变量、标签或保护标记。\"}},{\"id\":\"9\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"drew two lines 对应“画了两条线”；施事外科医生、对象病人脸部正确。\",\"e2\":\"动作、数量、位置完整。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"客观叙述，口吻自然。\",\"e5\":\"数量“两条”和位置关系保持。\",\"e6\":\"无变量、标签或保护标记。\"}},{\"id\":\"10\",\"keep\":true,\"reason\":{\"ref\":\"e1\"},\"checks\":{\"accuracy\":[\"pass\",{\"ref\":\"e1\"}],\"completeness\":[\"pass\",{\"ref\":\"e2\"}],\"terminology\":[\"not_applicable\",{\"ref\":\"e3\"}],\"tone\":[\"pass\",{\"ref\":\"e4\"}],\"logic\":[\"pass\",{\"ref\":\"e5\"}],\"placeholders\":[\"not_applicable\",{\"ref\":\"e6\"}]},\"changes\":[],\"issues\":[],\"exceptions\":[],\"source_ref\":\"whole\",\"evidence\":{\"e1\":\"wove eyebrows from silver thread 对应“用银线织出一对眉毛”；fixed above the doll's eyes 对应“固定在玩偶眼睛上方”。\",\"e2\":\"女巫、材料、一对眉毛、玩偶眼睛位置均译出。\",\"e3\":\"无专名或术语需核对。\",\"e4\":\"奇幻叙事口吻自然。\",\"e5\":\"先后动作和位置关系保持。\",\"e6\":\"无变量、标签或保护标记。\"}}]}"
+    }
+  ],
+  "summaries": {
+    "yjapi": {
+      "rounds": 2,
+      "actual_requests": 2,
+      "known_errors_corrected_per_round": [
+        5,
+        5
+      ],
+      "correct_controls_preserved_per_round": [
+        5,
+        5
+      ],
+      "totals": {
+        "prompt_tokens": 6220,
+        "completion_tokens": 21170,
+        "total_tokens": 27390
+      },
+      "response_models": [
+        "deepseek-v4.1-flash"
+      ],
+      "reasoning_tokens": 16118,
+      "stage_seconds": [
+        62.1143,
+        63.9434
+      ]
+    },
+    "deepseek": {
+      "rounds": 2,
+      "actual_requests": 2,
+      "known_errors_corrected_per_round": [
+        5,
+        5
+      ],
+      "correct_controls_preserved_per_round": [
+        5,
+        5
+      ],
+      "totals": {
+        "prompt_tokens": 6264,
+        "completion_tokens": 17995,
+        "total_tokens": 24259
+      },
+      "response_models": [
+        "deepseek-flash"
+      ],
+      "reasoning_tokens": 11794,
+      "stage_seconds": [
+        56.448,
+        45.3475
+      ]
+    }
+  },
+  "total_reported_tokens": 51649,
+  "config_unchanged": true,
+  "production_translation_sha256": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "production_changed": false,
+  "regression_tests": {
+    "passed": 36,
+    "log": "Development/api_provider_comparison_regression_20261024.log"
+  },
+  "all_probes_paused": true,
+  "reserved_requests": 0,
+  "official_source": {
+    "url": "https://api-docs.deepseek.com/api/responses",
+    "verified_date": "2026-10-24",
+    "note": "Official docs map deepseek-flash to DeepSeek-V4.1-Flash-1017. yjapi real backend cannot be established from its requested/echoed model name."
+  },
+  "limitations": [
+    "Only ten selected cases, repeated twice per provider; not forty independent samples or a general accuracy estimate.",
+    "The previous prompt already contains a scalp/stubble example. Four held-out records contain two different errors and two correct literal counterparts.",
+    "Both send thinking enabled and reasoning_effort high, temperature 1, max_completion_tokens 65536, concurrency 25. Configured model aliases differ.",
+    "Profile streaming and timeout differ: yjapi false/300s, official true/200s. No configuration changes were made; no timeout occurred.",
+    "Identical message hashes do not prove identical server model versions or internal processing. Returned model name is not model identity attestation.",
+    "Input usage reports differ by 22 tokens per identical-message request; accounting/tokenizer/chat overhead differences are possible. This alone does not prove truncation or prompt rewriting.",
+    "Token totals and wall times are observed for these runs only, not billed money or reliable pricing/performance benchmarks.",
+    "Historical failed calls cannot be conclusively attributed to a provider/backend solely from current configuration and response model aliases.",
+    "No production game, frozen glossary, official translation, state or patch was changed. No translation API default or concurrency was changed."
+  ]
+}

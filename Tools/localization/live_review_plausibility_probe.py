@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import threading
 import uuid
+from urllib.parse import urlsplit
 
 import ainiee_bridge as bridge
 import translation_workflow as w
@@ -37,6 +38,7 @@ def main():
     ap.add_argument('--output',required=True)
     ap.add_argument('--arm',choices=('baseline','legacy','candidate','source_only','source_reference'),required=True)
     ap.add_argument('--held-out',action='store_true',help='Add unseen sense errors and literal controls; case kinds stay outside API input')
+    ap.add_argument('--api',help='Named local API for this isolated run; does not change default_api or concurrency')
     ap.add_argument('--reading-report',help='Actual source-only result; required for the source_reference development arm')
     args=ap.parse_args()
     if args.arm in ('candidate','legacy'):
@@ -114,12 +116,23 @@ def main():
         'held_out':args.held_out,
         'reading_report':args.reading_report if args.arm=='source_reference' else None,
         'fixture_note':'Developer copied translations, deliberately including historical errors. Empty glossary isolates review; no screenshot, diagnoses, expected corrections, or case kinds sent to API.'}
-    calls=[0];lock=threading.Lock()
+    calls=[0];lock=threading.Lock();wire_inputs=[]
     class BoundedAPI(bridge.AINieeAPI):
+        def __init__(self,settings,key):
+            super().__init__(settings,key)
+            params=self.parser.apply_platform_thinking_params({'model':settings['model_name'],
+                'extra_body':settings.get('extra_body',{})},settings)
+            report['selected_api']=w.local_api_name(name=args.api)
+            report['transport_settings']={**{k:settings.get(k) for k in
+                ('model_name','think_switch','concurrency','max_completion_tokens','temperature','stream','request_timeout')},
+                'host':urlsplit(settings['api_url']).hostname,'sent_thinking':params.get('extra_body',{}).get('thinking'),
+                'sent_reasoning_effort':params.get('reasoning_effort')}
         def request(self,system,user):
             with lock:
                 if calls[0]>=wire_limit:raise bridge.ApiFailure('probe_wire_limit_before_transport',False,usage={'usage_reported':False})
                 calls[0]+=1
+                wire_inputs.append({'system_sha256':hashlib.sha256(system.encode('utf-8')).hexdigest(),
+                    'user_sha256':hashlib.sha256(user.encode('utf-8')).hexdigest()})
             return super().request(system,user)
     def claim(stage):return flow.claim(stage,'developer-fixture-'+uuid.uuid4().hex,backend='codex')
     def submit(c,**data):
@@ -141,7 +154,7 @@ def main():
                 edits=[],quarantine=[],additions=[],allow_no_match=[]))
         flow.freeze_glossary()
         if args.arm=='source_only':
-            result=w.run_api(flow,'pilot_translate',requester_factory=BoundedAPI,continuous=True)
+            result=w.run_api(flow,'pilot_translate',requester_factory=BoundedAPI,continuous=True,api_name=args.api)
         else:
             seed('pilot_translate')
             pr=flow.pilot_report();flow.pilot_decide(dict(report_hash=pr['report_hash'],reviewer='main',decision='accept',
@@ -149,13 +162,13 @@ def main():
             seed('translate')
             flow.pause(True);flow.configure({'stage_backends':{'extract':'codex','glossary_review':'codex','pilot_translate':'codex','translate':'api'}},
                 'Fixture copying complete; all actual review and repairs use configured API',impact='none');flow.pause(False)
-            result=w.run_api(flow,'review',requester_factory=BoundedAPI,continuous=True)
+            result=w.run_api(flow,'review',requester_factory=BoundedAPI,continuous=True,api_name=args.api)
         report['runner']={k:result.get(k) for k in ('accepted','failed','stage_clean','needs_attention','pending_handoffs')}
     except Exception as exc:report['setup_error']=str(exc)
     with flow.db() as db:
         report['after']=[dict(r) for r in db.execute('SELECT ordinal,source,translation,stage FROM records ORDER BY ordinal')]
         report['api_calls']=[dict(r) for r in db.execute('SELECT status,usage FROM api_calls WHERE status!="cancelled"')]
-    flow.pause(True);report['wire_requests']=calls[0]
+    flow.pause(True);report['wire_requests']=calls[0];report['wire_inputs']=wire_inputs
     report['production_sha256_after']=hashlib.sha256(translated_path.read_bytes()).hexdigest()
     assert report['production_sha256_after']==report['production_sha256_before']
     w.write_json(base/'report.json',report)
