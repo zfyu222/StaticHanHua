@@ -1,0 +1,180 @@
+{
+  "date": "2026-10-24",
+  "status": "generic_review_prompt_did_not_fix_real_scalp_errors; production_change_reverted",
+  "method": "Same API/config/thinking/concurrency, same six sources and starting translations. Actual source 4147/4257 plus three correct controls and one additional incorrect meaning. No screenshots, expected answers, case kinds or diagnoses sent. Fixture glossary empty; results are not full-game claims.",
+  "experimental_instruction": " 独立审校不能以术语命中、直译可对应或沿用候选判断为语义正确依据。accuracy核对词语实际修饰对象、身体部位、施事/受事及物理/比喻词义。先按中文自身词义读译文：谁对什么做了什么，修饰语是否能描述该对象，是否出现身体部位、材质或动作状态的矛盾；不要先替现译寻找合理解释。再从原文确定对应短语的实际含义，与中文逐项对照，检查译词是否擅自增加了部位、对象种类或状态。决定keep前优先排查最可能的具体误译；accuracy依据应对照实际原文短语与对应中文并说明词义/修饰关系，不能只复述原句或说“意思一致”。tone同时核对中文搭配及人物口吻。原文明确支持的奇异生理结构、世界设定或比喻应保留，不能仅因现实少见就改写；原文未支持的异常不能用“也许是奇幻设定”替译文开脱。短UI标签结合已有描述/资源信息判断实际含义；语境不足时明确报告疑点，不把猜测写成已证实。只在现有六维依据和changes中记录实际结论，不另加自检报告或重译整批。",
+  "arms": {
+    "baseline": {
+      "wire_requests": 1,
+      "program_stage_clean": true,
+      "reported_usages": [
+        {
+          "prompt_tokens": 4621,
+          "completion_tokens": 4021,
+          "total_tokens": 8642,
+          "response_model": "deepseek-v4.1-flash"
+        }
+      ],
+      "observed_results": [
+        {
+          "kind": "actual_bad_scalp_4147",
+          "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "changed": false
+        },
+        {
+          "kind": "actual_bad_scalp_4257",
+          "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "changed": false
+        },
+        {
+          "kind": "correct_scalp_control",
+          "before": "他用手抚过留着短发茬的头皮。",
+          "after": "他用手抚过留着短发茬的头皮。",
+          "changed": false
+        },
+        {
+          "kind": "correct_chin_control",
+          "before": "他的下巴上长满胡茬。",
+          "after": "他的下巴上长满胡茬。",
+          "changed": false
+        },
+        {
+          "kind": "source_explicit_fantasy_control",
+          "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "after": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "changed": false
+        },
+        {
+          "kind": "new_bad_hair_sense",
+          "before": "她用手抚过剪下来的头发。",
+          "after": "她用手抚过剪得极短的头发。",
+          "changed": true
+        }
+      ],
+      "production_translation_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+      "production_translation_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f"
+    },
+    "candidate": {
+      "wire_requests": 2,
+      "program_stage_clean": true,
+      "reported_usages": [
+        {
+          "prompt_tokens": 4946,
+          "completion_tokens": 5658,
+          "total_tokens": 10604,
+          "response_model": "deepseek-v4.1-flash"
+        },
+        {
+          "prompt_tokens": 3457,
+          "completion_tokens": 2062,
+          "total_tokens": 5519,
+          "response_model": "deepseek-v4.1-flash"
+        }
+      ],
+      "observed_results": [
+        {
+          "kind": "actual_bad_scalp_4147",
+          "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "after": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "changed": false
+        },
+        {
+          "kind": "actual_bad_scalp_4257",
+          "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "after": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "changed": false
+        },
+        {
+          "kind": "correct_scalp_control",
+          "before": "他用手抚过留着短发茬的头皮。",
+          "after": "他用手抚过留着短发茬的头皮。",
+          "changed": false
+        },
+        {
+          "kind": "correct_chin_control",
+          "before": "他的下巴上长满胡茬。",
+          "after": "他的下巴上长满胡茬。",
+          "changed": false
+        },
+        {
+          "kind": "source_explicit_fantasy_control",
+          "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "after": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "changed": false
+        },
+        {
+          "kind": "new_bad_hair_sense",
+          "before": "她用手抚过剪下来的头发。",
+          "after": "她用手抚过自己剪得极短的头发。",
+          "changed": true
+        }
+      ],
+      "production_translation_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+      "production_translation_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f"
+    },
+    "source_only": {
+      "wire_requests": 1,
+      "program_stage_clean": false,
+      "reported_usages": [],
+      "observed_results": [
+        {
+          "kind": "actual_bad_scalp_4147",
+          "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+          "after": null,
+          "changed": true
+        },
+        {
+          "kind": "actual_bad_scalp_4257",
+          "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+          "after": null,
+          "changed": true
+        },
+        {
+          "kind": "correct_scalp_control",
+          "before": "他用手抚过留着短发茬的头皮。",
+          "after": null,
+          "changed": true
+        },
+        {
+          "kind": "correct_chin_control",
+          "before": "他的下巴上长满胡茬。",
+          "after": null,
+          "changed": true
+        },
+        {
+          "kind": "source_explicit_fantasy_control",
+          "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+          "after": null,
+          "changed": true
+        },
+        {
+          "kind": "new_bad_hair_sense",
+          "before": "她用手抚过剪下来的头发。",
+          "after": null,
+          "changed": true
+        }
+      ],
+      "production_translation_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+      "production_translation_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f"
+    }
+  },
+  "conclusion": "Both bilingual review arms retained both historical scalp/beard errors, corrected the close-cropped error, and kept all three correct controls. Review can catch some meaning errors but structured pass is not a semantic guarantee. No measured improvement from the candidate instruction; it was reverted.",
+  "source_only_test": "One source-only pilot translation request timed out at configured 300 seconds. No output accepted, usage unknown; it does not establish or refute anchoring as a cause.",
+  "causal_limit": "Observed reviewers justified an erroneous translation; anchoring is a hypothesis, not established by this small test. One run per arm, repeated scalp phrases, and matched controls can influence model attention. Do not infer a population accuracy or prompt-effect size.",
+  "actual_wire_requests": 4,
+  "wire_limit_combined": 4,
+  "known_usage_wire_calls": 3,
+  "reported_tokens_known_only": 24765,
+  "unknown_usage_wire_calls": 1,
+  "local_guard_note": "Source-only recovery was blocked before a further wire call; this local failure is not a second server request and must not be billed as one. Thinking and concurrency followed current API config.",
+  "production_translation_sha256": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "state": "All three isolated development workflows publicly paused; no running requests remain. Production game, CSV, glossary, state and payload untouched.",
+  "validation": "20 existing local regression tests passed; archived experimental header exactly reproduced by harness replacement. No unsuccessful prompt added to the production workflow.",
+  "artifacts": [
+    "Development/review_plausibility_baseline_20261024",
+    "Development/review_plausibility_candidate_20261024",
+    "Development/review_plausibility_source_only_20261024"
+  ]
+}

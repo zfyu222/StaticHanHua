@@ -207,6 +207,8 @@ run-api 在拆批前同步 batching，通过现有 configure 修订机制只更�
 
 完整短标签因literal_context范围未命中词条时，`label_meaning_hints`仍传递精确同名词条的已审含义，避免单独分批后丢失语境；它是只读提示，不扩大术语范围或产生例外。该查找复用冻结快照的内存索引，不对每条重新扫描全表。无截图回归的真实通过与失败范围见[报告](reports/source_context_20261024.md)，其中“胡茬的头皮”仍被未接收候选漏检，不能宣称独立审校已消除此类错误。
 
+审校策略开发应另查[常识与词义对照验证](reports/review_plausibility_20261024.md)：程序接收的六维结果仍可能有明确语义错误。`live_review_plausibility_probe.py`在新Development目录中测试真实坏例、正确译法及原文明说的奇异情形；baseline/candidate最多各两次出站请求，source_only最多一次。candidate只在开发脚本内启用归档的失败实验，不改变正式提示词；策略或模型测试须报告漏检与误改，未改善时不能把程序通过当作优化有效。本次任务实际合计四次请求，不自动启动这些测试或增加正式游戏阶段。
+
 ## API 阶段执行与等待
 
 API 自动执行统一通过 `run_api_round.py`，由新的 Luna 执行代理管理一个阶段的常规多轮；主代理用原生 `wait_agent` 等待终结事件，不轮询进程或运行日志。具体派发模板及边界见 [API 阶段执行与等待](../../.agents/skills/game-translate/references/api_execution_wait.md)。
