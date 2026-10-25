@@ -12,7 +12,8 @@ from workflow_api_budget import service_failure, budget_requests, effective_atte
 class BudgetTests(unittest.TestCase):
     def test_service_and_model_failures_are_distinct(self):
         for status in ['RateLimitError:429', 'InternalServerError:502', 'APITimeoutError:transport',
-                       'PermissionDeniedError:403', 'empty_response', 'stream_interrupted']:
+                       'PermissionDeniedError:403', 'empty_response', 'stream_interrupted',
+                       'UnprocessableEntityError:422', 'JSONDecodeError:transport']:
             self.assertTrue(service_failure(status), status)
         for status in ['received', 'invalid_model_result', 'reasoning_budget_exhausted',
                        'rejected_length_terminated_response']:

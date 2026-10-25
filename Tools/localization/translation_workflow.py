@@ -1682,8 +1682,10 @@ def make_api_pool(config, root, stage, requester_factory=None, name=None, path=N
     path = Path(path) if path is not None else API_CONFIG_FILE
     local = read_local_api_config(path)
     policy = validate_policy(local.get('api_failover', {}), local.get('apis', {}))
-    if name is not None: policy = {**policy, 'enabled': False}
+    if name is not None: policy = {**policy, 'priority': [name]}
     names = policy['priority'] if policy['enabled'] else [local_api_name(path, name)]
+    if not policy['enabled']:
+        policy = {**policy, 'priority': [n for n in names if n is not None]}
     specs = []
     for selected in names:
         settings, key = load_api_settings(config, path, selected)
@@ -1878,7 +1880,20 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
     profile.progress('execute', completed_before, total_batches, force=True)
     dispatch_lock = threading.Lock()
     stats_lock = threading.Lock()
+    control_lock = threading.Lock()
+    next_control_check = 0
     in_flight = 0
+
+    def dispatch_cancelled():
+        nonlocal stopped, next_control_check
+        if stopped: return True
+        with control_lock:
+            if time.monotonic() >= next_control_check:
+                next_control_check = time.monotonic() + .25
+                with flow.db() as db:
+                    if flow.meta(db, 'paused'):
+                        stopped = True; summary['paused'] = True
+        return stopped
 
     def report_progress(force=False):
         with stats_lock:
@@ -1969,7 +1984,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                 # Same UTF-8 input.md that the SubAgent reads. One request, no
                 # conversation history, tools, agent loop or model-side file I/O.
                 prepared_input = Path(session['input_file']).read_text(encoding='utf-8')
-                route = pool.acquire(lambda: stopped)
+                route = pool.acquire(dispatch_cancelled)
                 with flow.db() as db:
                     if flow.meta(db, 'paused'):
                         raise bridge.ApiFailure('APIStatusError:dispatch_stopped', False,
@@ -2094,9 +2109,15 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
             return work(number)
     try:
         with ThreadPoolExecutor(max_workers=pool.max_workers) as executor:
-            futures = [executor.submit(profiled_work, n) for n in range(pool.max_workers)]
-            for future in futures:
-                future.result()
+            try:
+                futures = [executor.submit(profiled_work, n) for n in range(pool.max_workers)]
+                for future in futures:
+                    future.result()
+            except BaseException:
+                stopped = True; summary['paused'] = True
+                with pool.cv:
+                    pool.closed = True; pool.cv.notify_all()
+                raise  # Drain already issued requests; do not keep dispatching during shutdown.
     finally:
         pool.audit.save()
         if summary['paused']:

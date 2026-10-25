@@ -1,4 +1,5 @@
 """Separate service failures from model-request budgets; retain the raw ledger."""
+import re
 SERVICE_PREFIXES = ('APIConnectionError:', 'APITimeoutError:', 'InternalServerError:',
                     'RateLimitError:', 'PermissionDeniedError:', 'AuthenticationError:',
                     'BadRequestError:', 'NotFoundError:', 'APIStatusError:')
@@ -18,7 +19,8 @@ def connection_retry_delay(status, retries_used):
 
 
 def service_failure(status):
-    return isinstance(status, str) and (status.startswith(SERVICE_PREFIXES) or status in SERVICE_CODES)
+    return isinstance(status, str) and (status.startswith(SERVICE_PREFIXES) or status in SERVICE_CODES
+        or status.endswith(':transport') or re.search(r':[45]\d{2}$', status) is not None)
 
 
 def budget_requests(db):

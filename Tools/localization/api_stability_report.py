@@ -11,6 +11,7 @@ def build(root):
     audit = object.__new__(ProviderAudit)
     audit.run_id = 'all_recorded_runs'; audit.stage = 'all'; audit.log = root / 'logs/api_failover'
     audit.lock = threading.RLock(); audit.attempts = {}; audit.transitions = []; audit.started_at = time.time()
+    audit.state_changes = []; states_by_run = {}
     paths = sorted(root.glob('**/logs/api_failover/*.jsonl')); malformed = []; stages = {}; runs = set(); configurations = {}
     for path in paths:
         for number, raw_line in enumerate(path.read_bytes().splitlines(), 1):
@@ -27,12 +28,17 @@ def build(root):
             elif event == 'request_finished': audit.attempts.setdefault(key, {}).update(row)
             elif event == 'collection_outcome': audit.attempts.setdefault(key, {})['collection_status'] = row['status']
             elif event == 'provider_transition' and row not in audit.transitions: audit.transitions.append(row)
-            elif event == 'routing_configured': configurations[run] = row['configuration']
+            elif event == 'routing_configured':
+                configurations[run] = row['configuration']
+                states_by_run.setdefault(run,{name:'normal'for name in row['configuration']['priority']})
+            elif event == 'provider_state_changed':
+                if row not in audit.state_changes:audit.state_changes.append(row)
+                states_by_run.setdefault(run,{})[row['api']] = row['to_state']
     orphan = sum('api' not in row for row in audit.attempts.values())
     audit.attempts = {key: row for key, row in audit.attempts.items() if 'api' in row}
     report = audit.summary()
     report.pop('elapsed_seconds', None)  # Independent/overlapping runs have no additive wall time.
-    report.update(log_files=len(paths), runs=len(runs), run_configurations=configurations,
+    report.update(log_files=len(paths), runs=len(runs), run_configurations=configurations, provider_states_by_run=states_by_run,
         runs_by_stage={k:len(v) for k,v in stages.items()},
         malformed_log_lines=malformed, orphan_events_without_start=orphan,
         coverage='Only routed attempt journals; legacy requests without these journals are not assigned to the current API.')
