@@ -117,7 +117,8 @@ def execute(project, stage, command, resume=False, api=None):
                 receipt.update(accepted=summary['accepted'], failed=summary['failed'],
                                paused=summary['paused'], needs_attention_count=len(summary['needs_attention']),
                                pending_handoffs_count=len(summary['pending_handoffs']))
-                for key in ('continuous', 'stage_clean', 'drafts_complete', 'next_action', 'api_rounds', 'last_scan'):
+                for key in ('continuous', 'stage_clean', 'drafts_complete', 'next_action', 'api_rounds', 'last_scan',
+                            'api_provider_report', 'api_provider_log', 'api_concurrency_limits'):
                     if key in summary:
                         receipt[key] = summary[key]
                 external = [item for item in summary['needs_attention']

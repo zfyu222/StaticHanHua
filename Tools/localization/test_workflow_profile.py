@@ -48,7 +48,7 @@ class ProfileTests(unittest.TestCase):
             import translation_workflow as workflow
             class Broken:
                 root = Path(folder)
-            def fail(*args):
+            def fail(*args, **kwargs):
                 args[-1].emit('phase_started', phase='prepare')
                 raise ValueError('fixture-only')
             with self.assertRaises(ValueError), patch.object(workflow, '_run_api', side_effect=fail):

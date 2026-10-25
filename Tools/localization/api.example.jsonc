@@ -6,6 +6,14 @@
 {
   // 默认使用 apis 中的哪一项；只定义一个条目时可省略。
   "default_api": "primary",
+  // 可选：启用后priority代替default_api，故障时依次向后切换；名称必须已在apis定义。
+  // 增加backup条目后可改成["primary", "backup"]；--api显式指定时固定一家。
+  "api_failover": {
+    "enabled": false,
+    "priority": ["primary"],
+    // 瞬时故障最多额外探测3次，分别等待2/4/8秒；确定的授权/地址错误直接后移。
+    "retry_delays_seconds": [2, 4, 8]
+  },
   // 名称可自定义，仅作标记；每项至少填写 api_url、api_key、model_name。
   "apis": {
     "primary": {

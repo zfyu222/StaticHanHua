@@ -1,10 +1,8 @@
 """Run a stage's ordinary API/check/repair cycles in one process and cache."""
 from contextlib import redirect_stdout
-import copy
 import json
 import sys
 
-import ainiee_bridge as bridge
 
 
 def run_cycles(flow, stage, run_round, profile, requester_factory=None, session_ids=None, resume=False):
@@ -13,31 +11,15 @@ def run_cycles(flow, stage, run_round, profile, requester_factory=None, session_
     aggregate = dict(accepted=0, failed=0, paused=False, needs_attention=[], pending_handoffs=[],
                      peak_in_flight=0, records_saved_this_run=0, recovered_batches=0,
                      api_rounds=[], continuous=True, stage_clean=False)
-    client = None
-    client_settings = None
-    client_key = None
-
-    class BorrowedClient:
-        def request(self, system, user):
-            return client.request(system, user)
-
-        def close(self):
-            pass  # The owning stage closes the shared transport exactly once.
-
-    def shared_client(settings, key):
-        nonlocal client, client_settings, client_key
-        if client is None:
-            client = requester_factory(settings, key) if requester_factory else bridge.AINieeAPI(settings, key)
-            client_settings, client_key = copy.deepcopy(settings), key
-        elif settings != client_settings or key != client_key:
-            raise ValueError('API settings changed during stage execution; restart explicitly')
-        return BorrowedClient()
+    # The owning run_api ProviderPool caches one client per configured API and
+    # preserves its active provider across ordinary rounds.
 
     def merge(result):
         for key in ('accepted', 'failed', 'records_saved_this_run', 'recovered_batches'):
             aggregate[key] += result.get(key, 0)
         aggregate['peak_in_flight'] = max(aggregate['peak_in_flight'], result.get('peak_in_flight', 0))
-        for key in ('paused', 'needs_attention', 'pending_handoffs', 'concurrency_limit', 'project_tokens', 'total_batches'):
+        for key in ('paused', 'needs_attention', 'pending_handoffs', 'concurrency_limit', 'project_tokens', 'total_batches',
+                    'api_provider_report', 'api_provider_log', 'api_concurrency_limits'):
             if key in result:
                 aggregate[key] = result[key]
         aggregate.setdefault('completed_before_run', result.get('completed_before_run', 0))
@@ -112,7 +94,7 @@ def run_cycles(flow, stage, run_round, profile, requester_factory=None, session_
         for number in range(1, limit + 1):
             profile.emit('cycle_started', cycle=number)
             try:
-                result = run_round(flow, task_stage, shared_client, session_ids if number == 1 else None,
+                result = run_round(flow, task_stage, requester_factory, session_ids if number == 1 else None,
                                    resume if number == 1 else False, profile)
             except BaseException:
                 partial = getattr(profile, 'current_summary', None)
@@ -156,5 +138,5 @@ def run_cycles(flow, stage, run_round, profile, requester_factory=None, session_
                 return aggregate
         return stop('automation_round_guard', limit=limit)
     finally:
-        if client is not None:
-            client.close()
+        if getattr(profile, 'api_pool', None) is not None:
+            profile.api_pool.audit.save()  # run_api owns final client cleanup.

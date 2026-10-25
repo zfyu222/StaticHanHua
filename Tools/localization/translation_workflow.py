@@ -1562,7 +1562,7 @@ LOCAL_BATCH_FIELDS = ('batch_records', 'review_batch_records', 'extract_batch_re
                       'glossary_review_batch_tokens', 'review_batch_tokens', 'task_input_tokens',
                       'review_output_tokens', 'review_output_reserve_percent', 'review_estimate')
 # Named API entries share the transport fields; connection info stays per entry.
-LOCAL_API_SELECTION_FIELDS = ('apis', 'default_api')
+LOCAL_API_SELECTION_FIELDS = ('apis', 'default_api', 'api_failover')
 LOCAL_API_ENTRY_FIELDS = (set(DEFAULT['api']) - {'api_key_env'}) | {'api_key'}
 
 
@@ -1591,12 +1591,17 @@ def read_local_api_config(path):
     default_api = local.get('default_api')
     if default_api is not None and (not isinstance(default_api, str) or not default_api.strip()):
         raise ValueError('default_api must be a nonempty API name: ' + str(path))
+    if 'api_failover' in local:
+        from workflow_api_failover import validate_policy
+        validate_policy(local['api_failover'], apis or {})
     return local
 
 
 def select_local_api(local, name=None, path=None):
     """Return (selected API name or None, its entry) for a local config."""
     entries = local.get('apis') or {}
+    if name is None and local.get('api_failover', {}).get('enabled'):
+        name = local['api_failover']['priority'][0]
     name = name if name is not None else local.get('default_api')
     if name is None:
         if len(entries) > 1:
@@ -1669,6 +1674,25 @@ def load_api_settings(config, path=None, name=None):
     if not settings['api_url'] or not settings['model_name'] or not key:
         raise ValueError('Fill api_key, api_url and model_name in ' + str(path))
     return settings, key
+
+
+def make_api_pool(config, root, stage, requester_factory=None, name=None, path=None):
+    """Resolve credentials in memory; explicit --api pins one provider."""
+    from workflow_api_failover import ProviderPool, validate_policy
+    path = Path(path) if path is not None else API_CONFIG_FILE
+    local = read_local_api_config(path)
+    policy = validate_policy(local.get('api_failover', {}), local.get('apis', {}))
+    if name is not None: policy = {**policy, 'enabled': False}
+    names = policy['priority'] if policy['enabled'] else [local_api_name(path, name)]
+    specs = []
+    for selected in names:
+        settings, key = load_api_settings(config, path, selected)
+        specs.append({'name': selected or 'legacy', 'settings': settings, 'key': key})
+    if read_local_api_config(path) != local:
+        raise ValueError('API configuration changed while loading; restart explicitly')
+    pool = ProviderPool(specs, policy, root, stage, requester_factory)
+    pool.config_signature = fingerprint(local)
+    return pool
 
 
 def resume_api_tasks(flow, stage):
@@ -1768,6 +1792,9 @@ def run_api(flow, stage, requester_factory=None, session_ids=None, resume=False,
             profile.finish('interrupted' if isinstance(error, KeyboardInterrupt) else 'failed',
                            getattr(profile, 'current_summary', None), type(error).__name__)
             raise
+        finally:
+            if getattr(profile, 'api_pool', None) is not None:
+                profile.api_pool.close()
         status = 'needs_attention' if result['paused'] or result['needs_attention'] or result['pending_handoffs'] else 'completed'
         result['performance'] = profile.finish(status, result)
         return result
@@ -1829,10 +1856,21 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                                   (stage, flow.meta(db, 'revision'))).fetchone()[0]
         completed_before = db.execute('SELECT count(*) FROM tasks WHERE stage=? AND revision=? AND status="done"',
                                      (stage, flow.meta(db, 'revision'))).fetchone()[0]
-    requester = requester_factory(api, key) if requester_factory else bridge.AINieeAPI(api, key)
+    if getattr(profile, 'api_pool', None) is None:
+        profile.api_pool = make_api_pool(config, flow.root, stage, requester_factory, api_name)
+        profile._api_config_signature = profile.api_pool.config_signature
+    elif (profile._api_config_signature != fingerprint(read_local_api_config(API_CONFIG_FILE))
+          or profile.api_pool.specs[0]['settings'] != api or profile.api_pool.specs[0]['key'] != key):
+        raise ValueError('API settings changed during stage execution; restart explicitly')
+    pool = profile.api_pool
+    if pool.specs[0]['settings'] != api or pool.specs[0]['key'] != key:
+        raise ValueError('API settings changed during stage setup; restart explicitly')
+    if stage in ('review', 'final_review') and any(s['settings']['max_completion_tokens'] < config.get('review_output_tokens', 16384) for s in pool.specs):
+        raise ValueError('Every priority API must support the configured review output budget')
     stopped = False
     summary = {'accepted': resumed, 'failed': 0, 'paused': False, 'needs_attention': [],
-               'concurrency_limit': api['concurrency'], 'peak_in_flight': 0,
+               'concurrency_limit': pool.max_workers, 'peak_in_flight': 0,
+               'api_concurrency_limits': {s['name']: s['settings']['concurrency'] for s in pool.specs},
                'total_batches': total_batches, 'completed_before_run': completed_before,
                'recovered_batches': resumed, 'records_saved_this_run': 0}
     profile.current_summary = summary
@@ -1860,8 +1898,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                 summary['paused'] = True
                 return None
             last = db.execute('SELECT max(time) FROM api_calls WHERE status!="cancelled"').fetchone()[0] or 0
-            slot = (max(time.time(), last + 60 / api['requests_per_minute'])
-                    if api['requests_per_minute'] else time.time())
+            slot = time.time()  # ProviderPool owns the selected provider's rate limit.
             cursor = db.execute('INSERT INTO api_calls(task_id,time,status,usage) VALUES (?,?,?,?)',
                                 ('', slot, 'reserved', '{}'))
             return cursor.lastrowid, slot
@@ -1918,6 +1955,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                                (session['task_id'], session['session_id'], session['task_id'], call_id))
             retry_reason = None
             usage = None
+            route = None
             try:
                 rate_wait_start = time.perf_counter()
                 while slot > time.time():
@@ -1931,6 +1969,15 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                 # Same UTF-8 input.md that the SubAgent reads. One request, no
                 # conversation history, tools, agent loop or model-side file I/O.
                 prepared_input = Path(session['input_file']).read_text(encoding='utf-8')
+                route = pool.acquire(lambda: stopped)
+                with flow.db() as db:
+                    if flow.meta(db, 'paused'):
+                        raise bridge.ApiFailure('APIStatusError:dispatch_stopped', False,
+                            {'usage_reported': False, 'request_issued': False})
+                    if budget_requests(db) > min(api['max_requests'], route.spec['settings']['max_requests']):
+                        pool.release(route)
+                        raise bridge.ApiFailure('APIStatusError:request_budget_exhausted', False,
+                            {'usage_reported': False, 'request_issued': False})
                 with stats_lock:
                     in_flight += 1
                     summary['peak_in_flight'] = max(summary['peak_in_flight'], in_flight)
@@ -1938,7 +1985,8 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                 profile.request_started(call_id)
                 try:
                     with profile.measure('api_request'):
-                        content, usage = requester.request('', prepared_input)
+                        content, usage = pool.execute(route, '', prepared_input, call_id,
+                            task_id=session['task_id'], session_id=session['session_id'])
                 except BaseException as error:
                     profile.response(call_id, time.perf_counter() - request_start, getattr(error, 'usage', None), 'api_failed')
                     raise
@@ -1964,6 +2012,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                             run['id'], task['id'], task['input_hash'], json.loads(run['scope']))
                 write_json(session['result_file'], result)
                 receipt = flow.batch_finish(session['session_id'])
+                pool.audit.outcome(call_id, receipt['status'])
                 if result.get('_format_failures'):
                     profile.emit('partial_response_saved', session_id=session['session_id'],
                                  failed_records=len(result['_format_failures']),
@@ -1993,6 +2042,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                     db.execute('UPDATE api_calls SET status=?,usage=coalesce(?,usage) WHERE id=?',
                                (code, encoded(error_usage) if error_usage is not None else None, call_id))
                 if not isinstance(error, bridge.ApiFailure):
+                    pool.audit.outcome(call_id, code)
                     write_json(Path(session['result_file']).with_name('rejection.json'),
                                {'task_id': session['task_id'], 'error': str(error)[:1000], 'status': 'rejected'})
                 with stats_lock:
@@ -2000,7 +2050,10 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                 profile.emit('attempt_failed', call_id=call_id, error_type=type(error).__name__, retryable=retryable)
                 report_progress()
                 if isinstance(error, bridge.ApiFailure) and service_failure(code):
-                    delay = connection_retry_delay(code, connection_retries) if retryable else None
+                    if pool.should_retry(code):
+                        retry_reason = code
+                        continue  # Coordinated backoff/probe and provider selection occur on acquire.
+                    delay = connection_retry_delay(code, connection_retries) if retryable and not pool.managed else None
                     if delay is not None:
                         connection_retries += 1
                         profile.emit('connection_retry_scheduled', call_id=call_id,
@@ -2034,16 +2087,18 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
                 with profile.measure('retry_wait'):
                     while time.time() < until and not stopped:
                         time.sleep(0.25)
+            finally:
+                if route is not None: pool.release(route)
     def profiled_work(number):
         with profile.activate():
             return work(number)
     try:
-        with ThreadPoolExecutor(max_workers=api['concurrency']) as executor:
-            futures = [executor.submit(profiled_work, n) for n in range(api['concurrency'])]
+        with ThreadPoolExecutor(max_workers=pool.max_workers) as executor:
+            futures = [executor.submit(profiled_work, n) for n in range(pool.max_workers)]
             for future in futures:
                 future.result()
     finally:
-        requester.close()
+        pool.audit.save()
         if summary['paused']:
             flow.pause(True)
     with flow.db() as db:
@@ -2056,6 +2111,8 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
             'SELECT usage FROM api_calls WHERE status!="cancelled"'))
     report_progress(force=True)
     profile.emit('phase_finished', phase='execute', accepted_batches=summary['accepted'], failed_attempts=summary['failed'])
+    summary['api_provider_report'] = str(pool.audit.report)
+    summary['api_provider_log'] = str(pool.audit.log)
     return summary
 
 
