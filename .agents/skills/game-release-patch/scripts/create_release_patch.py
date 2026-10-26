@@ -104,7 +104,7 @@ def make_guide(args: argparse.Namespace, version: str, changelog: str) -> str:
     if args.mirror_url: downloads+=f"\n或者网盘通过网盘分享的知识：{args.share_name or args.game_name}\n链接: {args.mirror_url}"
     downloads+='\n请订阅github地址或者网盘地址，以便在补丁更新时获得通知'
     if args.feedback_url: downloads+=f"\n有问题请反馈至【腾讯文档】{args.feedback_name}\n{args.feedback_url}"
-    sections.append(("下载与反馈",downloads))
+    sections.insert(0,("下载与反馈",downloads))
     body = "\n\n".join(f"{heading}\n{content}" for heading, content in sections)
     return f"{args.title}\n{'=' * len(args.title)}\n\n{body}\n\n发布日期：{args.release_date}\n\n更新日志\n{changelog}- v{version}（{args.release_date}）：{args.changes}\n"
 
