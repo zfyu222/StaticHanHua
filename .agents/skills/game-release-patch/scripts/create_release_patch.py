@@ -17,7 +17,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
 
-AI_NOTICE = "本补丁使用 AI 辅助翻译。"
+AI_NOTICE = "本补丁使用 AI 辅助翻译，请适当降低预期。"
 RESERVED = {"补丁说明.txt", "PATCH_MANIFEST.json", "SHA256SUMS.txt"}
 
 
@@ -98,7 +98,6 @@ def make_guide(args: argparse.Namespace, version: str, changelog: str) -> str:
         ("补丁介绍", args.introduction),
         ("适用版本", f"{args.game_version}\n{args.platform}"),
         ("汉化内容", args.coverage)])
-    if args.verification: sections.append(("运行情况", args.verification))
     sections.append(("说明", AI_NOTICE))
     downloads=f"下载地址:{args.download_url}"
     if args.mirror_url: downloads+=f"\n或者网盘通过网盘分享的知识：{args.share_name or args.game_name}\n链接: {args.mirror_url}"
@@ -155,7 +154,7 @@ def main() -> int:
     parser.add_argument("--feedback-url")
     parser.add_argument("--feedback-name", default="游戏问题反馈")
     parser.add_argument("--installer-config", type=Path, help="脚本安装模式配置；载荷放入汉化文件/，目标路径保持实测记录不变")
-    parser.add_argument("--verification")
+    parser.add_argument("--verification", help=argparse.SUPPRESS)  # Legacy callers only; never render runtime reports.
     parser.add_argument("--known-issues")
     parser.add_argument("--changes", help="本版更新内容；首次发布默认写为“首次发布”。")
     parser.add_argument("--include", action="append", required=True, metavar="SOURCE=DESTINATION")
