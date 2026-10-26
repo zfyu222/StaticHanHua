@@ -17,7 +17,7 @@ def main(argv=None):
     q=subs.add_parser('export');q.add_argument('--out',required=True);q.add_argument('--csv',required=True);q.add_argument('--allow-partial',action='store_true')
     q=subs.add_parser('prepare-translation');q.add_argument('--project',required=True);q.add_argument('--source',required=True)
     q=subs.add_parser('collect-translation');q.add_argument('--project',required=True)
-    q=subs.add_parser('build');q.add_argument('--out',required=True);q.add_argument('--source',required=True);q.add_argument('--translated',required=True);q.add_argument('--validation',required=True);q.add_argument('--font',required=True);q.add_argument('--destination',required=True);q.add_argument('--mode',choices=['texture','overlay'],default='texture');q.add_argument('--mask-alpha',type=int,default=224)
+    q=subs.add_parser('build');q.add_argument('--out',required=True);q.add_argument('--source',required=True);q.add_argument('--translated',required=True);q.add_argument('--validation',required=True);q.add_argument('--font',required=True);q.add_argument('--destination',required=True);q.add_argument('--mode',choices=['texture','overlay'],default='texture');q.add_argument('--mask-alpha',type=int,default=64)
     q.add_argument('--text-rgba',type=int,nargs=4,default=[255,255,255,255],metavar=('R','G','B','A'))
     q.add_argument('--texture-styles',type=Path,help='Image-ID-bound JSON style overrides for opaque texture regions')
     a=p.parse_args(argv)

@@ -31,7 +31,7 @@ $flow = 'Tools/image_text/image_workflow.py'
 
 参数和策略示例见两个Skill。未知字体族默认不能跳过Qwen；极小可信文字可直接Agent。Agent包包含清晰逐图PNG、联系表、短编号和原图/候选绑定。普通候选仍需批量视觉验收才能正式导出；Agent确认与human确认分别记录。
 
-`build --out <work> --source <原文CSV> --translated <正式译文CSV> --validation <正式导出报告> --font <中文字体> --destination <新载荷目录> --mode texture|overlay` 使用CPU生成合入资源。检查preview.html/PNG和manifest；文字放不下会失败，overlay模式交运行时适配器。输出状态为ready_for_engine_adapter，installed=false，不能当作实机或部署通过。默认灰色蒙版alpha224，可变字重字体使用400；字体缺字拒绝构建。
+`build --out <work> --source <原文CSV> --translated <正式译文CSV> --validation <正式导出报告> --font <中文字体> --destination <新载荷目录> --mode texture|overlay` 使用CPU生成合入资源。检查preview.html/PNG和manifest；文字放不下会失败，overlay模式交运行时适配器。输出状态为ready_for_engine_adapter，installed=false，不能当作实机或部署通过。默认低透明度蒙版alpha64/255（约25%不透明度）及1像素描边，可变字重字体使用400；字体缺字拒绝构建。默认值仅用于准备候选，最终逐图选择与原画协调的颜色/字体，不得用近不透明的大色块遮图。
 
 源文与译文完全相同的确认区域保留原始像素，清单另记 `preserved_regions`，不加蒙版；透明文字资产清除区域后在透明底上绘制并加细描边。`--text-rgba R G B A` 可显式指定文字颜色（默认 255 255 255 255，alpha 必须大于 0）。先分析真实引擎的透明色键再选择颜色，例如 Avadon 的纯白色键会吞掉纯白字，使用 `--text-rgba 245 240 220 255`。这些规则不代替完整预览、引擎导入或实机测试。
 
@@ -190,7 +190,7 @@ Tools/image_text/run.ps1 review --out D:/ImageTextWork
 
 ### 已确认图片的局部背景样式
 
-合入命令可选 `--texture-styles <JSON>`，按源像素 image_id 设置 `mask_rgba`、`stroke_width`、`blur_radius` 及 `erase_text_ink`；缺省行为保持不变。`dark_rows` 可指定黑色字的已确认CSV行号。仅对审核过的文字框启用清字：此选项需要OpenCV与NumPy，局部颜色检测加inpaint近似修补原字，无法恢复被字形遮挡的真实细节。清字后再应用可选模糊及半透明底色，矩形外像素保持原样。样式及每框清除像素数记录在清单中，必须查看预览后交引擎适配；这不是自动发现或翻译漏字的功能。
+合入命令可选 `--texture-styles <JSON>`，按源像素 image_id 设置 `mask_rgba`、`stroke_width`、`blur_radius` 及 `erase_text_ink`；缺省改为alpha64与1像素描边。`dark_rows` 可指定黑色字的已确认CSV行号。仅对审核过的文字框启用清字：此选项需要OpenCV与NumPy，局部颜色检测加inpaint近似修补原字，无法恢复被字形遮挡的真实细节。清字后再应用可选模糊及半透明底色，矩形外像素保持原样。地图颜色检测不是通用清字方法，不自动套用于人像、复杂插画或图标图集；针对这些素材选择相应修补/重绘方案。样式及每框清除像素数记录在清单中，visual_review默认pending。必须对照原图查看底图保留、英文重影、修补痕迹、配色和字号，再记录视觉检查结果并交引擎适配；这不是自动发现或翻译漏字的功能。降低透明度不等于自动得到美观结果，既有项目不自动重建。
 
 ## 验证
 

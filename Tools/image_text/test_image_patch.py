@@ -33,6 +33,10 @@ class PatchTests(unittest.TestCase):
         self.assertEqual(image.size,original.size);self.assertEqual(image.getpixel((0,0)),original.getpixel((0,0)))
         self.assertNotEqual(image.getpixel((12,12)),original.getpixel((12,12)))
         self.assertEqual(original.getpixel((12,12)),(10,40,70,255))
+        self.assertEqual(result['entries'][0]['mask_rgba'][3],64)
+        self.assertEqual(result['entries'][0]['rendering']['stroke_width'],1)
+        self.assertNotEqual(image.getpixel((12,12))[:3],(96,96,96))
+        self.assertEqual(result['visual_review']['status'],'pending')
 
     def test_stale_translation_fails_before_output(self):
         self.csv(self.translated,['different'])

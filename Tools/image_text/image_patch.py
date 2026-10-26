@@ -6,6 +6,9 @@ from PIL import Image,ImageDraw,ImageFont,ImageFilter
 from core import digest,load_image,pixel_hash,read_json,validate_box,write_json
 from translation_bridge import validate
 
+DEFAULT_MASK_ALPHA=64
+DEFAULT_STROKE_WIDTH=1
+
 def clean_map_ink(image,prefer_dark=False):
     """Local color mask + deterministic inpainting inside a confirmed text box.
 
@@ -40,7 +43,7 @@ def layout(text,font_path,width,height,min_size=6,max_size=32):
         if all(font.getlength(x)<=width for x in lines) and step*len(lines)<=height:return font,lines,step
     raise ValueError('Translation does not fit original rectangle; enlarge overlay region or use a runtime overlay')
 
-def build(out,source,translated,validation,font_path,destination,mode='texture',mask_alpha=224,text_rgba=(255,255,255,255),texture_styles=None):
+def build(out,source,translated,validation,font_path,destination,mode='texture',mask_alpha=DEFAULT_MASK_ALPHA,text_rgba=(255,255,255,255),texture_styles=None):
     from fontTools.ttLib import TTFont
     if mode not in ('texture','overlay') or type(mask_alpha) is not int or not 0<=mask_alpha<=255:raise ValueError('Invalid patch mode or mask alpha')
     if not isinstance(text_rgba,(tuple,list)) or len(text_rgba)!=4 or any(type(c) is not int or not 0<=c<=255 for c in text_rgba) or text_rgba[3]==0:raise ValueError('Text RGBA must contain four visible color bytes')
@@ -93,23 +96,26 @@ def build(out,source,translated,validation,font_path,destination,mode='texture',
                     if transparent_ink:mask=[0,0,0,0]
                     radius=0 if transparent_ink else style.get('blur_radius',0)
                     erased=0
+                    background=original_image.crop(rect)
                     if not transparent_ink and style.get('erase_text_ink'):
-                        cleaned,erased=clean_map_ink(original_image.crop(rect),row['csv_row'] in style.get('dark_rows',[]));im.paste(cleaned,tuple(rect))
-                    if radius:im.paste(original_image.crop(rect).filter(ImageFilter.GaussianBlur(radius)),tuple(rect))
+                        background,erased=clean_map_ink(background,row['csv_row'] in style.get('dark_rows',[]))
+                    if radius:background=background.filter(ImageFilter.GaussianBlur(radius))
+                    if erased or radius:im.paste(background,tuple(rect))
                     patch=Image.new('RGBA',(width,height),tuple(mask));draw=ImageDraw.Draw(patch)
                     y=max(padding,(patch.height-step*len(lines))//2)
                     for line in lines:
-                        x=max(padding,(patch.width-font.getlength(line))/2);draw.text((x,y),line,font=font,fill=tuple(text_rgba),anchor='lt',stroke_width=1 if transparent_ink else style.get('stroke_width',0),stroke_fill='black');y+=step
+                        x=max(padding,(patch.width-font.getlength(line))/2);draw.text((x,y),line,font=font,fill=tuple(text_rgba),anchor='lt',stroke_width=1 if transparent_ink else style.get('stroke_width',DEFAULT_STROKE_WIDTH),stroke_fill='black');y+=step
                     if transparent_ink:im.paste((0,0,0,0),tuple(rect))
                     im.alpha_composite(patch,(rect[0],rect[1]))
-                    rendering=dict(font_size=font.size,lines=lines,background_mode='transparent_text_replacement' if transparent_ink else 'inpainted_texture_mask' if erased else 'softened_texture_mask' if radius else 'mask',blur_radius=radius,erased_ink_pixels=erased)
+                    rendering=dict(font_size=font.size,lines=lines,background_mode='transparent_text_replacement' if transparent_ink else 'inpainted_texture_mask' if erased else 'softened_texture_mask' if radius else 'mask',blur_radius=radius,erased_ink_pixels=erased,stroke_width=1 if transparent_ink else style.get('stroke_width',DEFAULT_STROKE_WIDTH))
                 entries.append(dict(image_id=key,box=row['box'],text=text,csv_row=row['csv_row'],sources=row['sources'],mask_rgba=mask,text_rgba=list(text_rgba),rendering=rendering))
             if mode=='texture':
                 name=f'images/{key}.png';path=destination/name;path.parent.mkdir(parents=True,exist_ok=True);im.save(path)
                 files.append(dict(path=name,sha256=digest(path.read_bytes()),image_id=key,sources=images[key]['sources']))
         payload=dict(schema=1,status='ready_for_engine_adapter',mode=mode,installed=False,source_sha256=digest(source.read_bytes()),translation_sha256=digest(Path(translated).read_bytes()),
                      mapping_sha256=digest(source.with_suffix('.mapping.json').read_bytes()),font=dict(name=font_path.name,sha256=digest(font_path.read_bytes()),variable_weight_requested=400),files=files,entries=entries,preserved_regions=preserved,
-                     note='Exported image/overlay resources only. Engine-specific Texture2D/Sprite binding or runtime adapter and user in-game validation are still required.')
+                     visual_review=dict(status='pending',policy='preserve_art_v1',checks=['original_art_visibility','no_old_text_ghosting','style_and_legibility','font_size_and_edges']),
+                     note='Resource candidate only. Visual review and engine-specific import remain required; low mask opacity alone does not establish acceptable appearance.')
         write_json(destination/'IMAGE_PATCH_MANIFEST.json',payload)
         cards=''.join(f'<article><h2>{html.escape(x["image_id"][:16])}</h2><img src="{x["path"]}" style="max-width:100%;image-rendering:pixelated;background:#888"></article>' for x in files)
         (destination/'preview.html').write_text('<!doctype html><meta charset="utf-8"><title>图片文字合入预览</title><p>资源预览，尚未导入游戏。覆盖层模式需要引擎适配器预览。</p>'+cards,encoding='utf-8')
