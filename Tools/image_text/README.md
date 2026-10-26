@@ -188,6 +188,10 @@ Tools/image_text/run.ps1 review --out D:/ImageTextWork
 3. 交给现有 `game-translate` 共用流程，仍须术语整理、试译、正式翻译和审校，不把OCR候选直接当正式原文。
 4. 回填阶段通过mapping把译文定位到图片区域，选择原图替换或独立覆盖层；本工具不代替排版与实机验收。
 
+### 已确认图片的局部背景样式
+
+合入命令可选 `--texture-styles <JSON>`，按源像素 image_id 设置 `mask_rgba`、`stroke_width`、`blur_radius` 及 `erase_text_ink`；缺省行为保持不变。`dark_rows` 可指定黑色字的已确认CSV行号。仅对审核过的文字框启用清字：此选项需要OpenCV与NumPy，局部颜色检测加inpaint近似修补原字，无法恢复被字形遮挡的真实细节。清字后再应用可选模糊及半透明底色，矩形外像素保持原样。样式及每框清除像素数记录在清单中，必须查看预览后交引擎适配；这不是自动发现或翻译漏字的功能。
+
 ## 验证
 
 ```powershell

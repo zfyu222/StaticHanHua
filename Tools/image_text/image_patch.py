@@ -2,9 +2,26 @@
 import html
 import math
 from pathlib import Path
-from PIL import Image,ImageDraw,ImageFont
+from PIL import Image,ImageDraw,ImageFont,ImageFilter
 from core import digest,load_image,pixel_hash,read_json,validate_box,write_json
 from translation_bridge import validate
+
+def clean_map_ink(image,prefer_dark=False):
+    """Local color mask + deterministic inpainting inside a confirmed text box.
+
+    This approximates paper under old lettering; it cannot recover hidden art.
+    Only an explicit texture style enables it. Original evidence is unchanged.
+    """
+    import cv2
+    import numpy as np
+    rgb=np.array(image.convert('RGB'));r,g,b=[rgb[:,:,i].astype('float32') for i in range(3)]
+    red=(r>2.2*g)&(r-b>45)&(g<130)
+    dark=prefer_dark or int(red.sum())<5
+    selected=(r<170)&(g<145)&(b<115) if dark else red
+    mask=cv2.dilate(selected.astype('uint8')*255,np.ones((3,3),dtype='uint8'),iterations=2 if dark else 1)
+    if int((mask>0).sum())>=mask.size*0.98:raise ValueError('Ink mask leaves insufficient texture; inspect the confirmed region/style')
+    result=Image.fromarray(cv2.inpaint(rgb,mask,3,cv2.INPAINT_TELEA)).convert('RGBA');result.putalpha(image.getchannel('A'))
+    return result,int((mask>0).sum())
 
 def layout(text,font_path,width,height,min_size=6,max_size=32):
     for size in range(max_size,min_size-1,-1):
@@ -23,7 +40,7 @@ def layout(text,font_path,width,height,min_size=6,max_size=32):
         if all(font.getlength(x)<=width for x in lines) and step*len(lines)<=height:return font,lines,step
     raise ValueError('Translation does not fit original rectangle; enlarge overlay region or use a runtime overlay')
 
-def build(out,source,translated,validation,font_path,destination,mode='texture',mask_alpha=224,text_rgba=(255,255,255,255)):
+def build(out,source,translated,validation,font_path,destination,mode='texture',mask_alpha=224,text_rgba=(255,255,255,255),texture_styles=None):
     from fontTools.ttLib import TTFont
     if mode not in ('texture','overlay') or type(mask_alpha) is not int or not 0<=mask_alpha<=255:raise ValueError('Invalid patch mode or mask alpha')
     if not isinstance(text_rgba,(tuple,list)) or len(text_rgba)!=4 or any(type(c) is not int or not 0<=c<=255 for c in text_rgba) or text_rgba[3]==0:raise ValueError('Text RGBA must contain four visible color bytes')
@@ -37,6 +54,16 @@ def build(out,source,translated,validation,font_path,destination,mode='texture',
     missing=sorted({c for text in target for c in text if not c.isspace() and ord(c) not in cmap})
     if missing:raise ValueError('Font missing characters: '+''.join(missing))
     images={x['image_id']:x for x in manifest['images']};grouped={};preserved=[]
+    texture_styles=texture_styles or {}
+    if not isinstance(texture_styles,dict) or set(texture_styles)-set(images):raise ValueError('Unknown texture style image')
+    for style in texture_styles.values():
+        if not isinstance(style,dict) or set(style)-{'mask_rgba','blur_radius','stroke_width','erase_text_ink','dark_rows'}:raise ValueError('Unknown texture style field')
+        if not isinstance(style.get('dark_rows',[]),list) or any(type(n) is not int or n<1 for n in style.get('dark_rows',[])):raise ValueError('Invalid dark-ink row list')
+        if type(style.get('erase_text_ink',False)) is not bool:raise ValueError('Invalid ink cleanup flag')
+        color=style.get('mask_rgba',[96,96,96,mask_alpha])
+        if not isinstance(color,(list,tuple)) or len(color)!=4 or any(type(c) is not int or not 0<=c<=255 for c in color):raise ValueError('Invalid texture style color')
+        if type(style.get('blur_radius',0)) not in (int,float) or not 0<=style.get('blur_radius',0)<=8:raise ValueError('Invalid texture blur radius')
+        if type(style.get('stroke_width',0)) is not int or not 0<=style.get('stroke_width',0)<=2:raise ValueError('Invalid text stroke')
     for row in mapping['regions']:
         if type(row['csv_row']) is not int or not 1<=row['csv_row']<=len(target) or row['image_id'] not in images:raise ValueError('Invalid source row/image mapping')
         image=images[row['image_id']];validate_box(row['box'],image['width'],image['height'])
@@ -55,7 +82,8 @@ def build(out,source,translated,validation,font_path,destination,mode='texture',
             for row in regions:
                 left,top,right,bottom=row['box'];rect=[math.floor(left),math.floor(top),math.ceil(right),math.ceil(bottom)]
                 text=target[row['csv_row']-1]
-                mask=[96,96,96,mask_alpha];rendering={}
+                style=texture_styles.get(key,{})
+                mask=list(style.get('mask_rgba',[96,96,96,mask_alpha]));rendering={}
                 if mode=='texture':
                     alpha=original_image.crop(rect).getchannel('A').histogram();pixels=sum(alpha)
                     transparent_ink=alpha[0]/pixels>0.1 and alpha[255]/pixels<0.5
@@ -63,13 +91,18 @@ def build(out,source,translated,validation,font_path,destination,mode='texture',
                     padding=(2 if min(width,height)>=28 else 1) if transparent_ink else 0
                     font,lines,step=layout(text,font_path,width-2*padding,height-2*padding,max_size=96)
                     if transparent_ink:mask=[0,0,0,0]
+                    radius=0 if transparent_ink else style.get('blur_radius',0)
+                    erased=0
+                    if not transparent_ink and style.get('erase_text_ink'):
+                        cleaned,erased=clean_map_ink(original_image.crop(rect),row['csv_row'] in style.get('dark_rows',[]));im.paste(cleaned,tuple(rect))
+                    if radius:im.paste(original_image.crop(rect).filter(ImageFilter.GaussianBlur(radius)),tuple(rect))
                     patch=Image.new('RGBA',(width,height),tuple(mask));draw=ImageDraw.Draw(patch)
                     y=max(padding,(patch.height-step*len(lines))//2)
                     for line in lines:
-                        x=max(padding,(patch.width-font.getlength(line))/2);draw.text((x,y),line,font=font,fill=tuple(text_rgba),anchor='lt',stroke_width=1 if transparent_ink else 0,stroke_fill='black');y+=step
+                        x=max(padding,(patch.width-font.getlength(line))/2);draw.text((x,y),line,font=font,fill=tuple(text_rgba),anchor='lt',stroke_width=1 if transparent_ink else style.get('stroke_width',0),stroke_fill='black');y+=step
                     if transparent_ink:im.paste((0,0,0,0),tuple(rect))
                     im.alpha_composite(patch,(rect[0],rect[1]))
-                    rendering=dict(font_size=font.size,lines=lines,background_mode='transparent_text_replacement' if transparent_ink else 'mask')
+                    rendering=dict(font_size=font.size,lines=lines,background_mode='transparent_text_replacement' if transparent_ink else 'inpainted_texture_mask' if erased else 'softened_texture_mask' if radius else 'mask',blur_radius=radius,erased_ink_pixels=erased)
                 entries.append(dict(image_id=key,box=row['box'],text=text,csv_row=row['csv_row'],sources=row['sources'],mask_rgba=mask,text_rgba=list(text_rgba),rendering=rendering))
             if mode=='texture':
                 name=f'images/{key}.png';path=destination/name;path.parent.mkdir(parents=True,exist_ok=True);im.save(path)

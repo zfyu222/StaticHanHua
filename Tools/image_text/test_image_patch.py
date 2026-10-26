@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from PIL import Image,ImageDraw
 from core import digest,inventory,load_image,read_json,write_json
-from image_patch import build
+from image_patch import build,clean_map_ink
 from project_options import configure
 from translation_bridge import prepare,collect
 
@@ -38,6 +38,25 @@ class PatchTests(unittest.TestCase):
         self.csv(self.translated,['different'])
         with self.assertRaises(ValueError):build(self.out,self.source,self.translated,self.validation,FONT,self.root/'bad')
         self.assertFalse((self.root/'bad').exists())
+
+    def test_ink_cleanup_is_opt_in_and_keeps_unselected_art(self):
+        image=Image.new('RGBA',(120,60),(210,160,90,255));draw=ImageDraw.Draw(image)
+        draw.rectangle((30,15,45,30),fill=(140,20,15,255));draw.line((5,45,110,45),fill='black',width=1)
+        before=image.tobytes();clean,count=clean_map_ink(image)
+        self.assertGreater(count,0);self.assertEqual(image.tobytes(),before)
+        self.assertEqual(clean.getpixel((70,45)),image.getpixel((70,45)))
+        self.assertNotEqual(clean.getpixel((35,20)),image.getpixel((35,20)))
+
+    def test_per_image_soft_plate_keeps_texture_and_outside_pixels(self):
+        result=build(self.out,self.source,self.translated,self.validation,FONT,self.root/'soft',
+            texture_styles={self.key:dict(mask_rgba=[72,50,25,96],blur_radius=2,stroke_width=1)})
+        image=load_image(self.root/'soft'/result['files'][0]['path'])
+        self.assertEqual(image.getpixel((0,0)),(10,40,70,255))
+        self.assertEqual(result['entries'][0]['mask_rgba'][3],96)
+        self.assertEqual(result['entries'][0]['rendering']['background_mode'],'softened_texture_mask')
+        self.assertNotEqual(image.getpixel((12,12))[:3],(72,50,25))
+        with self.assertRaises(ValueError):
+            build(self.out,self.source,self.translated,self.validation,FONT,self.root/'bad_style',texture_styles={'wrong':{}})
 
     def test_engine_safe_text_color_is_not_replaced_by_white(self):
         result=build(self.out,self.source,self.translated,self.validation,FONT,self.root/'ivory',text_rgba=(245,240,220,255))
