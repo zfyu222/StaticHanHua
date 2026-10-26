@@ -40,4 +40,26 @@ class InstallerTests(unittest.TestCase):
         self.run_action('install');(self.root/'new').write_bytes(b'user-change');self.run_action('uninstall',False);self.assertEqual((self.root/'new').read_bytes(),b'user-change');self.assertEqual((self.root/'asset').read_bytes(),b'patched')
     def test_path_escape_rejected(self):
         (self.root/'PATCH_MANIFEST.json').write_text(json.dumps({'files':[{'path':'../outside','archive_path':'../outside','sha256':'x'}]}));self.run_action('install',False);self.assertEqual((self.root/'asset').read_bytes(),b'original')
+    def test_partial_install_journal_restores_original_and_unwritten_new_path(self):
+        self.run_action('install')
+        state_path=self.root/'.zfy-localization/state.json'
+        state=json.loads(state_path.read_text(encoding='utf-8-sig'));state['status']='installing'
+        # Simulate interruption after the original asset was replaced but before
+        # the new file was copied. Both intended hashes are already journaled.
+        (self.root/'new').unlink()
+        state_path.write_text(json.dumps(state),encoding='utf-8-sig')
+        self.run_action('uninstall')
+        self.assertEqual((self.root/'asset').read_bytes(),b'original')
+        self.assertFalse((self.root/'new').exists())
+    def test_partial_upgrade_journal_accepts_previous_bytes(self):
+        self.run_action('install')
+        state_path=self.root/'.zfy-localization/state.json'
+        state=json.loads(state_path.read_text(encoding='utf-8-sig'));state['status']='installing'
+        for record in state['records']:
+            if record['path']=='asset':
+                record['previous']=record['installed'];record['installed']=sha(b'upgrade')
+        state_path.write_text(json.dumps(state),encoding='utf-8-sig')
+        self.run_action('uninstall')
+        self.assertEqual((self.root/'asset').read_bytes(),b'original')
+        self.assertFalse((self.root/'new').exists())
 if __name__=='__main__':unittest.main()

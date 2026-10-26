@@ -27,6 +27,8 @@ try {
     $stateDir=Within $root '.zfy-localization';$statePath=Within $stateDir 'state.json'
     $state=$null;if(Test-Path -LiteralPath $statePath) { $state=Get-Content -LiteralPath $statePath -Raw -Encoding UTF8|ConvertFrom-Json }
     $manifest=Get-Content -LiteralPath (Join-Path $root 'PATCH_MANIFEST.json') -Raw -Encoding UTF8|ConvertFrom-Json
+    $legacyHashes=@{};foreach($known in $config.legacy) { $legacyHashes[($known.path+'|'+$known.sha256)]=$true }
+    $originalPaths=@{};foreach($known in $config.originals) { $originalPaths[$known.path]=$true }
     if ($Action -eq 'install') {
         if($state -and $state.status -notin @('installed','uninstalled')) { throw '上次安装未完成，请先运行卸载汉化。' }
         # Complete source and current-state preflight before changing the game.
@@ -40,20 +42,24 @@ try {
             $null=New-Item -ItemType Directory -Force -Path $stateDir
             $records=@()
             foreach($file in $manifest.files) {
-                $target=Within $root $file.path;$prior=Digest $target;$legacy=$false
-                foreach($known in $config.legacy) { if($known.path -eq $file.path -and $known.sha256 -eq $prior) { $legacy=$true;break } }
+                $target=Within $root $file.path;$prior=Digest $target;$legacy=$legacyHashes.ContainsKey($file.path+'|'+$prior)
                 $original=$prior
                 if($legacy) { $original=$null } elseif($prior) { CopyChecked $target (Within $stateDir ('original/'+$file.path)) $prior }
-                $restoreSteam=$false
-                foreach($known in $config.originals) { if($known.path -eq $file.path -and $legacy) { $restoreSteam=$true } }
+                $restoreSteam=$legacy -and $originalPaths.ContainsKey($file.path)
                 $records+=[pscustomobject]@{path=$file.path;original=$original;installed=$prior;previous=$prior;restore_steam=$restoreSteam}
             }
             $state=@{status='installing';records=$records};SaveState $state
         }
-        # Journal each intended write first so interrupted installs remain uninstallable.
+        # Persist ALL write intentions before the first write. Uninstall accepts
+        # either the previous/original or intended bytes for every path, so a
+        # partial install remains recoverable without rewriting the full journal
+        # once per payload file (quadratic work on large game patches).
+        $recordByPath=@{};foreach($r in $state.records) { $recordByPath[$r.path]=$r }
+        foreach($file in $manifest.files) {
+            $r=$recordByPath[$file.path];$r.previous=$r.installed;$r.installed=$file.sha256
+        }
         $state.status='installing';SaveState $state
         foreach($file in $manifest.files) {
-            foreach($r in $state.records) { if($r.path -eq $file.path) { $r.previous=$r.installed;$r.installed=$file.sha256 } };SaveState $state
             CopyChecked (Within $root $file.archive_path) (Within $root $file.path) $file.sha256
         }
         $state.status='installed';SaveState $state
@@ -63,9 +69,9 @@ try {
             # Legacy root-extraction packages have no installer state.
             $records=@();foreach($file in $manifest.files) {
                 $prior=Digest (Within $root $file.path);if(!$prior) { continue }
-                $knownMatch=@($config.legacy|Where-Object {$_.path -eq $file.path -and $_.sha256 -eq $prior}).Count -gt 0
+                $knownMatch=$legacyHashes.ContainsKey($file.path+'|'+$prior)
                 if(!$knownMatch) { continue }
-                $records+=@{path=$file.path;original=$null;installed=$prior;restore_steam=(@($config.originals|Where-Object {$_.path -eq $file.path}).Count -gt 0)}
+                $records+=@{path=$file.path;original=$null;installed=$prior;restore_steam=$originalPaths.ContainsKey($file.path)}
             }
             $state=@{status='installed';records=$records}
         }
