@@ -1,0 +1,374 @@
+[
+  {
+    "kind": "actual_reported_error",
+    "source": "Leave the shade alone. ",
+    "before": "别打扰谢德。 ",
+    "item": {
+      "changes": [
+        {
+          "after": "别打扰那个幽影。 ",
+          "before": "别打扰谢德。 ",
+          "category": "accuracy",
+          "reason": "原文 the shade 指面前女性形状的空洞/幽影，leave alone 是“别打扰”；改译后保留该指代和动作。",
+          "severity": "major",
+          "source_excerpt": "Leave the shade alone. "
+        },
+        {
+          "after": "别打扰那个幽影。 ",
+          "before": "别打扰谢德。 ",
+          "category": "terminology",
+          "reason": "t1 的“谢德”只适用于专名人物；本句为普通名词 shade，按语境译“幽影”并登记例外。",
+          "severity": "major",
+          "source_excerpt": "Leave the shade alone. "
+        }
+      ],
+      "checks": {
+        "accuracy": {
+          "evidence": "原文 the shade 指面前女性形状的空洞/幽影，leave alone 是“别打扰”；改译后保留该指代和动作。",
+          "status": "corrected"
+        },
+        "completeness": {
+          "evidence": "原文 the shade 指面前女性形状的空洞/幽影，leave alone 是“别打扰”；改译后保留该指代和动作。",
+          "status": "pass"
+        },
+        "logic": {
+          "evidence": "原文 the shade 指面前女性形状的空洞/幽影，leave alone 是“别打扰”；改译后保留该指代和动作。",
+          "status": "pass"
+        },
+        "placeholders": {
+          "evidence": "本条无变量、标签或占位符。",
+          "status": "not_applicable"
+        },
+        "terminology": {
+          "evidence": "t1 的“谢德”只适用于专名人物；本句为普通名词 shade，按语境译“幽影”并登记例外。",
+          "status": "corrected"
+        },
+        "tone": {
+          "evidence": "“别打扰那个幽影”自然，符合对幽影说话的口吻。",
+          "status": "pass"
+        }
+      },
+      "exceptions": [
+        {
+          "reason": "本句 the shade 指上下文中女性形状的空洞/幽影，并非名为 Shade 的人物。",
+          "source": "shade"
+        }
+      ],
+      "id": "R0000001_f26da1f5b6",
+      "issues": [],
+      "reason": "原文 the shade 指面前女性形状的空洞/幽影，leave alone 是“别打扰”；改译后保留该指代和动作。",
+      "reviewed": true,
+      "source_excerpt": "Leave the shade alone. ",
+      "translation": "别打扰那个幽影。 "
+    }
+  },
+  {
+    "kind": "named_error",
+    "source": "Qira pointed to her brother. \"Shade, come here.\"",
+    "before": "琪拉指着她的兄弟。“幽影，过来。”",
+    "item": {
+      "changes": [
+        {
+          "after": "琪拉指着她的兄弟。“谢德，过来。”",
+          "before": "琪拉指着她的兄弟。“幽影，过来。”",
+          "category": "terminology",
+          "reason": "her brother 与直接称呼 Shade 表明这是兄弟的专名，应译“谢德”；既有“幽影”例外不成立。",
+          "severity": "major",
+          "source_excerpt": "Qira pointed to her brother. \"Shade, come here.\""
+        }
+      ],
+      "checks": {
+        "accuracy": {
+          "evidence": "Qira 指向自己的兄弟并招呼他过来；译文保留人物关系和动作。",
+          "status": "pass"
+        },
+        "completeness": {
+          "evidence": "Qira 指向自己的兄弟并招呼他过来；译文保留人物关系和动作。",
+          "status": "pass"
+        },
+        "logic": {
+          "evidence": "Qira 指向自己的兄弟并招呼他过来；译文保留人物关系和动作。",
+          "status": "pass"
+        },
+        "placeholders": {
+          "evidence": "本条无变量、标签或占位符。",
+          "status": "not_applicable"
+        },
+        "terminology": {
+          "evidence": "her brother 与直接称呼 Shade 表明这是兄弟的专名，应译“谢德”；既有“幽影”例外不成立。",
+          "status": "corrected"
+        },
+        "tone": {
+          "evidence": "“谢德，过来。”符合直接招呼的口吻。",
+          "status": "pass"
+        }
+      },
+      "exception_changes": [
+        {
+          "action": "remove",
+          "reason": "原句明确说 Qira 指着 her brother 并称 Shade，说明此处是人物专名，不是幽影。",
+          "source": "Shade"
+        }
+      ],
+      "exceptions": [],
+      "id": "R0000002_946b636de8",
+      "issues": [],
+      "reason": "her brother 与直接称呼 Shade 表明这是兄弟的专名，应译“谢德”；既有“幽影”例外不成立。",
+      "reviewed": true,
+      "source_excerpt": "Qira pointed to her brother. \"Shade, come here.\"",
+      "translation": "琪拉指着她的兄弟。“谢德，过来。”"
+    }
+  },
+  {
+    "kind": "named_correct",
+    "source": "Qira pointed to her brother. \"Shade, come here.\" ",
+    "before": "琪拉指着她的兄弟。“谢德，过来。” ",
+    "item": {
+      "changes": [],
+      "checks": {
+        "accuracy": {
+          "evidence": "Qira 指向兄弟并招呼 Shade 过来，译文动作、对象和关系均一致。",
+          "status": "pass"
+        },
+        "completeness": {
+          "evidence": "Qira 指向兄弟并招呼 Shade 过来，译文动作、对象和关系均一致。",
+          "status": "pass"
+        },
+        "logic": {
+          "evidence": "Qira 指向兄弟并招呼 Shade 过来，译文动作、对象和关系均一致。",
+          "status": "pass"
+        },
+        "placeholders": {
+          "evidence": "本条无变量、标签或占位符。",
+          "status": "not_applicable"
+        },
+        "terminology": {
+          "evidence": "Shade 确指 Qira 的兄弟，按 t2 译“谢德”，专名一致。",
+          "status": "pass"
+        },
+        "tone": {
+          "evidence": "“谢德，过来。”自然直接。",
+          "status": "pass"
+        }
+      },
+      "id": "R0000003_b6378529e9",
+      "issues": [],
+      "reason": "Qira 指向兄弟并招呼 Shade 过来，译文动作、对象和关系均一致。",
+      "reviewed": true,
+      "source_excerpt": "Qira pointed to her brother. \"Shade, come here.\" ",
+      "translation": "琪拉指着她的兄弟。“谢德，过来。” "
+    }
+  },
+  {
+    "kind": "ordinary_correct",
+    "source": "They rested in the shade of a tree.",
+    "before": "他们在树荫下休息。",
+    "item": {
+      "changes": [],
+      "checks": {
+        "accuracy": {
+          "evidence": "在树荫下休息即 rest in the shade of a tree，译文保留了处所与动作。",
+          "status": "pass"
+        },
+        "completeness": {
+          "evidence": "在树荫下休息即 rest in the shade of a tree，译文保留了处所与动作。",
+          "status": "pass"
+        },
+        "logic": {
+          "evidence": "在树荫下休息即 rest in the shade of a tree，译文保留了处所与动作。",
+          "status": "pass"
+        },
+        "placeholders": {
+          "evidence": "本条无变量、标签或占位符。",
+          "status": "not_applicable"
+        },
+        "terminology": {
+          "evidence": "此处 shade 是普通名词“树荫”，不是人物谢德；已有 x1 例外适用。",
+          "status": "pass"
+        },
+        "tone": {
+          "evidence": "“他们在树荫下休息”自然通顺。",
+          "status": "pass"
+        }
+      },
+      "exceptions": [
+        {
+          "reason": "In the shade of a tree denotes shelter from sunlight, not a person.",
+          "source": "shade"
+        }
+      ],
+      "id": "R0000004_5425a0b8e0",
+      "issues": [],
+      "reason": "在树荫下休息即 rest in the shade of a tree，译文保留了处所与动作。",
+      "reviewed": true,
+      "source_excerpt": "They rested in the shade of a tree.",
+      "translation": "他们在树荫下休息。"
+    }
+  },
+  {
+    "kind": "ordinary_error",
+    "source": "They sat in the shade of a tree.",
+    "before": "他们坐在一棵树的谢德里。",
+    "item": {
+      "changes": [
+        {
+          "after": "他们坐在一棵树的树荫下。",
+          "before": "他们坐在一棵树的谢德里。",
+          "category": "accuracy",
+          "reason": "shade of a tree 是树的阴影/树荫，sit in 是坐在其中；旧译“谢德里”把普通名词误作专名，改后动作与处所正确。",
+          "severity": "major",
+          "source_excerpt": "They sat in the shade of a tree."
+        },
+        {
+          "after": "他们坐在一棵树的树荫下。",
+          "before": "他们坐在一棵树的谢德里。",
+          "category": "terminology",
+          "reason": "t1“谢德”只指人物；本句 the shade of a tree 为普通名词，应译“树荫”并登记例外。",
+          "severity": "major",
+          "source_excerpt": "They sat in the shade of a tree."
+        }
+      ],
+      "checks": {
+        "accuracy": {
+          "evidence": "shade of a tree 是树的阴影/树荫，sit in 是坐在其中；旧译“谢德里”把普通名词误作专名，改后动作与处所正确。",
+          "status": "corrected"
+        },
+        "completeness": {
+          "evidence": "shade of a tree 是树的阴影/树荫，sit in 是坐在其中；旧译“谢德里”把普通名词误作专名，改后动作与处所正确。",
+          "status": "pass"
+        },
+        "logic": {
+          "evidence": "shade of a tree 是树的阴影/树荫，sit in 是坐在其中；旧译“谢德里”把普通名词误作专名，改后动作与处所正确。",
+          "status": "pass"
+        },
+        "placeholders": {
+          "evidence": "本条无变量、标签或占位符。",
+          "status": "not_applicable"
+        },
+        "terminology": {
+          "evidence": "t1“谢德”只指人物；本句 the shade of a tree 为普通名词，应译“树荫”并登记例外。",
+          "status": "corrected"
+        },
+        "tone": {
+          "evidence": "“他们坐在一棵树的树荫下”自然，符合陈述口吻。",
+          "status": "pass"
+        }
+      },
+      "exceptions": [
+        {
+          "reason": "本句 the shade of a tree 指树荫，并非名为 Shade 的人物。",
+          "source": "shade"
+        }
+      ],
+      "id": "R0000005_9c975d0b90",
+      "issues": [],
+      "reason": "shade of a tree 是树的阴影/树荫，sit in 是坐在其中；旧译“谢德里”把普通名词误作专名，改后动作与处所正确。",
+      "reviewed": true,
+      "source_excerpt": "They sat in the shade of a tree.",
+      "translation": "他们坐在一棵树的树荫下。"
+    }
+  },
+  {
+    "kind": "held_out_flower_error",
+    "source": "She picked a rose from the garden.",
+    "before": "她从花园里摘了一朵萝丝。",
+    "item": {
+      "changes": [
+        {
+          "after": "她从花园里摘了一朵玫瑰。",
+          "before": "她从花园里摘了一朵萝丝。",
+          "category": "accuracy",
+          "reason": "picked a rose from the garden 是从花园摘花；旧译“萝丝”把花误作人名，改后动作与对象正确。",
+          "severity": "major",
+          "source_excerpt": "She picked a rose from the garden."
+        },
+        {
+          "after": "她从花园里摘了一朵玫瑰。",
+          "before": "她从花园里摘了一朵萝丝。",
+          "category": "terminology",
+          "reason": "t3“萝丝”只适用于园丁专名；本句 a rose 是普通名词“玫瑰”，需登记例外。",
+          "severity": "major",
+          "source_excerpt": "She picked a rose from the garden."
+        }
+      ],
+      "checks": {
+        "accuracy": {
+          "evidence": "picked a rose from the garden 是从花园摘花；旧译“萝丝”把花误作人名，改后动作与对象正确。",
+          "status": "corrected"
+        },
+        "completeness": {
+          "evidence": "picked a rose from the garden 是从花园摘花；旧译“萝丝”把花误作人名，改后动作与对象正确。",
+          "status": "pass"
+        },
+        "logic": {
+          "evidence": "picked a rose from the garden 是从花园摘花；旧译“萝丝”把花误作人名，改后动作与对象正确。",
+          "status": "pass"
+        },
+        "placeholders": {
+          "evidence": "本条无变量、标签或占位符。",
+          "status": "not_applicable"
+        },
+        "terminology": {
+          "evidence": "t3“萝丝”只适用于园丁专名；本句 a rose 是普通名词“玫瑰”，需登记例外。",
+          "status": "corrected"
+        },
+        "tone": {
+          "evidence": "“她从花园里摘了一朵玫瑰”自然。",
+          "status": "pass"
+        }
+      },
+      "exceptions": [
+        {
+          "reason": "本句 a rose 是花园中的花，并非名为 Rose 的园丁。",
+          "source": "rose"
+        }
+      ],
+      "id": "R0000006_68d9e7ffa2",
+      "issues": [],
+      "reason": "picked a rose from the garden 是从花园摘花；旧译“萝丝”把花误作人名，改后动作与对象正确。",
+      "reviewed": true,
+      "source_excerpt": "She picked a rose from the garden.",
+      "translation": "她从花园里摘了一朵玫瑰。"
+    }
+  },
+  {
+    "kind": "held_out_named_correct",
+    "source": "Rose, the gardener, handed me a flower.",
+    "before": "园丁萝丝递给我一朵花。",
+    "item": {
+      "changes": [],
+      "checks": {
+        "accuracy": {
+          "evidence": "Rose 是园丁，递给说话者一朵花；译文保留人物身份、动作和对象。",
+          "status": "pass"
+        },
+        "completeness": {
+          "evidence": "Rose 是园丁，递给说话者一朵花；译文保留人物身份、动作和对象。",
+          "status": "pass"
+        },
+        "logic": {
+          "evidence": "Rose 是园丁，递给说话者一朵花；译文保留人物身份、动作和对象。",
+          "status": "pass"
+        },
+        "placeholders": {
+          "evidence": "本条无变量、标签或占位符。",
+          "status": "not_applicable"
+        },
+        "terminology": {
+          "evidence": "Rose 确指园丁专名，按 t4 译“萝丝”，专名一致。",
+          "status": "pass"
+        },
+        "tone": {
+          "evidence": "“园丁萝丝递给我一朵花”自然，同位语关系清楚。",
+          "status": "pass"
+        }
+      },
+      "id": "R0000007_917eacaf2b",
+      "issues": [],
+      "reason": "Rose 是园丁，递给说话者一朵花；译文保留人物身份、动作和对象。",
+      "reviewed": true,
+      "source_excerpt": "Rose, the gardener, handed me a flower.",
+      "translation": "园丁萝丝递给我一朵花。"
+    }
+  }
+]

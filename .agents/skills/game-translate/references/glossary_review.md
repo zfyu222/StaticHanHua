@@ -77,6 +77,8 @@ README 记录术语版本、数量、审校范围、隔离问题及冻结结果�
 
 ## 术语范围与遵守等级（2026-10-24）
 
+专名也须区分指代与同形普通词。`required`表示确指该专名时统一译名，不证明所有字串命中都属于它。提取/四维审校的`term_reason`应根据提供的原文说明人物、地点或事物及其适用含义，不能仅写“人名，统一”；有证据且可表达的范围用原有`applicability`，不能编造身份或范围。正文用原有本句`exceptions`说明不同指代，独立六维审校同时核对误套译名和已有例外，不把字面命中当作含义正确的证明。无需把专名全局降为reference，也不新增术语包含扫描或额外语义审校轮次。
+
 新提取合并标记 `terminology_policy=1`。保留的characters/terms条目由术语语义审校确认 `term_kind`、`enforcement`、`term_reason`，缺失时不能冻结：
 
 - `proper_name`：人名、地名、组织、法术等确定专名，`enforcement=required`。

@@ -1,0 +1,133 @@
+{
+  "wire_limit": 2,
+  "wire_requests": 1,
+  "runner": {
+    "accepted": 1,
+    "failed": 0,
+    "stage_clean": true,
+    "needs_attention": [],
+    "pending_handoffs": []
+  },
+  "fixture_cases": [
+    {
+      "kind": "actual_reported_error",
+      "source": "Leave the shade alone. ",
+      "before": "别打扰谢德。 ",
+      "context": "A woman-shaped hole in the air stands before you. This woman-shade knows she does not belong here in your mind. You turn back to the woman-shaped void. She continues to face you, hands held out imploringly, ignoring the Specter completely."
+    },
+    {
+      "kind": "named_error",
+      "source": "Qira pointed to her brother. \"Shade, come here.\"",
+      "before": "琪拉指着她的兄弟。“幽影，过来。”",
+      "seed_exceptions": [
+        {
+          "source": "Shade",
+          "reason": "Shade denotes a ghost rather than a named person here."
+        }
+      ]
+    },
+    {
+      "kind": "named_correct",
+      "source": "Qira pointed to her brother. \"Shade, come here.\" ",
+      "before": "琪拉指着她的兄弟。“谢德，过来。” "
+    },
+    {
+      "kind": "ordinary_correct",
+      "source": "They rested in the shade of a tree.",
+      "before": "他们在树荫下休息。",
+      "seed_exceptions": [
+        {
+          "source": "shade",
+          "reason": "In the shade of a tree denotes shelter from sunlight, not a person."
+        }
+      ]
+    },
+    {
+      "kind": "ordinary_error",
+      "source": "They sat in the shade of a tree.",
+      "before": "他们坐在一棵树的谢德里。"
+    },
+    {
+      "kind": "held_out_flower_error",
+      "source": "She picked a rose from the garden.",
+      "before": "她从花园里摘了一朵萝丝。"
+    },
+    {
+      "kind": "held_out_named_correct",
+      "source": "Rose, the gardener, handed me a flower.",
+      "before": "园丁萝丝递给我一朵花。"
+    }
+  ],
+  "after": [
+    {
+      "ordinal": 1,
+      "source": "Leave the shade alone. ",
+      "translation": "别打扰那个幽影。 ",
+      "stage": "review",
+      "exceptions": "[{\"reason\":\"本句 the shade 指上下文中女性形状的空洞/幽影，并非名为 Shade 的人物。\",\"source\":\"shade\"}]"
+    },
+    {
+      "ordinal": 2,
+      "source": "Qira pointed to her brother. \"Shade, come here.\"",
+      "translation": "琪拉指着她的兄弟。“谢德，过来。”",
+      "stage": "review",
+      "exceptions": "[]"
+    },
+    {
+      "ordinal": 3,
+      "source": "Qira pointed to her brother. \"Shade, come here.\" ",
+      "translation": "琪拉指着她的兄弟。“谢德，过来。” ",
+      "stage": "review",
+      "exceptions": "[]"
+    },
+    {
+      "ordinal": 4,
+      "source": "They rested in the shade of a tree.",
+      "translation": "他们在树荫下休息。",
+      "stage": "review",
+      "exceptions": "[{\"reason\":\"In the shade of a tree denotes shelter from sunlight, not a person.\",\"source\":\"shade\"}]"
+    },
+    {
+      "ordinal": 5,
+      "source": "They sat in the shade of a tree.",
+      "translation": "他们坐在一棵树的树荫下。",
+      "stage": "review",
+      "exceptions": "[{\"reason\":\"本句 the shade of a tree 指树荫，并非名为 Shade 的人物。\",\"source\":\"shade\"}]"
+    },
+    {
+      "ordinal": 6,
+      "source": "She picked a rose from the garden.",
+      "translation": "她从花园里摘了一朵玫瑰。",
+      "stage": "review",
+      "exceptions": "[{\"reason\":\"本句 a rose 是花园中的花，并非名为 Rose 的园丁。\",\"source\":\"rose\"}]"
+    },
+    {
+      "ordinal": 7,
+      "source": "Rose, the gardener, handed me a flower.",
+      "translation": "园丁萝丝递给我一朵花。",
+      "stage": "review",
+      "exceptions": "[]"
+    }
+  ],
+  "api_calls": [
+    {
+      "status": "received",
+      "usage": "{\"api_name\":\"yjapi\",\"completion_tokens\":9659,\"endpoint_host\":\"yjapi.shop\",\"finish_reason\":\"stop\",\"prompt_tokens\":3653,\"request_elapsed_seconds\":54.125,\"request_issued\":true,\"requested_model\":\"deepseek-v4.1-flash\",\"response_model\":\"deepseek-v4.1-flash\",\"routing_run_id\":\"4413766971824566ab66a465069d60aa\",\"total_tokens\":13312,\"usage_reported\":true}"
+    }
+  ],
+  "production_sha256_before": "3486d8141921a4e68359572387d717bda2082ceda41297127155ac87009252dc",
+  "production_sha256_after": "3486d8141921a4e68359572387d717bda2082ceda41297127155ac87009252dc",
+  "limitations": [
+    "One current-prompt review, not an old/new accuracy comparison.",
+    "One actual source record with source-resource context; six constructed controls. No screenshots sent.",
+    "Fixture glossary, draft translations and two exceptions are seeded test inputs, not semantic approvals.",
+    "No new context retrieval; missing context can still cause missed errors.",
+    "Two setup attempts made zero API requests before run3."
+  ],
+  "outcome": {
+    "errors_corrected": 4,
+    "correct_translations_retained": 3,
+    "incorrect_exception_removed": true,
+    "correct_exception_retained": true
+  }
+}

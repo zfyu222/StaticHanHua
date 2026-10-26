@@ -42,6 +42,17 @@ from workflow_allocation import AllocationMixin, allocation_session
 from workflow_task_contract import WORKER_INSTRUCTION, output_template, render_protocol_input
 
 STAGES = ('extract', 'glossary_review', 'pilot_translate', 'pilot_review', 'translate', 'review', 'polish', 'final_review')
+TERM_REFERENT_INSTRUCTION = (
+    ' 术语匹配仅说明字串命中，不证明本句指代或词义适用。先按本句原文、已给语境和term_reason核对对象与含义，'
+    '再应用冻结译名；proper_name/required也只在确指该专名时必须统一，不能把同形普通词强行译成人名。'
+    '大小写、冠词或缺少某个译名都不能单独证明是否同一对象；不因可能多义就豁免实际专名。'
+    '例如词表Shade指某个名为“谢德”的人，不代表the shade在描述幽影时也指此人；确指该人物时仍须用“谢德”。'
+    '明确不同指代或普通词义时按原意翻译，并用本句exceptions具体说明原句依据及与词表含义的区别；'
+    '已有例外也须核对，不能当成永久正确。确实无法确定且影响含义时按现有issues报告疑点，不臆造人物身份或擅自改表。')
+TERM_REFERENT_REVIEW_INSTRUCTION = (
+    ' terminology还须核对“用了规定译名但指错对象”的误用，即使没有terminology_findings也逐条检查；'
+    '结合accuracy确认本句指代，再在现有terminology证据说明适用或不适用的具体依据。'
+    '发现同形普通词误套专名时修正并记录changes及本句例外；确指专名且译名正确则保留。')
 REVIEW_MEANING_INSTRUCTION = (
     ' 独立审校先从每条原文确定谁对谁做什么、修饰语属于哪个对象及该语境的词义，再对照译文；'
     '不要先为旧译寻找解释。accuracy检查词义、身体部位、施事/受事、动作结果及物理/比喻关系；'
@@ -1466,6 +1477,9 @@ def prompt(payload, *, api=False):
                    '不能因词条本身很短就忽略原文已有定义。结合定义判断人物特质、物理状态、能力和普通词义，'
                    '术语属于某机制不等于其字面译法准确，还须核对修饰对象、物理/比喻义及中文搭配。'
                    'term_reason记录实际含义与使用范围，使后续翻译/审校能理解该义；不要只写“符合术语表”。')
+        common += (' 专名的term_reason应依据已给原文说明它指谁、何地或何种事物及可证实的适用含义，'
+                   '不能只写“人名，统一译名”；不要把同形普通词的所有用例都算作该专名。'
+                   '有明确可表达的范围时用已有applicability限定；没有证据则不编造身份、范围或全局同义结论。')
         common += (' 术语以专有名称及确有特定游戏义的词为主；user/human等普通称谓和常用动作/形容词不收录，'
                    '不能只因机器说过或出现频繁就冻结。不要将Child {Female}这类普通NPC称谓及性别控制标记组合当专名。'
                    '每个保留的characters/terms条目须带term_kind=proper_name或game_term、enforcement=required或reference、'
@@ -1553,6 +1567,7 @@ def prompt(payload, *, api=False):
         exception_key = 'term_ref' if api else 'source'
         exception_hint = '本条term_refs中的t编号' if api else '该疑问的source原样值'
         common += ' 正文仅对required/旧表未标级条目遵守冻结译名；reference服从语境，不自行新增或修改术语表。'
+        common += TERM_REFERENT_INSTRUCTION
         common += (' terminology_findings 是程序按字面匹配提出的术语疑问，不代表译文一定错误。'
                    '逐项结合原句判断：确有错误就修正译文；坚持现译正确时可保留译文，'
                    f'并返回 exceptions=[{{{exception_key}:{exception_hint},reason:引用具体原句语境并说明现译为何正确、为何不套用该译名}}]。'
@@ -1560,6 +1575,7 @@ def prompt(payload, *, api=False):
                    '该结论作为本句的术语通过记录保存，后续程序检查沿用，不重复要求改成字面译名；'
                    '不因此豁免占位符、标签、空译文或其他机械错误。')
     if stage in ('pilot_review', 'review', 'final_review'):
+        common += TERM_REFERENT_REVIEW_INSTRUCTION
         common += (' 审校以修复明确错误为目标：含义准确、自然可读且符合术语和既定文体就通过。'
                    '同义措辞、个人偏好、另一种同样正确的译法不构成错误，不为此改写或提出返工。'
                    'warning 只报告有具体原文依据、会影响理解或一致性的疑点，不记录可选润色建议。'
