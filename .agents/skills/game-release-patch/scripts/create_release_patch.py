@@ -17,7 +17,7 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path, PurePosixPath
 
-AI_NOTICE = "本补丁基于 AI 辅助汉化制作，可能存在措辞、生硬表达、漏译或显示问题，请适当降低预期并欢迎反馈。"
+AI_NOTICE = "本补丁使用 AI 辅助翻译。"
 RESERVED = {"补丁说明.txt", "PATCH_MANIFEST.json", "SHA256SUMS.txt"}
 
 
@@ -92,20 +92,21 @@ def parse_include(value: str, project: Path) -> tuple[Path, PurePosixPath]:
 
 def make_guide(args: argparse.Namespace, version: str, changelog: str) -> str:
     """Return a player-facing release note instead of a metadata form."""
-    sections = [
+    sections = [("安装汉化", args.install)]
+    if args.upgrade: sections.append(("补丁升级", args.upgrade))
+    sections.extend([("卸载汉化", args.uninstall),
+        ("补丁介绍", args.introduction),
         ("适用版本", f"{args.game_version}\n{args.platform}"),
-        ("汉化内容", args.coverage),
-        ("安装方法", args.install),
-        ("卸载 / 恢复", args.uninstall or "删除本补丁新增文件，并用备份恢复被覆盖的原文件。"),
-        ("实机验证", args.verification or "未提供；请在安装后自行验证。"),
-        ("说明", AI_NOTICE),
-        ("后续更新", "补丁后续可能会更新，建议关注或订阅本项目的 GitHub 仓库 / Releases，及时获取新版补丁。"),
-        ("已知问题", args.known_issues or "暂无已知问题。"),
-        ("文件校验", "请使用压缩包内 `SHA256SUMS.txt` 核对补丁文件完整性；`PATCH_MANIFEST.json` 记录文件路径与哈希值。"),
-        ("反馈", "如遇问题，请附上游戏版本、平台、安装步骤、报错截图和日志。请勿在补丁中传播游戏本体或其他受版权保护的原始资源。"),
-    ]
+        ("汉化内容", args.coverage)])
+    if args.verification: sections.append(("运行情况", args.verification))
+    sections.append(("说明", AI_NOTICE))
+    downloads=f"下载地址:{args.download_url}"
+    if args.mirror_url: downloads+=f"\n或者网盘通过网盘分享的知识：{args.share_name or args.game_name}\n链接: {args.mirror_url}"
+    downloads+='\n请订阅github地址或者网盘地址，以便在补丁更新时获得通知'
+    if args.feedback_url: downloads+=f"\n有问题请反馈至【腾讯文档】{args.feedback_name}\n{args.feedback_url}"
+    sections.append(("下载与反馈",downloads))
     body = "\n\n".join(f"{heading}\n{content}" for heading, content in sections)
-    return f"{args.title}\n{'=' * len(args.title)}\n\n{args.introduction}\n\n发布日期：{args.release_date}\n\n{body}\n\n更新日志\n{changelog}- v{version}（{args.release_date}）：{args.changes}\n"
+    return f"{args.title}\n{'=' * len(args.title)}\n\n{body}\n\n发布日期：{args.release_date}\n\n更新日志\n{changelog}- v{version}（{args.release_date}）：{args.changes}\n"
 
 
 def check_custom_quality(project: Path, entries: list, game_version: str, platform: str) -> None:
@@ -146,7 +147,14 @@ def main() -> int:
     parser.add_argument("--platform", required=True)
     parser.add_argument("--release-date", default=date.today().isoformat())
     parser.add_argument("--install", required=True)
-    parser.add_argument("--uninstall")
+    parser.add_argument("--upgrade")
+    parser.add_argument("--uninstall", required=True)
+    parser.add_argument("--download-url", required=True)
+    parser.add_argument("--mirror-url")
+    parser.add_argument("--share-name")
+    parser.add_argument("--feedback-url")
+    parser.add_argument("--feedback-name", default="游戏问题反馈")
+    parser.add_argument("--installer-config", type=Path, help="脚本安装模式配置；载荷放入汉化文件/，目标路径保持实测记录不变")
     parser.add_argument("--verification")
     parser.add_argument("--known-issues")
     parser.add_argument("--changes", help="本版更新内容；首次发布默认写为“首次发布”。")
@@ -194,21 +202,33 @@ def main() -> int:
     payload_root = dispatch / "Files"
     payload_root.mkdir(parents=True, exist_ok=True)
     files = []
+    installer = json.loads(args.installer_config.read_text(encoding='utf-8-sig')) if args.installer_config else None
     for source, relative in entries:
-        staged = payload_root.joinpath(*relative.parts)
+        archive_path=PurePosixPath('汉化文件')/relative if installer else relative
+        staged = payload_root.joinpath(*archive_path.parts)
         staged.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, staged)
-        files.append({"path": str(relative), "sha256": sha256(staged), "size": staged.stat().st_size})
+        files.append({"path": str(relative), "archive_path":str(archive_path), "sha256": sha256(staged), "size": staged.stat().st_size})
+    helpers=[]
+    if installer:
+        for action,title in [('install','安装汉化'),('uninstall','卸载汉化')]:
+            target=payload_root/(title+'.cmd')
+            target.write_text('@echo off\nchcp 65001 >nul\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0汉化工具\\patch.ps1" -Action '+action+'\nif errorlevel 1 echo 操作失败，请查看上方提示。\npause\n',encoding='utf-8',newline='\r\n')
+            helpers.append(target)
+        target=payload_root/'汉化工具/patch.ps1';target.parent.mkdir(parents=True,exist_ok=True)
+        target.write_text(Path(__file__).with_name('player_installer.ps1').read_text(encoding='utf-8-sig'),encoding='utf-8-sig');helpers.append(target)
+        target=payload_root/'汉化工具/config.json';target.write_text(json.dumps(installer,ensure_ascii=False,indent=2)+'\n',encoding='utf-8-sig');helpers.append(target)
+    auxiliary=[{'path':p.relative_to(payload_root).as_posix(),'sha256':sha256(p),'size':p.stat().st_size} for p in helpers]
     with tempfile.TemporaryDirectory(prefix="release-patch-") as temp_dir:
         stage = Path(temp_dir)
         (stage / "补丁说明.txt").write_text(make_guide(args, version, old_changelog), encoding="utf-8-sig")
-        manifest = {"archive": output.name, "created": args.release_date, "files": files}
+        manifest = {"archive": output.name, "created": args.release_date, "files": files,"auxiliary":auxiliary,"install_mode":"script" if installer else "extract"}
         (stage / "PATCH_MANIFEST.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-        sums = "\n".join(f"{item['sha256']}  {item['path']}" for item in files) + "\n"
+        sums = "\n".join(f"{item['sha256']}  {item.get('archive_path',item['path'])}" for item in files+auxiliary) + "\n"
         (stage / "SHA256SUMS.txt").write_text(sums, encoding="utf-8")
         with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-            for _, relative in entries:
-                archive.write(payload_root.joinpath(*relative.parts), str(relative))
+            for item in files+auxiliary:
+                name=item.get('archive_path',item['path']);archive.write(payload_root/name,name)
             for path in sorted(stage.iterdir()):
                 archive.write(path, path.name)
     print(f"已生成补丁：{output}")

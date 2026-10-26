@@ -3,91 +3,41 @@ name: game-release-patch
 description: Generate an external-release game localization patch ZIP under Projects/{GameName}/Dispatch, including translated files, a Chinese installation guide, manifest, and checksums. Use when the user asks to publish, release, distribute, package for other players, create a patch ZIP, or create/update 补丁说明 for a completed game translation.
 ---
 
-# Game Release Patch（发布补丁）
+# 发布汉化补丁
 
-Create a self-contained distribution package that lets players install the localization without access to the project workspace. The release artifact is `Projects/{GameName}/Dispatch/{archive}.zip`.
+将已实测的汉化制作成玩家可直接使用的ZIP，并发布到游戏独立公开GitHub仓库。应用本技能时同时维护工程README，但不要把工程证据复制进玩家说明。
 
-## Workflow
+## 玩家说明规则
 
-1. Read the project's `README.md` and repack results. Do not publish before the repacked files have been tested in the target game version.
-   - For initialized custom translation runs, read `../game-translate/references/quality_workflow.md` and run `Tools/localization/translation_workflow.py --project <project> release-check`. The current CSV, Sol acceptance, tested payload hashes and in-game evidence must pass. Package exactly the tested payload destinations and use the recorded game version/platform; the packager enforces this before creating a ZIP. A dry run is only a preview. Older/AINiee projects without a custom database retain their existing verification workflow.
-2. Choose only files the player needs: normally a translation plugin, modified assets, configuration, and any required runtime files. Never include `Game/`, the original executable, paid game data, API keys, developer logs, or source CSVs unless the player explicitly needs them.
-3. Preserve the exact destination relative to the game root. For example, a plugin DLL destined for `BepInEx/plugins/` must be packaged under `BepInEx/plugins/`.
-4. Use the project directory name as the game name, or pass `--game-name`. The ZIP name is always `{游戏名}_子非鱼汉化{版本号}.zip`. The first release is `1.0`; each later release is the highest existing release plus `0.1`. Its title is automatically `《{游戏名}》子非鱼AI汉化补丁 v{版本号}` and must keep that version number.
-5. Draft factual release metadata from the tested build: introduction, coverage, supported game version and store/platform, translation date, installation and uninstall methods, verification result, known issues, and contact/feedback channel if one exists. Write the guide as a player-facing release note: start with the actual patch title, then use natural headings such as “适用版本” and “安装方法”. Never expose form labels such as “补丁标题” / “补丁介绍”, or numbered metadata fields, in the player-facing document.
-6. Run `scripts/create_release_patch.py` from the project directory. It first copies every selected payload file to `Dispatch/Files/`, retaining its game-root relative layout; inspect this folder before publishing. The ZIP is created from these `Files/` copies, not the original build paths. Pass every payload file with its game-root destination and use `--dry-run` first for non-trivial patches.
-7. On an upgrade, pass `--changes "<本版改动>"`. The skill preserves the previous ZIP's update log and appends the new version entry at the very end of `补丁说明.txt`; never replace earlier entries. The first release automatically records “首次发布”。
-8. Inspect the ZIP: it must contain `补丁说明.txt` at its root, the payload directories, `PATCH_MANIFEST.json`, and `SHA256SUMS.txt`. Extract it into a temporary directory and confirm that its layout matches the installation instructions.
-9. Publish to the game's **independent public GitHub repository**. Confirm the project has its own `origin` remote (never use the `StaticHanHua` workspace repository), and verify `Game/` is ignored and absent from the Git index. Commit the release documentation and small source/text artifacts, but do not commit the ZIP, game files, or large binaries unless Git LFS is deliberately in use. Push the release commit to `origin`.
-10. Create or update the GitHub Release for the patch version and upload the newly validated ZIP as its release asset. Use the patch version as the tag (for example `v1.0`), set the release as the latest stable release, and include concise player-facing installation/compatibility notes. Verify the release is public, published (not a draft), and its asset can be downloaded from the Release page. The GitHub Release page is the canonical player download location.
-11. Update `README.md` with the archive name, supported build, payload files, verification result, GitHub Release URL, and known issues. Commit the final documentation update and push it to the game's independent GitHub repository. Do not commit large ZIPs or game binaries unless the project deliberately uses Git LFS.
+标题之后第一项必须是安装说明，只写一句，例如“解压到 Avadon.exe 所在文件夹，双击‘安装汉化.cmd’。”或已验证可用的“解压到游戏根目录即可”。随后依次写简短的补丁升级、卸载说明。优先提供安装/卸载脚本；没有可用脚本时先实现并验证，不能把手工逐文件处理推给玩家，也不能声称存在未提供的脚本。
 
-## Package command
+禁止教玩家备份、逐个复制文件、手动删除文件；不加入MOD冲突等防御性描述。自动备份、版本核验和失败处理由安装程序负责。用户只需解压、双击。升级说明只写覆盖解压后运行安装脚本。卸载只写运行卸载脚本；旧包缺少原件时可由脚本自动调用Steam恢复。
 
-```powershell
-py D:\StaticHanHua\.agents\skills\game-release-patch\scripts\create_release_patch.py `
-  --project . `
-  --game-name "My Game" `
-  --introduction "为 PC 版《My Game》制作的简体中文汉化补丁。" `
-  --coverage "主线剧情、常用 UI、系统提示" `
-  --game-version "Steam v1.2.3" `
-  --platform "Steam（Windows）" `
-  --install "退出游戏后，将压缩包内全部文件按原目录覆盖到游戏根目录；同意覆盖时请先备份原文件。" `
-  --uninstall "删除本补丁新增文件，并用备份恢复被覆盖的原文件。" `
-  --verification "已在 Steam v1.2.3 完成启动、主菜单与第一章对话测试。" `
-  --known-issues "部分超长 UI 文本可能换行。" `
-  --changes "修复第一章两处漏译，并补充设置菜单。" `
-  --include ".\\Release\\BepInEx\\plugins\\MyGameTranslation.dll=BepInEx/plugins/MyGameTranslation.dll" `
-  --include ".\\Release\\BepInEx\\config\\MyGameTranslation.cfg=BepInEx/config/MyGameTranslation.cfg"
+接下来可简写介绍、适用版本、覆盖内容、实际正常的功能及AI汉化提示。“运行情况”只写如“开门提示、消息栏、快捷键和地图显示正常”。不写用户答复、代理操作、验收经过、哈希绑定、未测项目、提取子集、未决图片数、底纹算法、显卡/MOD等技术边界；这些只保留在工程README与验证报告。不能夸大已正常的范围。
+
+下载区必须按以下顺序连续写，订阅提醒紧接下载地址及可用网盘地址，之后紧接反馈：
+
+```
+下载地址:https://github.com/<owner>/<game-repo>/releases/
+或者网盘通过网盘分享的知识：<分享名称>
+链接: <网盘链接>
+请订阅github地址或者网盘地址，以便在补丁更新时获得通知
+有问题请反馈至【腾讯文档】<游戏问题反馈>
+<腾讯文档链接>
 ```
 
-`--include` uses `source=destination`. The destination is relative to the game root and must never contain `..`. Files are copied to `Dispatch/Files/<destination>` before compression. Omit `--version` to automatically use `1.0` for the first release and increment the highest existing release by `0.1` after that. Upgrades require `--changes`; the script appends it to the cumulative update log at the end of the guide. Use `--version 1.2` only to deliberately issue that version.
+网盘/腾讯文档链接是每个游戏独立配置，不得套用其他项目或编造。先查已有配置，缺少时向于鸿鹄询问；若当前没有已确认的联系方式，在当前对话请用户提供或转达，不自行猜测身份或地址。本游戏的固定地址放在本游戏Release配置。TXT和GitHub Release正文使用同一份简明说明。更新日志必须在文末保留历次内容。
 
-## Required guide contents and style
+## 执行与验证
 
-The generated `补丁说明.txt` must contain:
+1. 读取README和回填报告。存在自定义翻译数据库时，执行共用流程的release-check，正式译文、实测载荷及证据必须匹配。只增加安装包装时保留原翻译实测记录，对脚本另做实际安装/升级/卸载回放，不伪造新的游戏实测。
+2. 版本从Dispatch现有最高版本加0.1，首次1.0。固定名`{游戏名}_子非鱼汉化{版本号}.zip`，标题`《{游戏名}》子非鱼AI汉化补丁 v{版本号}`。保留旧版，不覆盖已发布ZIP。
+3. 用scripts/create_release_patch.py先dry-run，准备Dispatch/Files并核对，ZIP仅从Files的已选文件生成。直接解压模式保持游戏相对路径；`--installer-config`脚本模式把载荷放`汉化文件/`，根目录提供`安装汉化.cmd`与`卸载汉化.cmd`，调用包内PowerShell，无需Python。清单同时记录实际目标与archive_path，脚本辅助文件单列，不绕过实测载荷门槛。
+4. 用`--install`、`--upgrade`、`--uninstall`传入各一句话；`--verification`只传正常功能摘要。提供`--download-url`，以及已确认的`--mirror-url --share-name --feedback-url --feedback-name`。升级须`--changes`，累计更新日志自动从旧ZIP读取。TXT用UTF-8 BOM。
+5. 不打包Game联接、游戏原EXE、原始游戏资源、凭据或开发日志。验证ZIP CRC、完整目录、所有清单哈希、脚本正常安装/重复安装/升级/卸载、旧版升级及异常时保留原文件。版本核验与路径约束放程序内部，不写成玩家检查表。
+6. 在游戏独立Git仓库提交小型源代码/说明/报告；Game与大体积二进制、ZIP不提交。推送origin，创建对应GitHub Release、上传ZIP、设为最新稳定版；匿名下载验证哈希及公开状态，保留旧版。GitHub正文必须同步简明TXT内容与地址，不回填工程细节。
+7. README记录技术方案、内部验证证据、真实限制、补丁名称、支持版本及公开链接，提交并推送。玩家说明简短不等于删除工程记录。
 
-1. 补丁标题
-2. 补丁介绍
-3. 汉化覆盖内容
-4. 支持的游戏版本与游戏平台
-5. 汉化日期
-6. AI 汉化说明（固定提醒玩家适当降低预期）
-7. 安装方法
-8. 卸载/恢复方法
-9. 验证结果与已知问题
-10. 文件校验、反馈方式和发布注意事项；包含后续更新提醒：补丁后续可能会更新，建议关注或订阅本项目的 GitHub 仓库 / Releases，及时获取新版补丁。已有公开链接时附上对应链接，不编造地址。GitHub Release 正文也需包含此提醒。
-11. 更新日志（位于说明书末尾，按版本持续追加）
+## 安装配置
 
-Use the actual patch title as the first line, followed by a simple separator. Present the remaining information in natural, player-readable sections rather than as a field list; for example: “适用版本”, “汉化内容”, “安装方法”, “卸载 / 恢复”, “实机验证”, “说明”, “已知问题”, “文件校验”, and “反馈”. Do not include headings such as “补丁标题” or “补丁介绍”, and do not prefix sections with `1、`, `2、` etc.
-
-Keep instructions specific: state whether to copy, merge, or replace files; whether a backup is mandatory; whether a mod loader is bundled; and where players can report issues. Never imply compatibility that has not been tested.
-
-## Release checks
-
-- Keep `补丁说明.txt` in the ZIP root and encode it as UTF-8 with BOM for Windows Notepad compatibility.
-- Confirm every payload path is exactly the path named in the installation method.
-- Confirm SHA-256 entries match the ZIP payload after extraction.
-- Test on a clean copy or restore from backup, then install exactly as the guide states.
-- Keep the required ZIP name, `{游戏名}_子非鱼汉化{版本号}.zip`, e.g. `My Game_子非鱼汉化1.0.zip`; retain old releases instead of overwriting them.
-
-## README and Git record
-
-Append a release entry such as:
-
-```markdown
-## 对外发布
-- 补丁：`Dispatch/My Game_子非鱼汉化1.0.zip`
-- 支持版本：Steam v1.2.3（Windows）
-- 内容：BepInEx 翻译插件与配置文件
-- 验证：全新副本按说明安装后，主菜单与第一章文本正常显示。
-- 已知问题：部分超长 UI 文本可能换行。
-- GitHub Release：`https://github.com/<owner>/<game-repo>/releases/tag/v1.0`
-```
-
-Then commit the documentation:
-
-```powershell
-git add README.md
-git commit -m "发布: 生成 v1.0 对外汉化补丁"
-```
+`--installer-config` JSON包括`exe`、`exe_sha256`、`steam_app_id`、`originals:[{path,sha256}]`及`legacy:[{path,sha256}]`。originals只列会覆盖的原文件；legacy列已发布版本对应载荷哈希，避免将旧中文资源当作原件。新装自动保存原件，升级保留原件，卸载自动恢复；从无原件的旧包升级则自动交Steam校验恢复。不可分发原始游戏文件作备份。只适用于经过该游戏验证的文件替换方案；需要其他引擎动作时写对应适配器。
