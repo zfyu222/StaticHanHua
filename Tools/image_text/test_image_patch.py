@@ -3,7 +3,7 @@ import csv
 from pathlib import Path
 import tempfile
 import unittest
-from PIL import Image
+from PIL import Image,ImageDraw
 from core import digest,inventory,load_image,read_json,write_json
 from image_patch import build
 from project_options import configure
@@ -38,6 +38,46 @@ class PatchTests(unittest.TestCase):
         self.csv(self.translated,['different'])
         with self.assertRaises(ValueError):build(self.out,self.source,self.translated,self.validation,FONT,self.root/'bad')
         self.assertFalse((self.root/'bad').exists())
+
+    def test_engine_safe_text_color_is_not_replaced_by_white(self):
+        result=build(self.out,self.source,self.translated,self.validation,FONT,self.root/'ivory',text_rgba=(245,240,220,255))
+        image=load_image(self.root/'ivory'/result['files'][0]['path']);data=image.tobytes()
+        self.assertTrue(any(data[i:i+3]==bytes((245,240,220)) and data[i+3]>0 for i in range(0,len(data),4)))
+        self.assertEqual(result['entries'][0]['text_rgba'],[245,240,220,255])
+        with self.assertRaises(ValueError):build(self.out,self.source,self.translated,self.validation,FONT,self.root/'invisible',text_rgba=(1,2,3,0))
+
+    def test_transparent_text_assets_clear_old_ink_without_opaque_rectangles(self):
+        source_images=self.root/'transparent';source_images.mkdir()
+        image=Image.new('RGBA',(180,80),(0,0,0,0));ImageDraw.Draw(image).rectangle((30,20,90,40),fill='white');image.save(source_images/'title.png')
+        out=self.root/'transparent_work';manifest=inventory(source_images,out);key=manifest['images'][0]['image_id']
+        mapping=dict(self.mapping,regions=[dict(self.mapping['regions'][0],image_id=key,sources=manifest['images'][0]['sources'])])
+        write_json(self.source.with_suffix('.mapping.json'),mapping)
+        result=build(out,self.source,self.translated,self.validation,FONT,self.root/'transparent_patch')
+        image=load_image(self.root/'transparent_patch'/result['files'][0]['path'])
+        self.assertEqual(image.getpixel((11,11))[3],0)
+        self.assertEqual(image.getpixel((0,0))[3],0)
+        self.assertEqual(result['entries'][0]['rendering']['background_mode'],'transparent_text_replacement')
+        self.assertGreater(sum(image.getchannel('A').getdata()),0)
+
+    def test_preserved_glyphs_and_brands_are_not_masked_or_repacked(self):
+        self.csv(self.source,['Continue','TM'])
+        self.csv(self.translated,['继续游戏','TM'])
+        self.mapping['records']=2;self.mapping['csv_sha256']=digest(self.source.read_bytes())
+        region=dict(self.mapping['regions'][0],csv_row=2,box=[0,0,8,5])
+        self.mapping['regions'].append(region)
+        write_json(self.source.with_suffix('.mapping.json'),self.mapping)
+        write_json(self.validation,dict(status='passed',semantic_review='full',source_sha256=digest(self.source.read_bytes()),translation_sha256=digest(self.translated.read_bytes()),records=2,test_fixture=True))
+        result=build(self.out,self.source,self.translated,self.validation,FONT,self.root/'mixed')
+        self.assertEqual(len(result['entries']),1)
+        self.assertEqual(len(result['preserved_regions']),1)
+        image=load_image(self.root/'mixed'/result['files'][0]['path'])
+        original=load_image(self.out/'images'/f'{self.key}.png')
+        self.assertEqual(image.crop((0,0,8,5)).tobytes(),original.crop((0,0,8,5)).tobytes())
+        self.csv(self.translated,['Continue','TM'])
+        write_json(self.validation,dict(status='passed',semantic_review='full',source_sha256=digest(self.source.read_bytes()),translation_sha256=digest(self.translated.read_bytes()),records=2,test_fixture=True))
+        preserved=build(self.out,self.source,self.translated,self.validation,FONT,self.root/'preserved')
+        self.assertFalse(preserved['files']);self.assertFalse(preserved['entries'])
+        self.assertEqual(len(preserved['preserved_regions']),2)
 
     def test_too_small_texture_reports_failure_but_overlay_can_be_prepared(self):
         self.mapping['regions'][0]['box']=[0,0,8,5];write_json(self.source.with_suffix('.mapping.json'),self.mapping)

@@ -32,6 +32,58 @@ def ordered_draft_checks(check, rows, workers):
 
 
 class DraftMixin:
+    def correct_exclusion_rules(self, exclusions, reason):
+        """Correct target-side marker recognition without changing source protection.
+
+        This is not a semantic approval or a retry-budget reset. Every source
+        match must retain its exact family, span and bytes; pending draft jobs
+        may be retired only after their saved candidates pass the full checker.
+        """
+        from translation_workflow import merge_config, write_json
+        if not reason.strip():
+            raise ValueError('Protection correction requires a specific reason')
+        with self.db() as db:
+            old = self.config(db)
+            if (not self.meta(db, 'paused') or (self.root / 'state/api_round.lock').exists()
+                    or db.execute('SELECT 1 FROM api_calls WHERE status="reserved"').fetchone()
+                    or db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone()):
+                raise ValueError('Protection correction requires paused workflow and stopped requests/workers')
+            new = merge_config(old, {'exclusions': exclusions})
+            old_rules, new_rules = self.rules(db, old), self.rules(db, new)
+            for row in db.execute('SELECT id,source FROM records'):
+                def matches(rules):
+                    return [(key, [(m.span(), m.group(0)) for m in pattern.finditer(row['source'])])
+                            for key, pattern in rules]
+                if matches(old_rules) != matches(new_rules):
+                    raise ValueError('Protection correction changes source matches: ' + row['id'])
+            pending = [dict(t) for t in db.execute(
+                'SELECT * FROM tasks WHERE revision=? AND status IN ("pending","failed")',
+                (self.meta(db, 'revision'),))]
+            if any(t['stage'] != 'translate' or not self.is_round_repair(t) for t in pending):
+                raise ValueError('Finish unrelated tasks before protection correction')
+            ids = sorted({i for t in pending for i in json.loads(t['ids'])})
+            if ids:
+                _, failures = self.collect_draft_issues(db, new, ids)
+                if failures:
+                    raise ValueError('Saved candidates still fail after protection correction: '
+                                     + ', '.join(row['id'] for row in failures))
+            if self.meta(db, 'quality_approvals', {}):
+                self.preserve_quality_scope(db, old, new, set())
+            detail = {'reason': reason, 'before': old['exclusions'], 'after': exclusions,
+                      'source_sha256': self.meta(db, 'source_hash'),
+                      'all_source_matches_unchanged': True, 'validated_saved_ids': ids,
+                      'obsolete_unissued_tasks': [t['id'] for t in pending],
+                      'attempt_history_preserved': True, 'semantic_approval': False}
+            path = self.root / f'history/protection_correction_{uuid.uuid4().hex}.json'
+            write_json(path, detail)
+            self.put(db, 'config', new)
+            write_json(self.root / 'config/workflow.json', new)
+            for task in pending:
+                db.execute('UPDATE tasks SET status="obsolete" WHERE id=?', (task['id'],))
+            self.event(db, 'correct_exclusion_rules', detail)
+            return {'status': 'corrected', 'report_file': str(path),
+                    'validated_saved_records': len(ids), 'next_action': 'draft-scan --prepare-repairs'}
+
     @staticmethod
     def is_round_repair(task):
         payload = json.loads(task['payload'])

@@ -139,6 +139,15 @@ def restore_term_result(result, transport):
     if not isinstance(binding, dict):
         raise ValueError('Missing bound glossary snapshot')
     decisions = value.get('decisions')
+    # Some models emit the decisions object itself. This is an envelope-only
+    # equivalent: preserve every explicit field and still run all bound checks.
+    decision_fields = {'review_complete', 'review_summary', 'acknowledged_findings',
+                       'edits', 'quarantine', 'additions', 'allow_no_match', 'entry_reviews',
+                       'snapshot_sha256', 'source_sha256', 'reviewed_refs'}
+    if ('decisions' not in value and 'review_complete' in value and 'entry_reviews' in value
+            and set(value).issubset(decision_fields)):
+        value = {'decisions': value}
+        decisions = value['decisions']
     if not isinstance(decisions, dict):
         raise ValueError('API glossary review requires decisions')
     assigned = set(binding['assigned_refs'])

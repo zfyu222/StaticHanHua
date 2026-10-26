@@ -17,7 +17,11 @@ def validate_term_policy(row, table, required=False):
                 raise ValueError('Ordinary words cannot become global non_translate exclusions')
         return
     if level not in ('required', 'reference'):
-        raise ValueError('Term enforcement must be required or reference')
+        raise ValueError('Term enforcement must be required or reference: '
+                         + repr(row.get('source')) + ' has enforcement=' + repr(level)
+                         + '. Review must explicitly patch missing enforcement, term_kind and '
+                         'source-based term_reason for retained entries, or quarantine with evidence; '
+                         'keeping an incomplete extraction proposal is not valid.')
     if kind not in ('proper_name', 'game_term'):
         raise ValueError('Ordinary words must be quarantined, not frozen as terms')
     if not isinstance(row.get('term_reason'), str) or not row['term_reason'].strip():
@@ -31,7 +35,11 @@ def validate_term_policy(row, table, required=False):
                 + '. Use whole_record for a complete label or literal_context with a real source prefix/suffix; '
                   'case_sensitive text is still global. Quarantine ordinary meanings.')
     if kind == 'proper_name' and level != 'required':
-        raise ValueError('Confirmed proper names require consistent naming')
+        raise ValueError('Confirmed proper names require consistent naming: '
+                         + repr(row.get('source')) + ' has term_kind=proper_name and enforcement='
+                         + repr(level) + '. A confirmed proper_name must use required; '
+                         'if the source does not establish a proper name, re-evaluate its classification '
+                         'or omit/quarantine it with source-based reasoning. Do not silently accept reference.')
 
 
 def term_required(term):

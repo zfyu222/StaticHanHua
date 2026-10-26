@@ -86,7 +86,13 @@ def findings(analysis, texts):
                      'otherwise supply explicit applicability, case sensitivity and reason.')
     for refs in names.values():
         if len(refs) > 1:
-            flag('duplicate_source', refs, 'Exact source collision across project tables (case-insensitive).')
+            from workflow_term_scope import scopes_provably_disjoint
+            def disjoint(a, b):
+                ta, ia = a.split(':'); tb, ib = b.split(':')
+                return ta == tb == 'terms' and scopes_provably_disjoint(
+                    analysis[ta][int(ia)], analysis[tb][int(ib)])
+            if not all(disjoint(a, b) for i, a in enumerate(refs) for b in refs[i + 1:]):
+                flag('duplicate_source', refs, 'Exact source collision across project tables (case-insensitive).')
     for translation, rows in translations.items():
         if translation and len(rows) > 1:
             flag('shared_translation', [ref for ref, _ in rows], 'Different names share a translation; verify aliases/context.')

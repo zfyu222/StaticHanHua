@@ -13,6 +13,29 @@ import glossary_tool as tool
 
 
 class GlossaryTests(unittest.TestCase):
+    def test_only_provably_disjoint_scoped_terms_can_share_source(self):
+        def entry(mode, **context):
+            return dict(source='Corruption', recommended_translation='译名', category_path='其他',
+                        applicability=dict(mode=mode, case_sensitive=True, reason='Actual source context', **context))
+        label = entry('whole_record')
+        region = entry('literal_context', prefix='the ', suffix='.')
+        def collisions(a, b):
+            return [f for f in tool.findings(dict(characters=[], terms=[a, b], non_translate=[]),
+                                            ['Corruption', 'the Corruption.']) if f['code'] == 'duplicate_source']
+        self.assertFalse(collisions(label, region))
+        self.assertTrue(collisions(label, label))
+        self.assertTrue(collisions(entry('text'), region))
+        self.assertTrue(collisions(label, entry('literal_context', prefix=' ', suffix=' ')))
+        self.assertTrue(collisions(region, region))
+        self.assertFalse(collisions(entry('literal_context', suffix=')'),
+                                    entry('literal_context', suffix=':')))
+        self.assertTrue(collisions(entry('literal_context', suffix=':'),
+                                   entry('literal_context', suffix=': Works')))
+        self.assertFalse(collisions(entry('literal_context', prefix='like '),
+                                    entry('literal_context', prefix='named ')))
+        self.assertTrue(collisions(entry('literal_context', prefix='the '),
+                                   entry('literal_context', prefix='of the ')))
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)

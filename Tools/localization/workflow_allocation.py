@@ -243,7 +243,10 @@ class AllocationMixin:
                          sum(self.estimate_review_output(r, stage, config) for r in value['records']) <= self.review_output_budget(config, stage, backend))
             # Like AINiee, a source item larger than the content budget stands
             # alone. The complete input and estimated-output limits stay strict.
-            if (max(raw_tokens, compact_tokens) <= config.get('task_input_tokens', 16384) and output_ok
+            # API sends the compact protocol, not the internal canonical JSON.
+            # Keep both measurements for audit, but budget the selected executor.
+            input_tokens = compact_tokens if backend == 'api' else max(raw_tokens, compact_tokens)
+            if (input_tokens <= config.get('task_input_tokens', 16384) and output_ok
                     and (cap is None or len(group) <= cap)
                     and (len(group) == 1 or content_tokens <= batch_limit(config, stage))):
                 planned.append((value, raw_tokens, compact_tokens))
@@ -251,7 +254,7 @@ class AllocationMixin:
             if len(group) < 2:
                 label = group[0].get('ref', group[0].get('id')) if group else 'shared instructions'
                 raise ValueError(f'Task allocation exceeds input/output budget for {label}: '
-                                 f'{max(raw_tokens, compact_tokens)} input tokens, limit {config.get("task_input_tokens", 16384)}; '
+                                 f'{input_tokens} input tokens, limit {config.get("task_input_tokens", 16384)}; '
                                  'single item and required evidence cannot be split; no tasks allocated or evidence truncated')
             middle = len(group) // 2
             for part in (group[:middle], group[middle:]):

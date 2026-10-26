@@ -66,6 +66,21 @@ class MinimalAPITests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_glossary_reviews(self.decode(payload, {'decisions': broken})['decisions'], payload)
 
+    def test_bare_decisions_preserve_all_semantic_fields_and_bound_checks(self):
+        payload = self.glossary()
+        wrapped = self.decode(payload, {'decisions': self.decisions()})
+        bare = self.decode(payload, self.decisions())
+        self.assertEqual(bare, wrapped)
+        validate_glossary_reviews(bare['decisions'], payload)
+        broken = self.decisions(); broken['entry_reviews'][0]['ref'] = 'e99'
+        with self.assertRaises(ValueError):
+            self.decode(payload, broken)
+        broken = self.decisions(); broken['entry_reviews'][0]['checks'] = {}
+        with self.assertRaises(ValueError):
+            validate_glossary_reviews(self.decode(payload, broken)['decisions'], payload)
+        with self.assertRaises(ValueError):
+            self.decode(payload, {'review_complete': True})
+
     def test_read_only_unknown_duplicate_and_missing_glossary_refs_fail(self):
         for ref in ('e2', 'e99', None, []):
             d = self.decisions(); d['entry_reviews'][0]['ref'] = ref

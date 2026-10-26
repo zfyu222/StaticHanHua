@@ -71,6 +71,65 @@ class AllocationTests(unittest.TestCase):
                 evidence = {n for e in value['entries'] + value['related_entries'] for n in e['row']['evidence_rows']}
                 self.assertEqual({r['ordinal'] for r in value['records']}, evidence)
 
+    def test_api_budget_counts_sent_protocol_without_dropping_source(self):
+        task = self.flow.prepare('extract')['tasks'][0]
+        with self.flow.db() as db:
+            payload = json.loads(db.execute('SELECT payload FROM tasks WHERE id=?', (task,)).fetchone()[0])
+            payload['records'] = payload['records'][:1]
+            config = self.flow.config(db)
+            full = self.flow.plan_task_allocation(db, payload, 'api')[0]
+            self.assertGreater(full[1], full[2])
+            limit = (full[1] + full[2]) // 2
+            with patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': limit}):
+                compact = self.flow.plan_task_allocation(db, payload, 'api')
+                self.assertEqual(compact[0][0]['records'], full[0]['records'])
+                self.assertLessEqual(compact[0][2], limit)
+                with self.assertRaisesRegex(ValueError, 'single item'):
+                    self.flow.plan_task_allocation(db, payload, 'codex')
+
+    def test_lower_api_input_limit_preserves_inflight_payload_and_attempts(self):
+        self.flow.pause(True)
+        self.flow.configure({'backend': 'api'}, 'API fixture')
+        self.flow.pause(False)
+        self.flow.prepare('extract')
+        self.flow.claim('extract', 'fixture')
+        self.flow.pause(True)
+        with self.flow.db() as db:
+            before = [tuple(r) for r in db.execute('SELECT id,status,attempt,input_hash,payload FROM tasks ORDER BY id')]
+            limit = db.execute('SELECT max(compact_tokens) FROM task_allocations').fetchone()[0] + 10
+            revision = self.flow.meta(db, 'revision')
+        result = self.flow.configure({'task_input_tokens': limit}, 'Lower to measured API capacity', impact='none')
+        self.assertTrue(result['input_limit_only'])
+        self.assertEqual(result['revision'], revision)
+        with self.flow.db() as db:
+            after = [tuple(r) for r in db.execute('SELECT id,status,attempt,input_hash,payload FROM tasks ORDER BY id')]
+        self.assertEqual(before, after)
+        with self.assertRaisesRegex(ValueError, 'within the lower limit'):
+            self.flow.configure({'task_input_tokens': 1}, 'Reject oversized input', impact='none')
+
+    def test_marker_rule_correction_requires_identical_source_matches(self):
+        project = self.project / 'marker_case'
+        project.mkdir()
+        source = project / 'marker_text.csv'
+        source.write_text('$Choosing a Character Type\n', encoding='utf-8')
+        flow = workflow.Workflow(project)
+        flow.init(source, {'exclusions': [{'regex': r'\$(?=[A-Za-z])'}],
+                           'placeholder_family_overrides': {'dollar_var': None}})
+        flow.pause(True)
+        with flow.db() as db:
+            before = [tuple(r) for r in db.execute('SELECT * FROM records')]
+            old = flow.config(db)
+            self.assertTrue(workflow.bridge.structural_issues('$Choosing a Character Type', '$选择角色类型', flow.rules(db, old)))
+        result = flow.correct_exclusion_rules([{'regex': r'\$'}], 'Heading marker survives before CJK text')
+        self.assertEqual(result['status'], 'corrected')
+        with flow.db() as db:
+            self.assertEqual(before, [tuple(r) for r in db.execute('SELECT * FROM records')])
+            new = flow.config(db)
+            self.assertFalse(workflow.bridge.structural_issues('$Choosing a Character Type', '$选择角色类型', flow.rules(db, new)))
+            self.assertTrue(workflow.bridge.structural_issues('$Choosing a Character Type', '选择角色类型', flow.rules(db, new)))
+        with self.assertRaisesRegex(ValueError, 'changes source matches'):
+            flow.correct_exclusion_rules([{'regex': r'\$|Choosing'}], 'Must not change protected words')
+
     def test_unsplittable_item_rolls_back_without_pending_tasks(self):
         with self.flow.db() as db:
             config = self.flow.config(db)

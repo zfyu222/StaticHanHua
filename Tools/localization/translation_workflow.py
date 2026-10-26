@@ -1093,6 +1093,31 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             if not self.meta(db, 'paused'):
                 raise ValueError('Pause and finish/recover in-flight tasks before changing rules')
             old = self.meta(db, 'config')
+            if set(patch) == {'task_input_tokens'} and impact == 'none' and not record_ids:
+                new = merge_config({**DEFAULT, **old}, patch)
+                if new['task_input_tokens'] < old['task_input_tokens']:
+                    self.allocation_tables(db)
+                    if ((self.root / 'state/api_round.lock').exists()
+                            or db.execute('SELECT 1 FROM api_calls WHERE status="reserved"').fetchone()):
+                        raise ValueError('Input-limit decrease requires stopped runner and no reserved requests')
+                    tasks = db.execute('SELECT t.id,t.backend,a.compact_tokens FROM tasks t '
+                                       'LEFT JOIN task_allocations a ON a.task_id=t.id '
+                                       'WHERE t.revision=? AND t.status IN ("pending","running","failed")',
+                                       (self.meta(db, 'revision'),)).fetchall()
+                    if any(t['backend'] != 'api' or not t['compact_tokens']
+                           or t['compact_tokens'] > new['task_input_tokens'] for t in tasks):
+                        raise ValueError('Every unfinished task must have a measured API input within the lower limit')
+                    detail = {'before': old['task_input_tokens'], 'after': new['task_input_tokens'],
+                              'reason': reason, 'attempts_preserved': True, 'tasks_preserved': len(tasks)}
+                    write_json(self.root / f'history/input_limit_{uuid.uuid4().hex}.json', detail)
+                    self.put(db, 'config', new)
+                    write_json(self.root / 'config/workflow.json', new)
+                    for task in tasks:
+                        db.execute('UPDATE task_allocations SET token_limit=? WHERE task_id=?',
+                                   (new['task_input_tokens'], task['id']))
+                    self.event(db, 'configure_input_limit', detail)
+                    return {'revision': self.meta(db, 'revision'), 'semantic_reset': False,
+                            'affected_records': [], 'input_limit_only': True}
             if set(patch) == {'review_output_tokens'} and impact == 'none' and not record_ids:
                 self.config(db)
                 new = merge_config({**DEFAULT, **old}, patch)
@@ -1381,7 +1406,7 @@ def prompt(payload, *, api=False):
         common += (' 术语以专有名称及确有特定游戏义的词为主；user/human等普通称谓和常用动作/形容词不收录，'
                    '不能只因机器说过或出现频繁就冻结。不要将Child {Female}这类普通NPC称谓及性别控制标记组合当专名。'
                    '每个保留的characters/terms条目须带term_kind=proper_name或game_term、enforcement=required或reference、'
-                   'term_reason=简短原文依据。人名/地名/法术名等专名为required；游戏特定但多义、只能提供暂定译名的条目为reference，'
+                   'term_reason=简短原文依据。term_kind=proper_name时enforcement必须为required，不能因译名暂定、缺少全局语境或为派生形式就改成reference；不能确认专名时重新判断分类或不提取。人名/地名/法术名等专名为required；游戏特定但多义、只能提供暂定译名的条目为reference，'
                    '同时注明applicability和语境。普通词不放入reference兜底；应不提取或quarantine。'
                    '术语审校用edits.patch补齐并独立核对这些字段，不盲信提取分类；non_translate维持运行保护，不降为reference。')
         common += (' 只提取/保留游戏特有名称或确有游戏义的术语。普通代词、助动词、常用动词/形容词不因频繁出现就成为术语；'

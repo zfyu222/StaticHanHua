@@ -33,6 +33,8 @@ $flow = 'Tools/image_text/image_workflow.py'
 
 `build --out <work> --source <原文CSV> --translated <正式译文CSV> --validation <正式导出报告> --font <中文字体> --destination <新载荷目录> --mode texture|overlay` 使用CPU生成合入资源。检查preview.html/PNG和manifest；文字放不下会失败，overlay模式交运行时适配器。输出状态为ready_for_engine_adapter，installed=false，不能当作实机或部署通过。默认灰色蒙版alpha224，可变字重字体使用400；字体缺字拒绝构建。
 
+源文与译文完全相同的确认区域保留原始像素，清单另记 `preserved_regions`，不加蒙版；透明文字资产清除区域后在透明底上绘制并加细描边。`--text-rgba R G B A` 可显式指定文字颜色（默认 255 255 255 255，alpha 必须大于 0）。先分析真实引擎的透明色键再选择颜色，例如 Avadon 的纯白色键会吞掉纯白字，使用 `--text-rgba 245 240 220 255`。这些规则不代替完整预览、引擎导入或实机测试。
+
 v0.5提高了合并器版本，会拒绝把旧设置的OCR缓存/审阅当作新扫描。旧工作目录和272张已保存Qwen证据不修改，升级试跑使用新目录。截图分块裁掉的后缀可并入完整行，冲突片段保留为带原框的替代证据；罗马数字III不再因重复字母规则直接被筛除。
 
 本地两模型的20张分层小样本对照见 [评测报告](reports/comparison_v1.md)：正常文字两者均全对，艺术字/场景字Qwen更完整，极小像素字双方都有明显失败。报告包含Paddle单图控制，单独说明分块合并重复；不将工具误差全部归因于模型。可运行 `compare_models.py all --work <新的实验目录>` 重现，并查看输出的 `comparison.html` 原图/参考/双模型对照。自定义标签用 `--cases <JSON>`；非拉丁文字的筛选配置须显式设 `script: "any"`。

@@ -47,3 +47,27 @@ def applicable(row, text, start, end):
     if mode == 'literal_context':
         return text[:start].endswith(scope.get('prefix', '')) and text[end:].startswith(scope.get('suffix', ''))
     return True
+
+
+def scopes_provably_disjoint(left, right):
+    """Conservative structural proof; never infer a semantic distinction."""
+    a, b = left.get('applicability'), right.get('applicability')
+    if not a or not b:
+        return False
+    try:
+        validate_applicability(left)
+        validate_applicability(right)
+    except ValueError:
+        return False
+    if a['mode'] == 'literal_context' and b['mode'] == 'whole_record':
+        a, b = b, a
+    if a['mode'] == 'whole_record' and b['mode'] == 'literal_context':
+        # whole_record permits only whitespace outside the matched source;
+        # a required visible prefix/suffix cannot also satisfy that scope.
+        return bool(b.get('prefix', '').strip() or b.get('suffix', '').strip())
+    if a['mode'] == b['mode'] == 'literal_context':
+        pa, pb = a.get('prefix', '').casefold(), b.get('prefix', '').casefold()
+        sa, sb = a.get('suffix', '').casefold(), b.get('suffix', '').casefold()
+        return (bool(pa and pb) and not (pa.endswith(pb) or pb.endswith(pa))
+                or bool(sa and sb) and not (sa.startswith(sb) or sb.startswith(sa)))
+    return False

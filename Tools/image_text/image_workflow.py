@@ -18,6 +18,7 @@ def main(argv=None):
     q=subs.add_parser('prepare-translation');q.add_argument('--project',required=True);q.add_argument('--source',required=True)
     q=subs.add_parser('collect-translation');q.add_argument('--project',required=True)
     q=subs.add_parser('build');q.add_argument('--out',required=True);q.add_argument('--source',required=True);q.add_argument('--translated',required=True);q.add_argument('--validation',required=True);q.add_argument('--font',required=True);q.add_argument('--destination',required=True);q.add_argument('--mode',choices=['texture','overlay'],default='texture');q.add_argument('--mask-alpha',type=int,default=224)
+    q.add_argument('--text-rgba',type=int,nargs=4,default=[255,255,255,255],metavar=('R','G','B','A'))
     a=p.parse_args(argv)
     if a.command=='configure':
         from project_options import configure
@@ -52,7 +53,7 @@ def main(argv=None):
         result=collect(a.project)
     elif a.command=='build':
         from image_patch import build
-        result=build(a.out,a.source,a.translated,a.validation,a.font,a.destination,a.mode,a.mask_alpha)
+        result=build(a.out,a.source,a.translated,a.validation,a.font,a.destination,a.mode,a.mask_alpha,a.text_rgba)
         result=dict(status=result['status'],mode=result['mode'],files=len(result['files']),entries=len(result['entries']),installed=False)
     import json
     print(json.dumps(result,ensure_ascii=False))
