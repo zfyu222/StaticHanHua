@@ -495,6 +495,8 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             raise ValueError('Pilot independent review retired; use pilot-report and main pilot-decide')
         if stage in ('pilot_review', 'review'):
             self.check_drafts_before_review('pilot_translate' if stage == 'pilot_review' else 'translate')
+        if stage in ('review', 'final_review'):
+            self.audit_mixed_language()
         with self.db() as db:
             config = self.config(db)
             if config['workflow'] != 'custom':
@@ -633,6 +635,8 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                         payload['applicability_policy'] = 1
                     if original.get('terminology_policy') == 1:
                         payload['terminology_policy'] = 1
+                    if original.get('nontranslate_scope_policy') == 1:
+                        payload['nontranslate_scope_policy'] = 1
                     payload['entries'] = review_groups[group_index]
                     payload['related_entries'] = related_groups[group_index]
                     payload['term_families'] = glossary_families.batch_hints(
@@ -1024,6 +1028,10 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                 raise ValueError('Revised glossary needs full semantic review coverage')
             entries = [{'ref': f'{table}:{i}', 'row': entry} for table in glossary_tool.TABLES for i, entry in enumerate(proposed[table])]
             validate_glossary_reviews(decisions, {'entries': entries, 'records': self.quality_rows(db)})
+            if proposed.get('nontranslate_scope_policy') == 1:
+                from workflow_quality import validate_glossary_applicability
+                validate_glossary_applicability(decisions, {'entries': entries, 'records': self.quality_rows(db),
+                    'applicability_policy': 1, 'nontranslate_scope_policy': 1})
             instances = decisions.get('review_instances', {})
             if not isinstance(instances, dict) or set(instances) != refs or any(not isinstance(v, str) or not v.strip() for v in instances.values()):
                 raise ValueError('Revised glossary requires actual independent review_instances for every ref')
@@ -1046,23 +1054,67 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             probes = glossary_revision_probes(old, new)
             contexts = self.meta(db, 'contexts', {})
             rules = self.rules(db, config)
+            from workflow_nontranslate import retirement_sources
+            retirements = self.meta(db, 'glossary_exception_retirements', {})
+            retired_now = []
             for row in db.execute('SELECT * FROM records ORDER BY ordinal').fetchall():
                 texts = [row['source'], contexts.get(str(row['ordinal']), {}).get('speaker', '')]
+                content_hash = fingerprint([row['source'], row['translation']])
+                previous = retirements.get(row['id'])
+                if previous and previous.get('content_hash') != content_hash:
+                    retirements.pop(row['id'], None)
+                if previous and previous.get('content_hash') == content_hash:
+                    matched = bridge.matched_terms(new, [row['source']], config, rules=rules)
+                    kept = [s for s in previous['sources'] if s not in {m['src'] for m in matched}]
+                    if kept:
+                        retirements[row['id']] = {**previous, 'sources': kept, 'glossary_hash': digest(path)}
+                    else:
+                        retirements.pop(row['id'], None)
                 if probes is not None and not any(bridge.matched_terms(probe, texts, config, rules=rules) for probe in probes):
                     continue
                 if glossary_match_meaning(bridge.matched_terms(old, texts, config, rules=rules)) != glossary_match_meaning(bridge.matched_terms(new, texts, config, rules=rules)):
                     if row['locked']:
                         raise ValueError('Unlock affected confirmed translations before revising glossary')
                     affected.append(row['id'])
+                    exceptions = json.loads(row['exceptions'])
+                    retired = retirement_sources(exceptions,
+                        bridge.matched_terms(old, [row['source']], config, rules=rules),
+                        bridge.matched_terms(new, [row['source']], config, rules=rules))
+                    if retired:
+                        prior = retirements.get(row['id'], {})
+                        retirements[row['id']] = {'content_hash': content_hash, 'glossary_hash': digest(path),
+                            'sources': sorted(set(prior.get('sources', [])).union(retired))}
+                        retired_now.append({'id': row['id'], 'sources': retired})
                     previous = 'pilot_translate' if row['stage'].startswith('pilot_') else ('source' if row['stage'] == 'source' else 'translate')
-                    db.execute('UPDATE records SET stage=?,exceptions=? WHERE id=?', (previous, '[]', row['id']))
+                    retained = [e for e in exceptions if e.get('source', e.get('src')) not in retired]
+                    db.execute('UPDATE records SET stage=?,exceptions=? WHERE id=?', (previous, encoded(retained), row['id']))
+            self.put(db, 'glossary_exception_retirements', retirements)
             self.put(db, 'revision', revision)
             info = {'path': str(path.relative_to(self.root)), 'hash': digest(path), 'revision': revision}
             self.put(db, 'glossary', info)
             db.execute('UPDATE tasks SET status="obsolete" WHERE status!="done"')
             self.preserve_quality_scope(db, config, config, affected)
-            self.event(db, 'revise_glossary', {'reason': reason, 'affected': affected, 'glossary': info})
-            return {'revision': revision, 'affected_records': affected}
+            self.event(db, 'revise_glossary', {'reason': reason, 'affected': affected, 'glossary': info,
+                'retired_context_exceptions': retired_now})
+            return {'revision': revision, 'affected_records': affected, 'retired_context_exceptions': retired_now}
+
+    def audit_mixed_language(self):
+        from workflow_nontranslate import mixed_latin_candidates
+        with self.db() as db:
+            config = self.config(db)
+            rows = self.quality_rows(db)
+            glossary = self.glossary(db)
+            report = {'status': 'candidates_only', 'semantic_approval': False,
+                'source_sha256': self.meta(db, 'source_hash'),
+                'glossary': self.meta(db, 'glossary'),
+                'candidate_data_hash': fingerprint({'records': [[r['id'], r['source'], r['translation']] for r in rows],
+                    'glossary': self.meta(db, 'glossary')}),
+                'records_checked': len(rows), 'candidates': mixed_latin_candidates(rows, glossary),
+                'note': 'Latin text can be a key, brand, code, name or a missed translation. Matching a non-translate rule is not semantic approval.'}
+            report['candidate_records'] = len(report['candidates'])
+            path = self.root / 'reports/mixed_language_audit.json'
+            write_json(path, report)
+            return {'report_file': str(path), 'candidate_records': report['candidate_records'], 'status': report['status']}
 
     def fail(self, task_id, token, code, retryable=False, delay=0):
         with self.db() as db:
@@ -1356,6 +1408,14 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                       'ainiee': self.meta(db, 'ainiee'), 'path': str(path)}
             report['quality_review'] = quality
             report['in_game_check'] = 'pending_repack'
+            from workflow_nontranslate import mixed_latin_candidates
+            mixed = mixed_latin_candidates([dict(r) for r in records], analysis)
+            mixed_path = self.root / 'reports/mixed_language_audit.json'
+            write_json(mixed_path, {'status': 'candidates_only', 'semantic_approval': False,
+                'source_sha256': report['source_sha256'], 'translation_sha256': report['translation_sha256'], 'glossary': report['glossary'],
+                'records_checked': len(records), 'candidate_records': len(mixed), 'candidates': mixed,
+                'note': 'Review aid only; preserve justified keys/names/brands. A keep-original match is not a semantic exemption.'})
+            report['mixed_language_audit'] = {'path': str(mixed_path), 'candidate_records': len(mixed), 'status': 'candidates_only'}
             self.put(db, 'last_export', report)
             self.write_game_check_template(report)
             write_json(self.root / 'reports/final_validation.json', report)
@@ -1398,6 +1458,9 @@ def prompt(payload, *, api=False):
                        '只帮助发现词义分歧；以本条原文为准，不把它当标准答案，也不照抄其文风差异。'
                        '仅修复确实有误的原译，正确译文保持不变，仍须给出完整审校证据。')
         common += REVIEW_MEANING_INSTRUCTION
+        common += (' 中文译文仍含拉丁词时，核对它在本句是否确为按键、品牌、代码或有依据保留的原文；'
+                   '禁翻表命中不能代替适用范围核对，普通句中的动作词仍应翻译。'
+                   '合理保留不返修，实际漏译在现有completeness/terminology检查中修正，不另增审校轮次。')
     if stage in ('extract', 'glossary_review'):
         common += (' 优先检查全文关联的corpus_evidence_rows及对应完整原文；它们是候选定义/机制说明，不代表语义已经确认。'
                    '不能因词条本身很短就忽略原文已有定义。结合定义判断人物特质、物理状态、能力和普通词义，'
@@ -1416,6 +1479,12 @@ def prompt(payload, *, api=False):
                    'text 用于确属正文专名/术语，whole_record 只匹配完整标签，literal_context 只匹配指定紧邻字串。'
                    '常见歧义词（含日常形容词用作人物特质）只可选whole_record或literal_context；仅区分大小写的text仍属全局，不够。'
                    '术语审校用 edits.patch.applicability 或有依据的 quarantine；不能仅承认风险却留下无范围的普通词。')
+    if stage == 'glossary_review' and payload.get('nontranslate_scope_policy') == 1:
+        common += (' non_translate中的词语或标识符必须明确applicability，不能默认全局禁翻。'
+                   'category检查说明其为运行标记、命令/标识符、按键、品牌或其他保留内容的实际依据；'
+                   '独立命令优先whole_record，限定用法用literal_context。全局text须说明句中同样保留的依据；'
+                   '提供独立及嵌入两类用例时，entry_reviews.evidence_rows必须各引用至少一条完整原文。'
+                   '用现有edits.patch.applicability及四维证据处理，不添加字段或把检索命中当语义通过。')
     if payload.get('layout_policy') == 'exact_v1':
         common += (' 首尾横向空白及段落数相同时的 CRLF/LF 编码由程序按绑定源文恢复；不要把这些视为翻译错误或改动理由。'
                    '不得增删或移动段落；仍须核对文字、变量与标签，存在歧义则报告，不猜测格式位置。')
@@ -2198,6 +2267,7 @@ def main():
     p = sub.add_parser('reopen-review'); p.add_argument('--task', required=True); p.add_argument('--reason', required=True)
     p = sub.add_parser('reopen-body'); p.add_argument('--task'); p.add_argument('--reason', required=True); p.add_argument('--ids', nargs='+')
     p = sub.add_parser('quality-report'); p.add_argument('--kind', choices=('pilot', 'final'), required=True)
+    sub.add_parser('audit-mixed')
     sub.add_parser('pilot-plan')
     sub.add_parser('pilot-report')
     p = sub.add_parser('pilot-decide'); p.add_argument('--file', required=True)
@@ -2266,6 +2336,7 @@ def main():
         elif args.command == 'pilot-retry': result = flow.pilot_retry(args.ids, args.reason)
         elif args.command == 'pilot-exclude-attempt': result = flow.exclude_pilot_attempt(read_json(args.file))
         elif args.command == 'reduce-pilot': result = flow.reduce_pilot(args.records, args.reason)
+        elif args.command == 'audit-mixed': result = flow.audit_mixed_language()
         elif args.command == 'approve-quality': result = flow.approve_quality(args.kind, read_json(args.decisions))
         elif args.command == 'checkpoint-quality': result = flow.checkpoint_quality(args.kind, read_json(args.decisions))
         elif args.command == 'record-game-check': result = flow.record_game_check(read_json(args.file))

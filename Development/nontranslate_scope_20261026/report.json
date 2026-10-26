@@ -1,0 +1,33 @@
+{
+  "status": "passed",
+  "api_requests": 0,
+  "api_mock_used": false,
+  "production_state_modified": false,
+  "game_started": false,
+  "source_bindings": {
+    "source": "f3c99d2b389528373bc9dbc8f55a13bf132e5f167b0dad86ae34e35e231bb991",
+    "translation": "bf8cb69da9e6f327b9f8a8c9c4e75dcc0168fbf9cdb052241d97f50749a7f6b7",
+    "frozen": "831317812e8e871f1e0ec360c9ca6534425d4a1f258bb0d4bfc11f375f7b0f5b"
+  },
+  "old_unscoped_literal_blocked": "Lexical non_translate requires explicit applicability (whole_record, literal_context, or justified global text): 'retrain'. Internal-looking spelling is not proof of a global exclusion.",
+  "delivered_complete_records": [
+    {
+      "ordinal": 7192,
+      "source": "Please retrain my first character."
+    },
+    {
+      "ordinal": 15333,
+      "source": "retrain"
+    }
+  ],
+  "evidence_stats": {
+    "attached_record_links": 1,
+    "cue_records": 327,
+    "nontranslate_attached_links": 1
+  },
+  "scoped_literal_accepted": true,
+  "installed_payload_hashes_unchanged": true,
+  "current_mixed_candidate_records": 65,
+  "candidate_status": "not a semantic approval",
+  "validation_limit": "Deterministic corpus/state checks only; no new live API response behavior was tested."
+}

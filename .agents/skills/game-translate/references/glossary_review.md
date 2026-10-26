@@ -4,6 +4,10 @@
 
 ## 快照与自动检查
 
+新快照带 `nontranslate_scope_policy=1`。non_translate 中的词语/标识符须显式给出原有 applicability 与具体依据；不能仅因出现在 EXE 或命令样式列表就全局保护。完整命令通常用 whole_record，限定语境用 literal_context；按键、品牌等可用有依据的 text。符号、格式变量和括号运行标记不因此转成普通词。
+
+程序从全文索引检索独立/嵌入两类字面用法，最多补两条完整原文，优先补尚未展示的另一类；这只是结构对照，不认定哪一处是命令或普通词。全局 text 的词语型禁翻项在两类用例均随包提供时，现有四维 entry_review 必须分别引用至少一条。未明确范围不能冻结，承认 audit finding 不等于已修正。沿用已有四维/edits 协议，不另加审校阶段或模型回复字段；旧快照不自动升级。
+
 SubAgent 与 API 使用相同的术语提取、审校和冻结程序。正式输入为项目根目录无表头、单列 UTF-8 CSV，出处按 CSV 逻辑记录编号。先由共用流程完成 `extract`，再 `prepare --stage glossary_review` 生成审校任务；交接方式见 [共用批次](batch_execution.md)。
 
 程序将提取结果转换为 `characters`、`terms`、`non_translate` 分析表，调用 `glossary_tool.audit/build` 保存快照、自动报告、原文出处、审校决定、审校版及 manifest。产物统一在 `TranslateFiles/glossary/`；不读取或写入 GUI 缓存。保留既有快照和轮次记录，不手工覆盖在途任务。

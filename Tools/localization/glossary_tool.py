@@ -78,6 +78,12 @@ def findings(analysis, texts):
             if ' / ' in name:
                 flag('compound_source', [ref], 'Slash-separated alternatives may need separate source entries.')
     from workflow_term_scope import scope_risk
+    from workflow_nontranslate import lexical_literal
+    if analysis.get('nontranslate_scope_policy') == 1:
+        for i, row in enumerate(analysis['non_translate']):
+            if lexical_literal(row['source']) and not row.get('applicability'):
+                flag('unscoped_nontranslate', [f'non_translate:{i}'],
+                     'Word/identifier protection needs explicit applicability and contextual reasoning; inspect standalone and embedded uses.')
     for table in TABLES:
         for index, row in enumerate(analysis[table]):
             if scope_risk(row['source']) and not row.get('applicability'):
@@ -211,6 +217,15 @@ def build(snapshot, source, decisions_path, output):
             for row in revised[table]:
                 validate_term_policy(row, table, required=True)
     final = findings(revised, texts)
+    if revised.get('nontranslate_scope_policy') == 1:
+        from workflow_nontranslate import validate_nontranslate_scope
+        for row in revised['non_translate']:
+            validate_nontranslate_scope(row)
+        from workflow_quality import validate_glossary_applicability
+        validate_glossary_applicability(decisions, {
+            'entries': [{'ref': f'{table}:{i}', 'row': row} for table in TABLES for i, row in enumerate(original[table])],
+            'records': [{'ordinal': i, 'source': text} for i, text in enumerate(texts, 1)],
+            'applicability_policy': 1, 'nontranslate_scope_policy': 1})
     exceptions = {item['source'].casefold(): item['reason'] for item in decisions.get('allow_no_match', []) if str(item.get('reason', '')).strip()}
     for item in final:
         if item['code'] in {'empty', 'duplicate_source', 'category'}:

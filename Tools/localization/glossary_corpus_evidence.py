@@ -14,17 +14,24 @@ _WORD = re.compile(r"[\w]+(?:['’][\w]+)?", re.UNICODE)
 
 
 def attach_corpus_evidence(analysis, records, limit=2):
-    """One inverted index; only compare term phrases in cue-bearing records.
+    """Indexed cue definitions plus full-corpus non-translate contrasts.
 
     An unrelated use of a homonym may be retrieved: reviewers must distinguish
     it rather than letting retrieval manufacture a global sense or exemption.
     """
     if type(limit) is not int or not 0 <= limit <= 2:
         raise ValueError('Corpus evidence limit must be between zero and two')
+    records = list(records)
+    from workflow_nontranslate import lexical_literal
+    lexical_rows = [row for row in analysis.get('non_translate', []) if lexical_literal(row['source'])]
+    full_index = defaultdict(list)
     index = defaultdict(list)
     by_ordinal = {}
     for record in records:
         text = record['source']
+        if lexical_rows:
+            for word in set(_WORD.findall(text.casefold())):
+                full_index[word].append(record['ordinal'])
         if not _CUE.search(text):
             continue
         ordinal = record['ordinal']
@@ -87,5 +94,36 @@ def attach_corpus_evidence(analysis, records, limit=2):
             if selected:
                 row['corpus_evidence_rows'] = selected
                 attached += len(selected)
+    from workflow_nontranslate import lexical_literal, usage_witnesses
+    nontranslate_attached = 0
+    full_records = list(records)
+    full_texts = {r['ordinal']: r['source'] for r in full_records}
+    for row in analysis.get('non_translate', []):
+        row.pop('corpus_evidence_rows', None);row.pop('corpus_evidence_note', None)
+        if not lexical_literal(row['source']):
+            continue
+        words = set(_WORD.findall(row['source'].casefold()))
+        candidate_ids = (full_index[min(words, key=lambda word: len(full_index[word]))]
+                         if words and all(word in full_index for word in words) else [])
+        standalone, embedded = usage_witnesses(row, [dict(ordinal=n, source=full_texts[n]) for n in candidate_ids])
+        existing = set(row.get('evidence_rows', [])[:2])
+        for candidate in row.get('extraction_candidates', []):
+            existing.update(candidate.get('evidence_rows', [])[:2])
+        selected = []
+        # If one kind is already shown, spend the bounded evidence budget on
+        # the contrasting use first. Complete records only, never snippets.
+        pools = sorted([standalone, embedded], key=lambda pool: bool(existing.intersection(pool)))
+        for pool in pools:
+            candidates = sorted((n for n in pool if n not in existing), key=lambda n: (len(full_texts[n]), n))
+            if candidates and len(selected) < limit:
+                selected.append(candidates[0])
+        if selected:
+            row['corpus_evidence_rows'] = selected
+            nontranslate_attached += len(selected)
+        row['corpus_evidence_note'] = (f'Literal uses: standalone={len(standalone)}, embedded={len(embedded)}. '
+            'Structural contrast only, not proof of command meaning. Check whether protection applies in each context; '
+            'justify global text scope or narrow to whole_record/literal_context.')
+    analysis['nontranslate_scope_policy'] = 1
     analysis['corpus_evidence_policy'] = 1
-    return {'attached_record_links': attached, 'cue_records': len(by_ordinal)}
+    return {'attached_record_links': attached+nontranslate_attached, 'cue_records': len(by_ordinal),
+            'nontranslate_attached_links': nontranslate_attached}

@@ -240,8 +240,21 @@ def validate_glossary_applicability(decisions, payload):
             raise ValueError('Applicability edit requires actual source evidence rows')
         row = dict(entry['row'], **edit.get('patch', {}))
         validate_applicability(row, required=True)
+        if payload.get('nontranslate_scope_policy') == 1 and entry['ref'].startswith('non_translate:'):
+            from workflow_nontranslate import validate_nontranslate_scope, usage_witnesses, lexical_literal
+            validate_nontranslate_scope(row)
+            if lexical_literal(row['source']) and row.get('applicability', {}).get('mode') == 'text':
+                available = set(row.get('evidence_rows', [])) | set(row.get('corpus_evidence_rows', []))
+                visible = [r for r in payload['records'] if r['ordinal'] in available]
+                standalone, embedded = usage_witnesses(row, visible)
+                cited = next((r.get('evidence_rows', []) for r in decisions.get('entry_reviews', []) if r['ref'] == entry['ref']), [])
+                if standalone and embedded and (not set(cited).intersection(standalone) or not set(cited).intersection(embedded)):
+                    raise ValueError('Global non_translate must cite both standalone and embedded source uses: '+entry['ref'])
     for addition in decisions.get('additions', []):
         validate_applicability(addition['row'], required=True)
+        if payload.get('nontranslate_scope_policy') == 1 and addition['table'] == 'non_translate':
+            from workflow_nontranslate import validate_nontranslate_scope
+            validate_nontranslate_scope(addition['row'])
 
 
 def risk_reasons(row):

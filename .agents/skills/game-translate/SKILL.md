@@ -22,6 +22,8 @@ API 选路必须遵守用户已有 `api.local.jsonc` 配置：启用优先级时
 
 新术语冻结需区分required/参考reference与普通词排除；完整字段、旧表兼容及独立审校语义要求见 [术语审校规则](references/glossary_review.md)。参考译名不触发字面返修；普通词不得用reference兜底。
 
+新快照的词语/标识符禁翻项须显式限定 applicability，不从独立命令推断全局禁翻。全文检索提供独立/嵌入用例；全局保护需在原有四维审校核对两类证据。中文夹拉丁片段通过 audit-mixed 生成候选，在已有六维审校核对，不把禁翻命中当免审或把按键/署名自动当错。旧表不自动迁移；规则修订只清理有内容/词典绑定证明的失效例外引用，保留原始回复及尝试历史，仍审校受影响正文。
+
 新术语审校快照会在本地检索全文定义，最多补充每词两条完整原文，必要时沿明确类别字串关联一层类别说明；审校者据此判断实际修饰对象和词义，不能把检索命中当语义通过。确认后的含义通过term_reason传给翻译和独立审校。详见术语审校规则；不依赖截图或CSV邻接关系，不自动重开旧项目。
 
 图片文字可选分支由 `game-image-extract` 提供已确认的 `{game}_images_text.csv` 与mapping。用 `Tools/image_text/image_workflow.py prepare-translation` 建立 `TranslateFiles/image-text/` 隔离子工程；以该子工程为本技能的project，其源文快照位于子工程根，图片逐条上下文见image_context.json。沿用用户已选路线/接口，执行相同术语、翻译、语义审校和导出门槛；不要在原项目的既有TranslateFiles/state中再次init。完成后collect-translation收回根目录图片译文，交 `game-image-repack`。只准备子工程不代表授权开始正文翻译。

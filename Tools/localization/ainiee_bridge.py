@@ -71,6 +71,9 @@ def glossary_rows(analysis):
         for index, row in enumerate(analysis.get(table, [])):
             from workflow_term_policy import validate_term_policy
             validate_term_policy(row, table, required=analysis.get('terminology_policy') == 1)
+            if table == 'non_translate' and analysis.get('nontranslate_scope_policy') == 1:
+                from workflow_nontranslate import validate_nontranslate_scope
+                validate_nontranslate_scope(row)
             rows.append({**row, 'ref': f'{table}:{index}', 'src': row['source'],
                          'dst': row.get('recommended_translation', '保留原文'),
                          'src_state': row.get('src_state', 'valid')})

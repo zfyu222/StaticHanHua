@@ -156,6 +156,14 @@ class DraftMixin:
         if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status="running"', (self.meta(db, 'revision'),)).fetchone():
             raise ValueError('Finish in-flight work before the full draft scan')
         originals = {r['record_id']: dict(r) for r in db.execute(f'SELECT * FROM {prefix}draft_candidates')}
+        from translation_workflow import fingerprint
+        active = self.meta(db, 'glossary', {})
+        proofs = self.meta(db, 'glossary_exception_retirements', {})
+        for row in rows:
+            proof = proofs.get(row['id'], {})
+            if (proof.get('glossary_hash') == active.get('hash') and proof.get('sources')
+                    and proof.get('content_hash') == fingerprint([row['source'], row['translation']])):
+                row['_exception_retirement'] = proof
         return rows, originals
 
     @staticmethod
@@ -163,7 +171,12 @@ class DraftMixin:
         from translation_workflow import fingerprint
         if (journal and journal['source_hash'] == fingerprint(row['source']) and journal['translation'] == row['translation']
                 and row['stage'] in ('pilot_translate', 'translate')):
-            return json.loads(journal['raw_item']), json.loads(journal['protection'])
+            item = json.loads(journal['raw_item'])
+            proof = row.get('_exception_retirement', {})
+            if proof.get('content_hash') == fingerprint([row['source'], row['translation']]):
+                from workflow_nontranslate import filter_retired_candidate
+                item = filter_retired_candidate(item, proof)
+            return item, json.loads(journal['protection'])
         return {'id': row['id'], 'translation': row['translation'], 'exceptions': json.loads(row['exceptions'])}, []
 
     def collect_draft_issues(self, db, config, record_ids=None):
@@ -359,6 +372,8 @@ class DraftMixin:
             # Advancing into semantic review does not change an unchanged text's
             # signature. Keep raw-marker evidence stable across stage changes.
             signature_data = [row['source'], row['translation'], row['exceptions'], raw]
+            if row.get('_exception_retirement'):
+                signature_data.append(row['_exception_retirement'])
             if row['id'] in config.get('record_constraints', {}):
                 signature_data.append(config['record_constraints'][row['id']])
             signatures[row['id']] = fingerprint(signature_data)

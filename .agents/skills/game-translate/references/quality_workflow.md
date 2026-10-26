@@ -99,6 +99,12 @@ Sol 用 pass/contextual 记录通过，repair 写明原文依据、错误、验�
 
 报告及结论绑定当前原文、术语、译文、审校证据与规则。过期或范围外的结论拒绝接收；已批准且数据未变化时不重复开启检查轮。导出仍完整校验，并记录 in_game_check=pending_repack；实机检查在回填后完成。
 
+## 中文混合拉丁片段的本地候选报告
+
+`translation_workflow.py --project <项目> audit-mixed` 不发 API 请求，只生成 `reports/mixed_language_audit.json`。常规独立审校准备时以及正式 export 也生成/更新报告，绑定候选内容或正式 CSV 哈希。命中禁翻规则不是免审理由；在已有六维审校中核对本句是否为按键、品牌、代码、署名等合理保留，或普通词漏译。扫描本身既不自动纠正，也不判定全部候选为错误，不增设全文模型轮次或实机通过结论。
+
+通过 revise-glossary 收窄规则后，程序只对“旧规则确实命中、新规则已不命中”的语境例外建立清理证明，绑定原文/译文内容及当前术语哈希。历史原始回复、草稿日志及次数不变；草稿验收使用去掉失效引用的派生视图。未知/仍命中的例外继续校验；内容变更或规则重新命中时不复用该证明。清理引用不等于语义通过，受影响正文仍进入正常独立审校。
+
 ## 回填后的游戏内检查
 
 export 生成 reports/in_game_check.template.json，由 game-repack 在真实游戏验证后填写：实际游戏版本、平台、当前 translation_sha256、载荷文件、证据文件，以及 fonts/layout/ui/dialogue/quest 五类检查。

@@ -368,6 +368,14 @@ Sol 修复默认累计最多 3 轮（sol_repair_round_limit），同一条目连
 
 本版不自动迁移已有游戏。新快照、新任务采用以下协议；旧冻结表没有 applicability 时保持原匹配，旧任务没有 layout_policy 时仍严格按原规则验收。
 
+新增快照另带 `nontranslate_scope_policy=1`：禁翻词语/标识符必须显式给出已有的 `applicability` 和理由，不靠固定普通词黑名单。完整命令可选 whole_record，局部用法选 literal_context；全局 text 仍允许按键、品牌等有依据的保留，但独立、嵌入两种用例都随包提供时，现有四维审校必须各引用至少一条。占位符/标点保护不因此变成普通词翻译；旧表不自动升级。
+
+`glossary_corpus_evidence.py` 用全文索引为词语型 non_translate 补充独立/嵌入的结构对照，仍最多两条完整补充原文，优先未展示的另一类用法；不要求定义提示词、不按 CSV 邻接推断语义，不新增模型阶段或回复字段。
+
+`translation_workflow.py --project <项目> audit-mixed` 只生成 `TranslateFiles/reports/mixed_language_audit.json`，不发请求、不修改译文；常规 review/final_review 准备时及正式 export 也更新该报告。中文中的拉丁词、命中的禁翻规则均列为候选，匹配禁翻表不构成语义豁免；按键、品牌、人名等合理原文不因扫描被自动判错。核对仍在现有六维独立审校完成。
+
+公开 revise-glossary 会记录作用域变化后已不再命中的旧语境例外，绑定当前词典哈希及原文/译文内容。草稿检查使用派生视图过滤这些失效引用，不改原始回复、候选日志和累计次数；其他例外或无法证明的情况继续严格检查。内容改变或术语重新命中时不沿用清理证明；受影响译文仍须独立语义审校，不因清理元数据而自动通过。
+
 - 术语提取不把普通代词、助动词、常用词或裸技术字母当作全局术语。新快照带 applicability_policy=1；高歧义词在审校交接时必须隔离或补有证据的适用范围，而非等到全表冻结后才失败。风险词只是送审提示，程序不代替语义判断。
 - applicability 为 {mode, case_sensitive, reason}；mode=text 用于正文专名/术语，whole_record 只匹配完整记录（忽略首尾空白），literal_context 须另给实际紧邻 prefix/suffix，至少一项非空。大小写逐词控制，不改全项目大小写开关；范围修订需要 evidence_rows。技术标记优先交由明确的保护规则，不因 HTML 的 i 而全局禁翻 I。
 - API 审校可用记录内 evidence={e1:实际依据,...}；reason、六维 checks 的 evidence、changes.reason 可使用 {ref:e1}。各维状态仍须模型逐项填写，程序只复制同条实际证据。未知/空/嵌套/未使用引用拒收，不跨条继承，也不自动生成 pass。完整结果仍保存原有六维结构，原始回复保留。SubAgent 的共用收集入口也支持同条引用。
