@@ -11,6 +11,12 @@ description: Extract and visually confirm text from exported game images before 
 
 ## 抽取与复核
 
+正式抽取必须执行 GPU PP-OCRv6 medium → 按策略选择本地Qwen → 对话Agent视觉确认。RapidOCR只是本工作流运行Paddle模型的封装，允许使用；不得自行另写RapidOCR脚本、使用默认CPU/small扫描替代本流程，或在CUDA失败后自动降级。`cli.py scan`现在默认GPU medium，但它仅是L1，单独运行不表示已完成Qwen或三级抽取。
+
+推荐统一入口：`Tools/image_text/run.ps1 pipeline --project <项目> --out <新工作目录> --policy <策略JSON>`。包装器使用独立GPU环境，OCR子进程完全退出后才启动Qwen。正式`plan`/`qwen`检查扫描保存的model_size、device、模型文件和CUDA provider；CPU/small或缺少证据的旧扫描不能接入，保留原目录并另建正式工作目录，不修改旧报告冒充合规。
+
+仅在用户明确要求实验/CPU对照时，才能用 `scan --device cpu --model-size small --allow-nonstandard-ocr`；这个参数只放行实验扫描，不能放行正式分流。GPU不可用则报告依赖/驱动问题并停止，不把实验开关当成自动故障转移。
+
 以下命令在工作区根执行；`$py`为 `Tools/image_text/.venv-gpu/Scripts/python.exe`，`$flow`为 `Tools/image_text/image_workflow.py`。
 
 1. 用现有 `cli.py inventory --input <导出图片> --out <项目/ImageText/work>` 创建去重快照；有来源JSON时加 `--provenance`。不要覆盖已绑定旧队列/审阅结果的目录。

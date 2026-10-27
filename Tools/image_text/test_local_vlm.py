@@ -51,6 +51,10 @@ class LocalTests(unittest.TestCase):
         client.unload.assert_called_once();client.http.close.assert_called_once()
 
     def test_pipeline_waits_for_full_ocr_before_starting_vlm(self):
+        from test_ocr_policy import standard_config
+        from core import write_json
+        self.scan.update(config=standard_config(),manifest_hash=self.manifest['manifest_hash'])
+        write_json(self.out/'scan.json',self.scan)
         events=[]
         def child(*args,**kwargs):events.append('ocr_child_exited')
         server=Mock();server.__enter__=Mock(side_effect=lambda:events.append('vlm_server') or server)
@@ -61,7 +65,8 @@ class LocalTests(unittest.TestCase):
 
     def test_pipeline_refuses_incomplete_ocr(self):
         from core import write_json
-        write_json(self.out/'scan.json',dict(images=self.scan['images'][:1]))
+        from test_ocr_policy import standard_config
+        write_json(self.out/'scan.json',dict(config=standard_config(),manifest_hash=self.manifest['manifest_hash'],images=self.scan['images'][:1]))
         with patch('pipeline.subprocess.run'),patch('pipeline.Server') as server,self.assertRaises(RuntimeError):execute(self.out)
         server.assert_not_called()
 

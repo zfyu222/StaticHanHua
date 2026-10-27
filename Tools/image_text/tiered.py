@@ -8,6 +8,7 @@ import re
 from PIL import Image,ImageDraw
 from core import canonical,digest,load_image,pixel_hash,read_json,validate_box,write_json
 from screening import readable
+from ocr_policy import require_standard_scan
 
 def bound(out):
     out=Path(out);m=read_json(out/'manifest.json');s=read_json(out/'scan.json')
@@ -15,6 +16,7 @@ def bound(out):
 
 def plan(out,policy=None):
     out,m,s,scan_hash=bound(out)
+    require_standard_scan(s)
     policy=policy or {};script=policy.get('script','any')
     if script not in ('any','latin'):raise ValueError('Unsupported source script')
     rows={x['image_id']:x for x in s['images']};hints=policy.get('images',{});families=policy.get('families',{})
@@ -74,6 +76,7 @@ def qwen_batches(out,batch=None):
     from local_vlm import run
     from ollama_server import Server
     out,m,s,p=load_plan(out);all_findings={};executed=reused=requests=0
+    require_standard_scan(s)
     numbers=list(range(len(p['qwen_batches']))) if batch is None else [batch-1]
     if any(i<0 or i>=len(p['qwen_batches']) for i in numbers):raise ValueError('Unknown batch')
     for number in numbers:

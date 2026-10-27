@@ -1,0 +1,104 @@
+{
+  "version": "0.6",
+  "date": "2026-10-28",
+  "scope": "Default-entry safety and one real newspaper image; no game extraction/translation state changed",
+  "unit_tests": {
+    "command": ".venv-gpu/Scripts/python.exe -m unittest discover -s Tools/image_text -p test_*.py -q",
+    "tests": 73,
+    "status": "passed"
+  },
+  "entrypoint": "Tools/image_text/run.ps1 pipeline",
+  "ocr": {
+    "engine": {
+      "adapter": 5,
+      "rapidocr": "3.10.0",
+      "onnxruntime": "1.31.0",
+      "language": "ch",
+      "numpy": "2.5.4",
+      "pillow": "13.0.0",
+      "opencv": "5.0.0.93",
+      "box_threshold": 0.35,
+      "threads": 4,
+      "models": {
+        "Det": {
+          "file": "PP-OCRv6_det_medium.onnx",
+          "sha256": "92078b7355007ccfffcd4c8cd441a3afd4538904d06881b29a155e1e679907c2",
+          "providers": [
+            "CUDAExecutionProvider",
+            "CPUExecutionProvider"
+          ]
+        },
+        "Rec": {
+          "file": "PP-OCRv6_rec_medium.onnx",
+          "sha256": "eef444829dbbe18d7fea59a3f6eb75647518d2b3a9568d27c92e42940204894b",
+          "providers": [
+            "CUDAExecutionProvider",
+            "CPUExecutionProvider"
+          ]
+        }
+      },
+      "model_size": "medium",
+      "device": "cuda"
+    },
+    "summary": {
+      "total_unique_images": 1,
+      "scanned_images": 1,
+      "not_scanned": 0,
+      "status": {
+        "text_candidate": 1
+      },
+      "invocation": {
+        "computed_images": 1
+      },
+      "wall_seconds": 12.728,
+      "engine_init_seconds": 11.229,
+      "scan_seconds": 1.5,
+      "online_requests": 0,
+      "regions": 7,
+      "fingerprint": "9f59589626421289103182f2eb1353333ddc22ffcda0f3346d4eb63ce7201e67",
+      "experimental_ocr": false,
+      "next_step": "L1 scan only; use image_workflow.py pipeline (or plan then qwen) for the tiered workflow",
+      "note": "not_detected does not mean confirmed_no_text; OCR scores are not calibrated correctness probabilities"
+    },
+    "kernel_events": {
+      "Det": {
+        "CUDAExecutionProvider": 448
+      },
+      "Rec": {
+        "CUDAExecutionProvider": 764,
+        "CPUExecutionProvider": 8
+      }
+    }
+  },
+  "qwen": {
+    "model": {
+      "model": "qwen3-vl:8b-instruct-q4_K_M",
+      "digest": "70e58e37beb15464e19aa903dedb2cba828b89c0fb186f75ff2738c7347b96eb",
+      "runtime": "0.40.9"
+    },
+    "requests": 1,
+    "completed": 1,
+    "cached": 0,
+    "gpu_size_bytes": 6588685352,
+    "elapsed_seconds": 15.376,
+    "usage": {
+      "prompt_eval_count": 1235,
+      "eval_count": 290,
+      "total_duration": 15348877200
+    }
+  },
+  "paid_api_requests": 0,
+  "review_state": "One Agent task package generated; no visual verdict or formal CSV export asserted",
+  "raw_evidence_directory": "Tools/image_text/verification/entry_v06_20261028",
+  "gpu_serialization": "OCR subprocess returned successfully before qwen_batches; regression test asserts child-exit then VLM-server order",
+  "guard_cases": [
+    "Default scan uses medium/CUDA",
+    "CPU or non-medium requires explicit experimental flag",
+    "Missing CUDA provider stops before backend inference",
+    "Failed OCR child cannot start Qwen or retry on CPU",
+    "Formal plan/qwen rejects CPU, non-medium or missing model/provider evidence",
+    "Incomplete/duplicate/failed OCR cannot start pipeline Qwen",
+    "Prior rejected scan evidence remains unchanged"
+  ],
+  "note": "Recognition has 8 CPU shape-operation events alongside CUDA kernels; this is not a CPU OCR fallback. No all-game accuracy claim."
+}

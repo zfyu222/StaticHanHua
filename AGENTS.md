@@ -70,6 +70,8 @@ StaticHanHua/
 
 已授权本地推理时可用 `local-pipeline`：独立 CUDA 环境全量运行 PP-OCRv6 medium，OCR 子进程退出释放显存后，再加载本地 Qwen3-VL 8B 逐图复核/转写。禁止两阶段并行占用GPU；保留模型摘要、原始回复、缓存和实测用量。工具拒绝 CUDA 静默回退，不启用云模型；本地模型结果仍须审核，不能把 no_text 当作已人工确认无字。`--policy full-audit` 才会把全部图片交给Qwen，默认筛选加抽查不代表全图多模态覆盖。
 
+**正式图片抽取入口（必须遵守）**：启用且授权图片本地推理后，统一使用 `Tools/image_text/run.ps1 pipeline --project <项目> --out <新工作目录> --policy <策略JSON>`，执行GPU PP-OCRv6 medium→选择性本地Qwen→对话Agent视觉确认。RapidOCR是本工具运行Paddle模型的封装，不是替代模型；不得自行用RapidOCR默认CPU/small或其他独立OCR脚本绕开管线。`scan`默认GPU medium但仅代表L1；CUDA不可用时停止并报告，不自动降级。CPU/非medium仅用于用户明确要求的实验，必须显式加 `--allow-nonstandard-ocr`，其实验扫描不能进入正式`plan`/`qwen`；旧数据保留，禁止改写元数据冒充正式扫描。
+
 ### 第 2 步：翻译
 
 启用图片步骤时，先使用 `game-image-extract` 完成三级抽取、对话Agent视觉裁决和确认导出，得到 `{gamename}_images_text.csv` 及 `.mapping.json`。工具 `Tools/image_text/image_workflow.py` 提供路由、选择性本地Qwen和Agent包；默认不把双模型一致当人工确认。图片翻译用 `TranslateFiles/image-text/` 隔离子工程复用 `game-translate`，导出校验后收回 `{gamename}_images_text_translated.csv`，不得重置常规文本翻译状态。

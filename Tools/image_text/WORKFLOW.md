@@ -1,5 +1,7 @@
 # 图片文字提取三级工作流 v1
 
+正式统一入口：`Tools/image_text/run.ps1 pipeline --project <项目> --out <新工作目录> --policy <策略JSON>`。`run.ps1`默认GPU环境；L1固定PP-OCRv6 medium/CUDA，使用RapidOCR封装运行，不是RapidOCR默认CPU模型。缺失CUDA时失败退出，禁止自行降级。`cli.py scan`只做L1，默认也为medium/CUDA；实验CPU/非medium须显式加`--allow-nonstandard-ocr`，不能进入正式分流。`plan`与`qwen`核验旧扫描实际保存的模型、设备及provider信息，不自动迁移或重写旧证据。
+
 状态：**v0.5基础闭环已实现**。新入口 `image_workflow.py` 已接入风险路由、选择性Qwen、对话Agent任务包/视觉确认导出和独立翻译子工程；旧 `local-pipeline` 保留原行为，不自动迁移旧任务。本文件依据 [20张对照实验](reports/comparison_v1.md) 设计。
 
 当前实现边界：资源族由实际校准记录提供，没有自动艺术字分类器；两模型比对采用保留大小写/标点的整图文字对齐，未实现复杂的逐区域语义自动合并，冲突交Agent；Agent需实际看图提交回复，程序不会调用另一个付费Agent API。合入工具生成PNG或overlay载荷，具体引擎导入仍由回填Skill处理。下文属于策略规范的扩展项不能当作所有游戏都已实测通过。

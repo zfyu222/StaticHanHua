@@ -9,6 +9,7 @@ from core import canonical,digest,inventory,read_json,write_json,merge_regions
 from tiered import plan,package,import_decisions,export
 from project_options import configure,require_enabled
 from screening import readable
+from test_ocr_policy import standard_config
 
 class TieredTests(unittest.TestCase):
     def setUp(self):
@@ -19,10 +20,25 @@ class TieredTests(unittest.TestCase):
         for name,key in self.ids.items():
             r=dict(region_id=name,text='GAMEOYER' if name=='tiny' else 'C' if name=='weak' else 'CONTINUE',box=[5,5,90,12 if name=='tiny' else 30],recognition_score=.2 if name=='weak' else .99,detection_score=.9,status='candidate',disagreement=False)
             rows.append(dict(image_id=key,status='text_candidate',errors=[dict(stage='detection',error='fixture')] if name=='broken' else [],regions=[r]))
-        write_json(self.out/'scan.json',dict(images=rows))
+        write_json(self.out/'scan.json',dict(config=standard_config(),images=rows))
         self.policy=dict(script='latin',negative_samples=0,weak_samples=0,ordinary_samples=0,families={'ui':dict(kind='normal',validated=True,evidence='Synthetic behavioral fixture only',glyph_height_range=[20,30])},images={'normal.png':dict(family='ui'),'title.png':dict(risks=['art'])})
 
     def tearDown(self):self.temp.cleanup()
+
+    def test_cpu_scan_rejected_without_rewriting_prior_evidence(self):
+        scan=read_json(self.out/'scan.json');scan['config']['engine']['device']='cpu';write_json(self.out/'scan.json',scan)
+        before=(self.out/'scan.json').read_bytes()
+        with self.assertRaises(ValueError):plan(self.out,self.policy)
+        self.assertEqual(before,(self.out/'scan.json').read_bytes())
+        self.assertFalse((self.out/'tiered/plan.json').exists())
+
+    def test_qwen_resume_also_rejects_nonstandard_scan(self):
+        from unittest.mock import patch
+        from tiered import qwen_batches
+        planned=plan(self.out,self.policy);scan=read_json(self.out/'scan.json');scan['config']['engine']['device']='cpu'
+        with patch('tiered.load_plan',return_value=(self.out,self.m,scan,planned)),patch('ollama_server.Server') as server,self.assertRaises(ValueError):
+            qwen_batches(self.out)
+        server.assert_not_called()
 
     def test_selective_routes_preserve_unknown_and_extreme_cases(self):
         result=plan(self.out,self.policy);routes={x['image_id']:x['route'] for x in result['routes']}

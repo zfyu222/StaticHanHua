@@ -2,6 +2,8 @@
 
 ## 项目概述
 
+**图片抽取正式入口**：启用图片步骤并授权本地推理后，统一使用 `Tools/image_text/run.ps1 pipeline --project <项目> --out <新工作目录> --policy <策略JSON>`。全量GPU PP-OCRv6 medium完成且子进程退出后，再做选择性本地Qwen和对话Agent视觉确认。RapidOCR可作为Paddle模型的CUDA封装使用；禁止自选CPU/small或独立OCR脚本替代。CUDA不可用时停止报告，不自动降级。CPU/非medium仅限用户明确要求的实验，须加`--allow-nonstandard-ocr`；实验结果不能接入正式`plan`/`qwen`，旧扫描与进度保留。
+
 本项目是游戏汉化工作区，用于对各类游戏进行静态汉化（反编译、文本提取、翻译、回填）。
 
 ## 跨 Agent 工具兼容

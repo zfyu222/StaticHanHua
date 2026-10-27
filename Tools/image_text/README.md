@@ -1,8 +1,20 @@
-# 游戏图片文字工具 v0.5
+# 游戏图片文字工具 v0.6
+
+## 正式入口：GPU Paddle → 本地Qwen → Agent
+
+```powershell
+Tools/image_text/setup-gpu.ps1
+Tools/image_text/run.ps1 inventory --input D:/ExportedImages --out D:/Project/ImageText/work
+Tools/image_text/run.ps1 pipeline --project D:/Project --out D:/Project/ImageText/work --policy D:/Project/ImageText/policy.json
+```
+
+项目须已启用图片步骤，策略按下文资源族校准准备；未知字体保持unknown。`run.ps1`现在默认使用`.venv-gpu`；`run-gpu.ps1 pipeline`同样路由到正式三级入口。正式`plan`/`qwen`检查扫描模型和CUDA证据，拒绝CPU/small及缺少元数据的扫描；旧目录保留，另建目录进行正式扫描。GPU不可用时停止，不自动换CPU或其他模型。
+
+**RapidOCR不是错误路线的判据**：本工具通过RapidOCR＋ONNX Runtime CUDA运行PP-OCRv6 medium。应检查实际模型、设备、provider和后续Qwen/Agent步骤，而不是只看Python包名。`cli.py scan`默认也改为medium/CUDA，但仅执行L1，不代表三级流程已完成。
 
 三级流程见 [WORKFLOW.md](WORKFLOW.md)：全量Paddle、难例Qwen、当前对话Agent争议裁决与看图验收。新 `image_workflow.py` 已接入基础闭环；下面旧的 `local-pipeline` 命令保留原策略，不会自动重置旧队列。
 
-实现与实测范围见 [v0.5验收记录](reports/tiered_v05.md)。
+v0.6入口加固与真实GPU/Qwen验证见 [验收报告](reports/entry_policy_v06.json)；原基础闭环范围见 [v0.5验收记录](reports/tiered_v05.md)。
 
 本地Qwen对个别候选输出失败或无明显收益时，可用 `agent-pack --out <work> --direct-image-id <image_id>`（可重复参数）将明确选定的候选直接交当前对话Agent看图。此入口保留原路由、失败记录和已有结果，不生成或伪装Qwen结论；仍须真实视觉裁决及原有导出验收。不能选择扫描失败或预测排除项。默认队列行为不变。
 
@@ -49,7 +61,7 @@ v0.3的 CPU small 基线：通用配置保留353张，加30张抽查共383张；
 
 ## 本地 GPU：medium → Qwen
 
-官方型号名称是 `PP-OCRv6 medium`（用户所说 middle）。检测和识别都选择 medium，通过 RapidOCR + ONNX Runtime CUDA 运行。CUDA 初始化失败直接报错；不会悄悄退回 CPU。普通 `scan` 的默认仍是已有 CPU small，`local-pipeline` 固定使用 GPU medium。
+官方型号名称是 `PP-OCRv6 medium`（用户所说 middle）。检测和识别都显式选择v6 medium，通过 RapidOCR + ONNX Runtime CUDA 运行。CUDA 初始化失败直接报错；不会悄悄退回 CPU。普通 `scan`、正式 `pipeline` 与历史 `local-pipeline` 均默认/固定GPU medium；新项目使用上面的正式入口。
 
 Qwen 使用 `qwen3-vl:8b-instruct-q4_K_M`，便携版 Ollama 提供本机推理。OCR 在独立子进程全量执行，退出后再启动 Qwen，不同时保留两套模型占用显存。默认仍只生成离线队列，只有显式运行以下本地命令才会推理；不会调用付费 API。
 
@@ -82,19 +94,19 @@ Qwen只判断有无可读文字、转写并提供区域，程序绑定图片与�
 
 完整原始结果及审核页：`verification/medium_gpu/review.html`；专项样本：`verification/local_pilot_v2/review.html`。精简可入库报告：`reports/medium_gpu_ocr.json`、`reports/local_qwen_pilot.json`、`reports/local_qwen_full.json`。主队列之外1394张未接受本轮Qwen逐张检查；不能把其余图片当作已确认无字。Qwen结果全部待人工确认，原OCR并列保留。
 
-## 安装与运行
+## 显式CPU实验与历史审核工具
 
-Windows / Python 3.12，推荐独立环境。工作区根目录执行：
+以下CPU流程仅供用户明确要求的对照实验，不是游戏正式抽取入口。Windows / Python 3.12，在工作区根目录执行：
 
 ```powershell
 Tools/image_text/setup.ps1
-Tools/image_text/run.ps1 inventory --input D:/ExportedImages --out D:/ImageTextWork
-Tools/image_text/run.ps1 scan --out D:/ImageTextWork
-Tools/image_text/run.ps1 review --out D:/ImageTextWork
-Tools/image_text/run.ps1 queue --out D:/ImageTextWork --max-jobs 100 --negative-samples 20
+Tools/image_text/.venv/Scripts/python.exe Tools/image_text/cli.py inventory --input D:/ExportedImages --out D:/ImageTextWork
+Tools/image_text/run.ps1 scan --out D:/ImageTextWork --device cpu --model-size small --allow-nonstandard-ocr
+Tools/image_text/.venv/Scripts/python.exe Tools/image_text/cli.py review --out D:/ImageTextWork
+Tools/image_text/.venv/Scripts/python.exe Tools/image_text/cli.py queue --out D:/ImageTextWork --max-jobs 100 --negative-samples 20
 ```
 
-输出目录必须位于输入目录之外，避免扫描自己的输出。安装使用requirements-lock.txt固定本次验证的依赖版本；requirements.txt列出直接依赖。库和模型安装只发生在工具环境中；默认模型随RapidOCR包提供，其他语言可能需要首次下载模型。默认纯CPU，不需要显卡，不读取API密钥。`run.ps1`只调用隔离环境；也可直接运行 `.venv/Scripts/python.exe cli.py ...`。
+输出目录必须位于输入目录之外，避免扫描自己的输出。安装使用requirements-lock.txt固定本次验证的依赖版本；requirements.txt列出直接依赖。库和模型安装只发生在工具环境中；模型随RapidOCR包提供或首次下载。`run.ps1`默认调用GPU环境；带`--allow-nonstandard-ocr`的实验扫描调用独立CPU环境，仍须明确指定`--device cpu`。不读取API密钥。可直接运行`.venv/Scripts/python.exe cli.py scan ... --device cpu --model-size small --allow-nonstandard-ocr`做实验；这个开关不放行正式分流，也不改变正式项目状态。
 
 自行打开 `D:/ImageTextWork/review.html`。支持筛选、资源名/文字搜索、放大、深浅底色、文字框定位、修订文字、确认/忽略、鼠标框选漏检文字。页面无在线依赖；下载审核JSON保存工作，之后可重新载入。浏览器本地暂存只作便利功能，不能替代下载备份。
 
@@ -153,7 +165,7 @@ Tools/image_text/run.ps1 screen-report --out D:/ImageTextWork --truth D:/Labels/
 
 ```powershell
 Tools/image_text/run.ps1 import-findings --out D:/ImageTextWork --reply D:/Replies/results.json --binding D:/SavedBatch/binding.json
-Tools/image_text/run.ps1 review --out D:/ImageTextWork
+Tools/image_text/.venv/Scripts/python.exe Tools/image_text/cli.py review --out D:/ImageTextWork
 ```
 
 模型回复示例：

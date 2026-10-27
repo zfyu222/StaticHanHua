@@ -8,6 +8,7 @@ from handoff import prepare
 from local_vlm import MODEL,run
 from ollama_server import Server
 from review import build_review
+from ocr_policy import require_standard_scan
 
 def execute(out,script='any',policy='screened',limit=None,pull=False):
     out=Path(out).resolve()
@@ -15,8 +16,7 @@ def execute(out,script='any',policy='screened',limit=None,pull=False):
     subprocess.run([sys.executable,str(Path(__file__).with_name('cli.py')),'scan','--out',str(out),
                     '--device','cuda','--model-size','medium'],check=True)
     scan=read_json(out/'scan.json');manifest=read_json(out/'manifest.json')
-    if len(scan['images'])!=len(manifest['images']) or any(x['errors'] for x in scan['images']):
-        raise RuntimeError('Full OCR did not finish successfully; local VLM not started')
+    require_standard_scan(scan,manifest,complete=True)
     prepare(out,max_jobs=len(manifest['images']),negative_samples=20,low_signal_samples=10,
             seed=42,policy=policy,screen_score=.6,screen_script=script)
     write_json(out/'pipeline.json',dict(ocr_process_exited=True,model=MODEL,policy=policy,screen_script=script))

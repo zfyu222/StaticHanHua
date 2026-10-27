@@ -31,6 +31,8 @@ def main(argv=None):
             require_enabled(a.project)
         if a.command=='pipeline':
             subprocess.run([sys.executable,str(Path(__file__).with_name('cli.py')),'scan','--out',a.out,'--device','cuda','--model-size','medium'],check=True)
+            from ocr_policy import require_standard_scan
+            require_standard_scan(read_json(Path(a.out)/'scan.json'),read_json(Path(a.out)/'manifest.json'),complete=True)
         plan=tiered.plan(a.out,read_json(a.policy) if a.policy else None)
         result=dict(routes=dict(Counter(x['route'] for x in plan['routes'])),plan_hash=plan['plan_hash'])
         if a.command=='pipeline':tiered.qwen_batches(a.out);result['agent']=tiered.package(a.out)

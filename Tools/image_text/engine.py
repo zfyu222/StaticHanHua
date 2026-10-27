@@ -5,12 +5,14 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 from core import digest, canonical, rect_of, merge_regions, region_id
+from ocr_policy import validate_options
 
 ENGINE_VERSION = 5
 
 
 class Engine:
-    def __init__(self, threads=4, box_threshold=.35, language='ch', model_size='small', device='cpu'):
+    def __init__(self, threads=4, box_threshold=.35, language='ch', model_size='medium', device='cuda', allow_nonstandard=False):
+        validate_options(model_size, device, allow_nonstandard)
         from rapidocr import RapidOCR
         from rapidocr.utils.typings import LangRec, ModelType, OCRVersion
         import onnxruntime as ort
@@ -26,6 +28,7 @@ class Engine:
             'EngineConfig.onnxruntime.inter_op_num_threads': 1,
             'Det.box_thresh': box_threshold, 'Det.limit_side_len': 960, 'Det.limit_type': 'max',
             'Rec.lang_type': LangRec(language),
+            'Det.ocr_version': OCRVersion.PPOCRV6, 'Rec.ocr_version': OCRVersion.PPOCRV6,
             'Det.model_type':ModelType(model_size),'Rec.model_type':ModelType(model_size),
             'EngineConfig.onnxruntime.use_cuda':device=='cuda',
         }

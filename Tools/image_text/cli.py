@@ -9,12 +9,15 @@ from core import canonical, digest, export_review, inventory, load_image, pixel_
 
 def scan(args):
     invocation_started=time.perf_counter()
+    from ocr_policy import validate_options
+    model_size=getattr(args,'model_size','medium');device=getattr(args,'device','cuda')
+    allow_nonstandard=getattr(args,'allow_nonstandard_ocr',False)
+    validate_options(model_size,device,allow_nonstandard)
     from engine import Engine, analyze
     out = Path(args.out).resolve()
     manifest = read_json(out/'manifest.json')
-    options=dict(threads=args.threads,box_threshold=args.threshold,language=args.language)
-    if getattr(args,'model_size','small')!='small' or getattr(args,'device','cpu')!='cpu':
-        options.update(model_size=args.model_size,device=args.device)
+    options=dict(threads=args.threads,box_threshold=args.threshold,language=args.language,model_size=model_size,device=device)
+    if allow_nonstandard:options['allow_nonstandard']=True
     engine = Engine(**options)
     engine_init_seconds=time.perf_counter()-invocation_started
     config = dict(engine=engine.metadata, profile=args.profile, sprite_crops=args.sprite_crops)
@@ -71,6 +74,8 @@ def scan(args):
                    wall_seconds=round(time.perf_counter()-invocation_started, 3),
                    engine_init_seconds=round(engine_init_seconds,3), scan_seconds=round(time.perf_counter()-started,3), online_requests=0,
                    regions=sum(len(x['regions']) for x in records.values()), fingerprint=fingerprint,
+                   experimental_ocr=(model_size,device)!=('medium','cuda'),
+                   next_step='L1 scan only; use image_workflow.py pipeline (or plan then qwen) for the tiered workflow',
                    note='not_detected does not mean confirmed_no_text; OCR scores are not calibrated correctness probabilities')
     write_json(out/'summary.json', summary)
     print(json.dumps(summary))
@@ -130,7 +135,7 @@ def coverage(a, b):
     return intersection/max(1, (a[2]-a[0])*(a[3]-a[1]))
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     p = commands.add_parser('inventory')
@@ -149,8 +154,9 @@ def main():
     p.add_argument('--threads', type=int, default=4)
     p.add_argument('--threshold', type=float, default=.35)
     p.add_argument('--language', default='ch', help='RapidOCR language; default bundled Chinese/English-capable model')
-    p.add_argument('--model-size',choices=['tiny','small','medium'],default='small')
-    p.add_argument('--device',choices=['cpu','cuda'],default='cpu')
+    p.add_argument('--model-size',choices=['tiny','small','medium'],default='medium')
+    p.add_argument('--device',choices=['cpu','cuda'],default='cuda')
+    p.add_argument('--allow-nonstandard-ocr',action='store_true',help='Explicit CPU/non-medium experiment; cannot enter the production tiered workflow')
     p.add_argument('--limit', type=int)
     p.add_argument('--ids', help='JSON array of image hashes to scan')
     p.add_argument('--refresh', action='store_true', help='Explicitly recompute selected images; failed scans are always retried')
@@ -183,7 +189,7 @@ def main():
     p = commands.add_parser('benchmark')
     p.add_argument('--out', required=True)
     p.add_argument('--truth', required=True)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.command in ('local-vlm','local-pipeline'):
         if args.limit is not None and args.limit<1:parser.error('limit must be positive')
         if args.command=='local-pipeline':
@@ -201,6 +207,9 @@ def main():
         result = inventory(args.input, args.out, read_json(args.provenance) if args.provenance else None)
         print(json.dumps(dict(files=len(result['files']), unique=len(result['images']), errors=len(result['errors']))))
     elif args.command == 'scan':
+        from ocr_policy import validate_options
+        try:validate_options(args.model_size,args.device,args.allow_nonstandard_ocr)
+        except ValueError as error:parser.error(str(error))
         if args.threads < 1 or args.limit is not None and args.limit < 1 or not 0 < args.threshold < 1:
             parser.error('threads/limit must be positive and threshold must be in (0,1)')
         scan(args)
