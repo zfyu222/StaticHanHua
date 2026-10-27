@@ -1,0 +1,40 @@
+[
+  {
+    "ref": "characters:0",
+    "source": "May",
+    "evidence": [
+      {
+        "row": 3,
+        "excerpt": "May opens the gate."
+      },
+      {
+        "row": 4,
+        "excerpt": "You may enter."
+      }
+    ]
+  },
+  {
+    "ref": "characters:1",
+    "source": "Alice",
+    "evidence": [
+      {
+        "row": 5,
+        "excerpt": "  Alice has {0} gold.\r\nWait here. \t"
+      }
+    ]
+  },
+  {
+    "ref": "terms:0",
+    "source": "Might",
+    "evidence": [
+      {
+        "row": 1,
+        "excerpt": "Might"
+      },
+      {
+        "row": 2,
+        "excerpt": "I might return tomorrow."
+      }
+    ]
+  }
+]

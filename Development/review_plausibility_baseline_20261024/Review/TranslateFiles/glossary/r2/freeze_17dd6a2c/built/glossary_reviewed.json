@@ -1,0 +1,14 @@
+{
+  "characters": [],
+  "terms": [],
+  "non_translate": [],
+  "applicability_policy": 1,
+  "terminology_policy": 1,
+  "corpus_evidence_policy": 1,
+  "stats": {
+    "character_count": 0,
+    "term_count": 0,
+    "non_translate_count": 0,
+    "total_hits": 0
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "stage": "translate",
+  "key": "5fea57b10adb6808367cc217a0ce25a59e23983e9a00b37cc279b995ae57d9ab",
+  "records": 7,
+  "failed_records": 0,
+  "clean": true,
+  "failures": [],
+  "repair_tasks": [],
+  "repair_dispatch": [],
+  "phase": "final_full",
+  "checked_records": 8,
+  "checked_rounds": [
+    {
+      "round": 2,
+      "phase": "issue_recheck",
+      "scope": "issues",
+      "checked_records": 1,
+      "result": "passed"
+    },
+    {
+      "round": 3,
+      "phase": "final_full",
+      "scope": "full",
+      "checked_records": 7,
+      "result": "passed"
+    }
+  ],
+  "round_reports": [
+    "D:\\StaticHanHua\\Development\\source_only_role_probe_20261024\\Regression\\TranslateFiles\\reports\\draft_checks\\round_00002.json",
+    "D:\\StaticHanHua\\Development\\source_only_role_probe_20261024\\Regression\\TranslateFiles\\reports\\draft_checks\\round_00003.json"
+  ],
+  "repair_status": [
+    {
+      "id": "draft-repair-6e4648a4ec734f2485b2",
+      "status": "done",
+      "attempt": 1,
+      "ids": [
+        "R0000003_36da9ea8c7"
+      ],
+      "round": 1
+    }
+  ],
+  "imported_baseline": null,
+  "needs_attention_ids": [],
+  "repair_stop_reasons": {},
+  "status": "clean"
+}

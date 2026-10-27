@@ -1,0 +1,45 @@
+{
+  "stage": "review",
+  "phase": "round_checked",
+  "scope": "review_round",
+  "checked_records": 2,
+  "checks": [
+    {
+      "id": "R0000006_4cad1b3ce1",
+      "instance": "api-probe-explicit-135dccb319784005b014c953fbb43a52",
+      "task_id": "review-round-24e491ba7b2b4ebb",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000007_0c9bb70286",
+      "instance": "api-probe-explicit-135dccb319784005b014c953fbb43a52",
+      "task_id": "review-round-24e491ba7b2b4ebb",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    }
+  ],
+  "passed_ids": [
+    "R0000006_4cad1b3ce1",
+    "R0000007_0c9bb70286"
+  ],
+  "failure_summary": {
+    "basis": "first_failing_gate_in_this_scan; later checks may be blocked; not translation accuracy",
+    "checked_failures": {},
+    "outstanding_failures": {},
+    "regression_overlap": 0
+  },
+  "failed_records": 0,
+  "problems": {},
+  "repair_tasks": [],
+  "repair_dispatch": [],
+  "needs_attention_ids": [],
+  "clean": true,
+  "repair_stop_reasons": {},
+  "status": "clean",
+  "round": 2
+}

@@ -1,0 +1,60 @@
+{
+  "stage": "translate",
+  "key": "efb909cd94a978193a53ef04885ae6e1a8609fa39678d34e63e51d80635bca2d",
+  "records": 7,
+  "failed_records": 2,
+  "clean": false,
+  "failures": [
+    {
+      "id": "R0000002_946b636de8",
+      "ordinal": 2,
+      "source": "Qira pointed to her brother. \"Shade, come here.\"",
+      "translation": "琪拉指着她的兄弟。“幽影，过来。”",
+      "diagnostics": [
+        "R0000002_946b636de8: terminology mismatch ['Shade']",
+        "terminology mismatch: Shade"
+      ],
+      "missing_terms": [
+        "Shade"
+      ],
+      "structural_issues": [],
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000004_5425a0b8e0",
+      "ordinal": 4,
+      "source": "They rested in the shade of a tree.",
+      "translation": "他们在树荫下休息。",
+      "diagnostics": [
+        "R0000004_5425a0b8e0: terminology mismatch ['shade']",
+        "terminology mismatch: shade"
+      ],
+      "missing_terms": [
+        "shade"
+      ],
+      "structural_issues": [],
+      "regressed_terms": []
+    }
+  ],
+  "repair_tasks": [],
+  "repair_dispatch": [],
+  "phase": "initial_full",
+  "checked_records": 7,
+  "checked_rounds": [
+    {
+      "round": 1,
+      "phase": "initial_full",
+      "scope": "full",
+      "checked_records": 7,
+      "result": "needs_repair"
+    }
+  ],
+  "round_reports": [
+    "D:\\StaticHanHua\\Development\\term_referent_live_20261027_run2\\Review\\TranslateFiles\\reports\\draft_checks\\round_00001.json"
+  ],
+  "repair_status": [],
+  "imported_baseline": null,
+  "needs_attention_ids": [],
+  "repair_stop_reasons": {},
+  "status": "needs_repair"
+}

@@ -1,0 +1,56 @@
+{
+  "stage": "review",
+  "phase": "round_checked",
+  "scope": "review_round",
+  "checked_records": 3,
+  "checks": [
+    {
+      "id": "R0000003_2200a8fc3c",
+      "instance": "api-review-876dd276852e4809a8ba527bede16fd6",
+      "task_id": "review-round-d8176cb51fed4e02",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000004_254c68d273",
+      "instance": "api-review-876dd276852e4809a8ba527bede16fd6",
+      "task_id": "review-round-d8176cb51fed4e02",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000005_fae7a5eed3",
+      "instance": "api-review-876dd276852e4809a8ba527bede16fd6",
+      "task_id": "review-round-d8176cb51fed4e02",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    }
+  ],
+  "passed_ids": [
+    "R0000003_2200a8fc3c",
+    "R0000004_254c68d273",
+    "R0000005_fae7a5eed3"
+  ],
+  "failure_summary": {
+    "basis": "first_failing_gate_in_this_scan; later checks may be blocked; not translation accuracy",
+    "checked_failures": {},
+    "outstanding_failures": {},
+    "regression_overlap": 0
+  },
+  "failed_records": 0,
+  "problems": {},
+  "repair_tasks": [],
+  "repair_dispatch": [],
+  "needs_attention_ids": [],
+  "clean": true,
+  "repair_stop_reasons": {},
+  "status": "clean",
+  "round": 3,
+  "round_report": "D:\\StaticHanHua\\Development\\review_plausibility_baseline_20261024\\Review\\TranslateFiles\\reports\\review_rounds\\review_00003.json"
+}

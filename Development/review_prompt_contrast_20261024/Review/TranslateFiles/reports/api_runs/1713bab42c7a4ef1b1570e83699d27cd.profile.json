@@ -1,0 +1,145 @@
+{
+  "run_id": "1713bab42c7a4ef1b1570e83699d27cd",
+  "stage": "review",
+  "status": "completed",
+  "elapsed_seconds": 49.0304,
+  "first_request_seconds": 3.6164,
+  "requests_started": 1,
+  "accepted_batches": 1,
+  "failed_attempts": 0,
+  "peak_in_flight": 1,
+  "total_batches": 1,
+  "completed_before_run": 0,
+  "recovered_batches": 0,
+  "records_saved_this_run": 10,
+  "api_cycles": [
+    {
+      "cycle": 1,
+      "accepted": 1,
+      "failed": 0,
+      "records_saved": 10,
+      "scan": {
+        "phase": "round_checked",
+        "status": "clean",
+        "clean": true,
+        "checked_records": 10,
+        "failed_records": 0,
+        "report_file": "D:\\StaticHanHua\\Development\\review_prompt_contrast_20261024\\Review\\TranslateFiles\\reports\\review_round_status.json"
+      }
+    }
+  ],
+  "stage_clean": true,
+  "phase_seconds": {
+    "setup": 0.0114,
+    "prepare": 0.037,
+    "execute": 45.4396,
+    "review_scan": 0.0202
+  },
+  "unfinished_phases": [],
+  "run_tokens": {
+    "prompt_tokens": 3361,
+    "completion_tokens": 8706,
+    "total_tokens": 12067,
+    "cached_prompt_tokens": 128,
+    "reasoning_tokens": 6241,
+    "reported_requests": 1,
+    "unknown_requests": 0
+  },
+  "project_tokens": {
+    "prompt_tokens": 3361,
+    "completion_tokens": 8706,
+    "total_tokens": 12067,
+    "cached_prompt_tokens": 128,
+    "reasoning_tokens": 6241,
+    "reported_requests": 1,
+    "unknown_requests": 0
+  },
+  "counters": {
+    "term_cache_hits": 72
+  },
+  "timings": {
+    "db_lock_wait": {
+      "count": 284,
+      "sum_seconds": 0.010325,
+      "max_seconds": 0.000305
+    },
+    "config_validate": {
+      "count": 87,
+      "sum_seconds": 0.152686,
+      "max_seconds": 0.010809
+    },
+    "dispatch_index_setup": {
+      "count": 1,
+      "sum_seconds": 0.000229,
+      "max_seconds": 0.000229
+    },
+    "resume": {
+      "count": 1,
+      "sum_seconds": 1e-06,
+      "max_seconds": 1e-06
+    },
+    "glossary_load": {
+      "count": 10,
+      "sum_seconds": 0.00051,
+      "max_seconds": 8.1e-05
+    },
+    "term_match": {
+      "count": 72,
+      "sum_seconds": 0.000665,
+      "max_seconds": 2.9e-05
+    },
+    "token_count": {
+      "count": 26,
+      "sum_seconds": 0.009716,
+      "max_seconds": 0.002134
+    },
+    "input_render": {
+      "count": 3,
+      "sum_seconds": 0.006142,
+      "max_seconds": 0.002962
+    },
+    "task_allocate": {
+      "count": 1,
+      "sum_seconds": 0.012558,
+      "max_seconds": 0.012558
+    },
+    "prepare": {
+      "count": 1,
+      "sum_seconds": 0.036714,
+      "max_seconds": 0.036714
+    },
+    "dispatch_lock_wait": {
+      "count": 26,
+      "sum_seconds": 9.108494,
+      "max_seconds": 0.628433
+    },
+    "batch_open": {
+      "count": 26,
+      "sum_seconds": 0.312931,
+      "max_seconds": 0.03352
+    },
+    "rate_limit_wait": {
+      "count": 1,
+      "sum_seconds": 3e-06,
+      "max_seconds": 3e-06
+    },
+    "api_request": {
+      "count": 1,
+      "sum_seconds": 45.321554,
+      "max_seconds": 45.321554
+    },
+    "result_collect": {
+      "count": 1,
+      "sum_seconds": 0.033151,
+      "max_seconds": 0.033151
+    },
+    "review_scan": {
+      "count": 1,
+      "sum_seconds": 0.019914,
+      "max_seconds": 0.019914
+    }
+  },
+  "timing_note": "Nested spans overlap; concurrent request sums may exceed elapsed wall time.",
+  "profile_log": "D:\\StaticHanHua\\Development\\review_prompt_contrast_20261024\\Review\\TranslateFiles\\logs\\api_runs\\1713bab42c7a4ef1b1570e83699d27cd.profile.jsonl",
+  "profile_summary": "D:\\StaticHanHua\\Development\\review_prompt_contrast_20261024\\Review\\TranslateFiles\\reports\\api_runs\\1713bab42c7a4ef1b1570e83699d27cd.profile.json"
+}

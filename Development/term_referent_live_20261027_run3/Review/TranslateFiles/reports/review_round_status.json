@@ -1,0 +1,96 @@
+{
+  "stage": "review",
+  "phase": "round_checked",
+  "scope": "review_round",
+  "checked_records": 7,
+  "checks": [
+    {
+      "id": "R0000001_f26da1f5b6",
+      "instance": "api-review-7c4dd307c8c646ef88459e11d85364fb",
+      "task_id": "review-r4-00001-0e3da54a",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000002_946b636de8",
+      "instance": "api-review-7c4dd307c8c646ef88459e11d85364fb",
+      "task_id": "review-r4-00001-0e3da54a",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000003_b6378529e9",
+      "instance": "api-review-7c4dd307c8c646ef88459e11d85364fb",
+      "task_id": "review-r4-00001-0e3da54a",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000004_5425a0b8e0",
+      "instance": "api-review-7c4dd307c8c646ef88459e11d85364fb",
+      "task_id": "review-r4-00001-0e3da54a",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000005_9c975d0b90",
+      "instance": "api-review-7c4dd307c8c646ef88459e11d85364fb",
+      "task_id": "review-r4-00001-0e3da54a",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000006_68d9e7ffa2",
+      "instance": "api-review-7c4dd307c8c646ef88459e11d85364fb",
+      "task_id": "review-r4-00001-0e3da54a",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000007_917eacaf2b",
+      "instance": "api-review-7c4dd307c8c646ef88459e11d85364fb",
+      "task_id": "review-r4-00001-0e3da54a",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    }
+  ],
+  "passed_ids": [
+    "R0000001_f26da1f5b6",
+    "R0000002_946b636de8",
+    "R0000003_b6378529e9",
+    "R0000004_5425a0b8e0",
+    "R0000005_9c975d0b90",
+    "R0000006_68d9e7ffa2",
+    "R0000007_917eacaf2b"
+  ],
+  "failure_summary": {
+    "basis": "first_failing_gate_in_this_scan; later checks may be blocked; not translation accuracy",
+    "checked_failures": {},
+    "outstanding_failures": {},
+    "regression_overlap": 0
+  },
+  "failed_records": 0,
+  "problems": {},
+  "repair_tasks": [],
+  "repair_dispatch": [],
+  "needs_attention_ids": [],
+  "clean": true,
+  "repair_stop_reasons": {},
+  "status": "clean",
+  "round": 1,
+  "round_report": "D:\\StaticHanHua\\Development\\term_referent_live_20261027_run3\\Review\\TranslateFiles\\reports\\review_rounds\\review_00001.json"
+}

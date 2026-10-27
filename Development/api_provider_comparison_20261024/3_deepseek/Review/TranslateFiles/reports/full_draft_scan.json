@@ -1,0 +1,29 @@
+{
+  "stage": "translate",
+  "key": "0e95b79d1bc6d0ce276d4d3bf6b2259021dee60b8b3ef6eac0d43185c86a83d5",
+  "records": 10,
+  "failed_records": 0,
+  "clean": true,
+  "failures": [],
+  "repair_tasks": [],
+  "repair_dispatch": [],
+  "phase": "initial_full",
+  "checked_records": 10,
+  "checked_rounds": [
+    {
+      "round": 1,
+      "phase": "initial_full",
+      "scope": "full",
+      "checked_records": 10,
+      "result": "passed"
+    }
+  ],
+  "round_reports": [
+    "D:\\StaticHanHua\\Development\\api_provider_comparison_20261024\\3_deepseek\\Review\\TranslateFiles\\reports\\draft_checks\\round_00001.json"
+  ],
+  "repair_status": [],
+  "imported_baseline": null,
+  "needs_attention_ids": [],
+  "repair_stop_reasons": {},
+  "status": "clean"
+}

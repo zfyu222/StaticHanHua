@@ -1,0 +1,231 @@
+{
+  "schema": 1,
+  "kind": "pilot",
+  "purpose": "calibration",
+  "pilot_key": "af2297c2fc9b29014b0490db2a66378bfdd60e9fa7ee1e29243b79d0f140e45d",
+  "source_sha256": "a6b2b2fdd4d07a81c2380b8e2e86c45fedf7f35ee67cc4d84278747a894bac5c",
+  "glossary": {
+    "hash": "b937e424babe8e54f86d4b2431f9af8d79a8f4600e38ea8a9e02f9dd58b7f196",
+    "path": "glossary\\r2\\freeze_18779ea5\\built\\glossary_reviewed.json",
+    "revision": 2
+  },
+  "config": {
+    "agent_attempt_limit": 2,
+    "agent_task_limit": 1,
+    "api": {
+      "api_format": "OpenAI",
+      "api_key_env": "SHH_TRANSLATION_API_KEY",
+      "api_url": "",
+      "concurrency": 50,
+      "extra_body": {},
+      "max_completion_tokens": 16384,
+      "max_requests": 10000,
+      "model_name": "",
+      "request_timeout": 120,
+      "requests_per_minute": 0,
+      "stream": false,
+      "target_platform": "custom_platform_shh",
+      "temperature": 1,
+      "think_switch": false,
+      "tls_switch": false
+    },
+    "backend": "api",
+    "batch_chars": 12000,
+    "batch_records": null,
+    "batch_tokens": 1024,
+    "body_repair_round_limit": 6,
+    "case_sensitive": false,
+    "context_records": 0,
+    "draft_scan_workers": 1,
+    "escalation_backend": "codex",
+    "exclusions": [],
+    "extract_batch_records": null,
+    "extract_batch_tokens": 10000,
+    "game_background": "Torment: Tides of Numenera（折磨：扭蒙拉之潮），第九世界背景的科幻奇幻角色扮演游戏；测试副本，原文与历史译文用于问题回归。",
+    "glossary_review_batch_records": 12,
+    "glossary_review_batch_tokens": 10000,
+    "layout_normalization": "exact_v1",
+    "lease_seconds": 3600,
+    "max_attempts": 4,
+    "model": "gpt-6-luna",
+    "pilot_batch_count": null,
+    "pilot_call_limit": null,
+    "pilot_ordinals": [],
+    "pilot_records": 7,
+    "placeholder_family_overrides": {},
+    "polish": false,
+    "protect_named_curly": null,
+    "quality_version": 2,
+    "record_constraints": {},
+    "review_batch_records": 80,
+    "review_batch_tokens": 1024,
+    "review_estimate": {
+      "ascii_chars_per_token": 3,
+      "full_base_tokens": 420,
+      "non_ascii_tokens_per_char": 2,
+      "pilot_base_tokens": 120,
+      "translation_multiplier": 3
+    },
+    "review_output_reserve_percent": 20,
+    "review_output_tokens": 32768,
+    "sol_no_progress_limit": 2,
+    "sol_repair_model": "gpt-6-sol",
+    "sol_repair_round_limit": 3,
+    "source_language": "auto",
+    "stage_backends": {
+      "extract": "codex",
+      "pilot_translate": "codex",
+      "translate": "codex"
+    },
+    "style": "忠实原意、自然简体中文，依据词语所修饰的实际对象和叙事语境选择词义；禁止添加翻译说明。",
+    "target_language": "简体中文",
+    "task_input_chars": 48000,
+    "task_input_tokens": 65536,
+    "whole_word": true,
+    "workflow": "custom"
+  },
+  "records": [
+    {
+      "id": "R0000001_c590bc54b8",
+      "ordinal": 1,
+      "source": "Hardened",
+      "translation": "硬化",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-5e081e9b",
+        "instance": "fixture-copy-64ff3e330a324b51aa402176ccf7df05"
+      }
+    },
+    {
+      "id": "R0000002_a0ea110547",
+      "ordinal": 2,
+      "source": "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight.",
+      "translation": "这枚棕色圆球沉重而坚实，摸起来像一块被源源不断的水流磨得光滑的岩石。球体一侧有一处恰好贴合人类手掌的凹槽。激活后，这件跃迁会吸收用户，并将其传送至视线范围内的附近地点。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-5e081e9b",
+        "instance": "fixture-copy-64ff3e330a324b51aa402176ccf7df05"
+      }
+    },
+    {
+      "id": "R0000003_36da9ea8c7",
+      "ordinal": 3,
+      "source": "Child {Female}",
+      "translation": "孩童（{Female}）",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [
+        "R0000003_36da9ea8c7: structural mismatch ['hidden_marker_wrapper_added']",
+        "structural mismatch: hidden_marker_wrapper_added"
+      ],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-5e081e9b",
+        "instance": "fixture-copy-64ff3e330a324b51aa402176ccf7df05"
+      }
+    },
+    {
+      "id": "R0000004_abbc502838",
+      "ordinal": 4,
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-5e081e9b",
+        "instance": "fixture-copy-64ff3e330a324b51aa402176ccf7df05"
+      }
+    },
+    {
+      "id": "R0000005_58abdf6a8a",
+      "ordinal": 5,
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-5e081e9b",
+        "instance": "fixture-copy-64ff3e330a324b51aa402176ccf7df05"
+      }
+    },
+    {
+      "id": "R0000006_9546a1921f",
+      "ordinal": 6,
+      "source": "A set of bonuses granted by the Hardened descriptor.",
+      "translation": "由“硬化”描述符提供的一组加成。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-5e081e9b",
+        "instance": "fixture-copy-64ff3e330a324b51aa402176ccf7df05"
+      }
+    },
+    {
+      "id": "R0000007_d407a6bfda",
+      "ordinal": 7,
+      "source": "Your Descriptor provides additional modifiers to your starting Stats and Skills.\\nOnce selected, your Descriptor cannot be changed.",
+      "translation": "你的描述符会为起始属性和技能提供额外修正值。\\n一旦选定，描述符便无法更改。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-5e081e9b",
+        "instance": "fixture-copy-64ff3e330a324b51aa402176ccf7df05"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "pilot_translate-r2-00001-5e081e9b",
+      "stage": "pilot_translate",
+      "status": "done",
+      "attempt": 1,
+      "backend": "codex",
+      "ids": "[\"R0000001_c590bc54b8\",\"R0000002_a0ea110547\",\"R0000003_36da9ea8c7\",\"R0000004_abbc502838\",\"R0000005_58abdf6a8a\",\"R0000006_9546a1921f\",\"R0000007_d407a6bfda\"]",
+      "error": null
+    }
+  ],
+  "config_note": "Current configuration. Saved outputs retain their producer task/input snapshots; a settings change alone does not mean these outputs were regenerated.",
+  "ready_for_assessment": true,
+  "statistics": {
+    "sample_records": 7,
+    "translated_records": 7,
+    "mechanical_failed_records": 1,
+    "task_statuses": {
+      "done": 1
+    },
+    "api_request_statuses_cumulative": {}
+  },
+  "failures": [
+    {
+      "id": "R0000003_36da9ea8c7",
+      "ordinal": 3,
+      "source": "Child {Female}",
+      "translation": "孩童（{Female}）",
+      "diagnostics": [
+        "R0000003_36da9ea8c7: structural mismatch ['hidden_marker_wrapper_added']",
+        "structural mismatch: hidden_marker_wrapper_added"
+      ],
+      "missing_terms": [],
+      "structural_issues": [
+        "hidden_marker_wrapper_added"
+      ]
+    }
+  ],
+  "note": "Mechanical findings are diagnostic, not a semantic error rate. Main AI assesses pipeline reliability, style and recurring quality problems. Individual errors need not be cleared before accepting calibration.",
+  "snapshot_hash": "f9905c95cc64068f9b019ecc5617d7142aa3952d85e7a8860e4c21f8b1b55b99",
+  "report_hash": "761e685cc66df2bd737f0a59f47679d30e5d234a481f0b24a603cef1c2eaa13e"
+}

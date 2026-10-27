@@ -1,0 +1,34 @@
+{
+  "phase": "initial_full",
+  "scope": "full",
+  "checked_ids": [
+    "R0000001_f68b032edc",
+    "R0000002_fdb15a6ffc",
+    "R0000003_42f39ff997",
+    "R0000004_48206415d5",
+    "R0000005_3b3a446ec4",
+    "R0000006_4cad1b3ce1",
+    "R0000007_0c9bb70286",
+    "R0000008_36da9ea8c7",
+    "R0000009_c7669bdfd7"
+  ],
+  "checked_records": 9,
+  "passed_ids": [
+    "R0000001_f68b032edc",
+    "R0000002_fdb15a6ffc",
+    "R0000003_42f39ff997",
+    "R0000004_48206415d5",
+    "R0000005_3b3a446ec4",
+    "R0000006_4cad1b3ce1",
+    "R0000007_0c9bb70286",
+    "R0000008_36da9ea8c7",
+    "R0000009_c7669bdfd7"
+  ],
+  "failures": [],
+  "remaining_failed_ids": [],
+  "key": "e1fd223c1e6debf8e34ac81c983c4dd212e368c570a50cb5ddf7f2a3cc5f6f5c",
+  "policy_key": "9ce371961df711c9a87d100689d44b87bf56a01dad6bec28f149a39d35e7bf4a",
+  "repair_status": [],
+  "result": "passed",
+  "round": 1
+}

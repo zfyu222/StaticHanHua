@@ -1,0 +1,136 @@
+{
+  "review_complete": true,
+  "review_summary": "本批 3 条：e1 为普通NPC通用称谓（含不显示性别控制标记），不是角色专名，整条 quarantine；e2 'user' 在物品说明中仅为普通名词，无游戏特定义，quarantine；e3 'Hardened' 依 metadata 确证为游戏内角色描述词（descriptor）名称，保留为 terms 但降为 reference，并用 whole_record 限定只匹配整条为 'Hardened' 的记录；原译'硬化'按材料义处理不当，按修饰人物语境改为'坚韧'。已核对 audit findings f1、f2。",
+  "acknowledged_findings": [
+    "F0000",
+    "F0001"
+  ],
+  "edits": [
+    {
+      "patch": {
+        "recommended_translation": "坚韧",
+        "term_kind": "game_term",
+        "enforcement": "reference",
+        "term_reason": "metadata 注 'A set of bonuses granted by the Hardened descriptor.'，且 ordinal 1 整条即为角色特质名 'Hardened'",
+        "applicability": {
+          "mode": "whole_record",
+          "case_sensitive": true,
+          "reason": "仅当整条记录文本恰为 'Hardened' 时命中；正文中作普通形容词的 hardened 不在范围内"
+        }
+      },
+      "reason": "确证为角色描述词名称但属多义词，限定适用并按人物修饰语境修正译名",
+      "evidence_rows": [
+        1
+      ],
+      "table": "terms",
+      "index": 1
+    }
+  ],
+  "quarantine": [
+    {
+      "reason": "普通NPC通用称谓与不显示性别控制标记 {Female} 的组合，不是角色专名，不应保留在 characters",
+      "evidence_rows": [
+        3
+      ],
+      "table": "characters",
+      "index": 0
+    },
+    {
+      "reason": "user 在此指物品使用者，属普通名词，无游戏特定义，不应作为全局/引用术语",
+      "evidence_rows": [
+        2
+      ],
+      "table": "terms",
+      "index": 0
+    }
+  ],
+  "additions": [],
+  "allow_no_match": [],
+  "entry_reviews": [
+    {
+      "ref": "characters:0",
+      "evidence_rows": [
+        3
+      ],
+      "source_excerpt": "Child {Female}",
+      "reason": "通用称谓组合，整条隔离",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 3 原文即 'Child {Female}'，与条目 source 逐字一致"
+        },
+        "translation": {
+          "status": "corrected",
+          "evidence": "metadata 说明 {Female} 为不显示性别控制标记，'孩童（女性）' 属通用称谓译法，不应作为角色专名保留"
+        },
+        "category": {
+          "status": "corrected",
+          "evidence": "characters 表用于角色专名，此为普通NPC称谓，应 quarantine 而非入库"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "本批无同源条目与词族候选，无跨批译名冲突"
+        }
+      }
+    },
+    {
+      "ref": "terms:0",
+      "evidence_rows": [
+        2
+      ],
+      "source_excerpt": "the user",
+      "reason": "普通名词，隔离",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 2 原文 'absorbs the user and teleports them' 中 user 与条目 source 一致"
+        },
+        "translation": {
+          "status": "corrected",
+          "evidence": "user 指吸收该球体的使用者，属普通名词，无游戏特定义；条目不保留'用户'译名"
+        },
+        "category": {
+          "status": "corrected",
+          "evidence": "普通名词不属'身份'类术语，应 quarantine"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "无同源条目或词族候选，无一致性冲突"
+        }
+      }
+    },
+    {
+      "ref": "terms:1",
+      "evidence_rows": [
+        1
+      ],
+      "source_excerpt": "Hardened",
+      "reason": "描述词名保留并限定适用范围，修正译名",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 1 整条原文即 'Hardened'；metadata 注 'A set of bonuses granted by the Hardened descriptor.' 支持其为角色描述词名称"
+        },
+        "translation": {
+          "status": "corrected",
+          "evidence": "原提案'硬化'取材料硬化义；该词在此修饰人物（Hardened, a Nano who Fights With His Demons），应取描述角色性情义，改为'坚韧'"
+        },
+        "category": {
+          "status": "pass",
+          "evidence": "category_path '其他' 为合法取值；该词为游戏内角色描述词（descriptor），保留在 terms"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "term_families 无 candidates 与 related_terms，本批无变体或复合词可比对，无冲突"
+        }
+      }
+    }
+  ],
+  "reviewed_refs": [
+    "characters:0",
+    "terms:0",
+    "terms:1"
+  ],
+  "snapshot_sha256": "d6b7260f59378d66556d43959c481d8c06e3d30fc5c8dee391b0d648633e3e53",
+  "source_sha256": "95e4f901188af733237e32453cfe8358cda2740cb7359c94b194c75cfa37b054"
+}

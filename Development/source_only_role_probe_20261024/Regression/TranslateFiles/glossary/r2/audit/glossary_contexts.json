@@ -1,0 +1,36 @@
+[
+  {
+    "ref": "characters:0",
+    "source": "Child {Female}",
+    "evidence": [
+      {
+        "row": 3,
+        "excerpt": "Child {Female}"
+      }
+    ]
+  },
+  {
+    "ref": "terms:0",
+    "source": "user",
+    "evidence": [
+      {
+        "row": 2,
+        "excerpt": "flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight."
+      }
+    ]
+  },
+  {
+    "ref": "terms:1",
+    "source": "Hardened",
+    "evidence": [
+      {
+        "row": 1,
+        "excerpt": "Hardened"
+      },
+      {
+        "row": 6,
+        "excerpt": "A set of bonuses granted by the Hardened descriptor."
+      }
+    ]
+  }
+]

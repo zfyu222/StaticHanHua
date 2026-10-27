@@ -1,0 +1,12 @@
+{
+  "extra": {
+    "analysis_v1": {
+      "characters": [],
+      "terms": [],
+      "non_translate": [],
+      "applicability_policy": 1,
+      "terminology_policy": 1,
+      "corpus_evidence_policy": 1
+    }
+  }
+}

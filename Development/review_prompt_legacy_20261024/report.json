@@ -1,0 +1,139 @@
+{
+  "arm": "legacy",
+  "fixture_cases": [
+    {
+      "kind": "actual_bad_scalp_4147",
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”"
+    },
+    {
+      "kind": "actual_bad_scalp_4257",
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”"
+    },
+    {
+      "kind": "correct_scalp_control",
+      "source": "He ran a hand over his stubbled scalp.",
+      "before": "他用手抚过留着短发茬的头皮。"
+    },
+    {
+      "kind": "correct_chin_control",
+      "source": "His chin was covered in stubble.",
+      "before": "他的下巴上长满胡茬。"
+    },
+    {
+      "kind": "source_explicit_fantasy_control",
+      "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+      "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。"
+    },
+    {
+      "kind": "new_bad_hair_sense",
+      "source": "She ran a hand over her close-cropped hair.",
+      "before": "她用手抚过剪下来的头发。"
+    },
+    {
+      "kind": "held_out_bad_brows",
+      "source": "The scholar knitted her brows as she studied the map.",
+      "before": "学者一边研究地图，一边编织她的眉毛。"
+    },
+    {
+      "kind": "held_out_bad_lined_face",
+      "source": "Years at sea had left the captain's face deeply lined.",
+      "before": "多年的海上生活让船长的脸上画满了深深的线条。"
+    },
+    {
+      "kind": "held_out_correct_literal_lines",
+      "source": "The surgeon drew two lines on the patient's face.",
+      "before": "外科医生在病人的脸上画了两条线。"
+    },
+    {
+      "kind": "held_out_correct_literal_eyebrows",
+      "source": "The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+      "before": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。"
+    }
+  ],
+  "wire_limit": 2,
+  "production_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "workflow_module_sha256": "f44ecf3807906c33b9b1caee7f46f77fc1cb735919a2113ed676de7b77fed9a5",
+  "experimental_instruction": " 独立审校不能以术语命中、直译可对应或沿用候选判断为语义正确依据。accuracy核对词语实际修饰对象、身体部位、施事/受事及物理/比喻词义，例如stubbled scalp是短发茬头皮，不能搬用脸部胡茬；tone核对整句中文搭配是否自然。短UI标签结合已有描述/资源信息判断人物特质还是物理状态；语境不足时明确报告疑点，不把猜测写成已证实。只对具体问题举证，不新增一轮审校或冗余输出字段。",
+  "held_out": true,
+  "reading_report": null,
+  "fixture_note": "Developer copied translations, deliberately including historical errors. Empty glossary isolates review; no screenshot, diagnoses, expected corrections, or case kinds sent to API.",
+  "runner": {
+    "accepted": 1,
+    "failed": 0,
+    "stage_clean": true,
+    "needs_attention": [],
+    "pending_handoffs": []
+  },
+  "after": [
+    {
+      "ordinal": 1,
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过留着短发茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+      "stage": "review"
+    },
+    {
+      "ordinal": 2,
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过留着短发茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+      "stage": "review"
+    },
+    {
+      "ordinal": 3,
+      "source": "He ran a hand over his stubbled scalp.",
+      "translation": "他用手抚过留着短发茬的头皮。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 4,
+      "source": "His chin was covered in stubble.",
+      "translation": "他的下巴上长满胡茬。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 5,
+      "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+      "translation": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 6,
+      "source": "She ran a hand over her close-cropped hair.",
+      "translation": "她用手抚过自己剪得短短的头发。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 7,
+      "source": "The scholar knitted her brows as she studied the map.",
+      "translation": "这位学者一边研究地图，一边皱起眉头。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 8,
+      "source": "Years at sea had left the captain's face deeply lined.",
+      "translation": "多年的海上生活让船长的脸上布满了深深的皱纹。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 9,
+      "source": "The surgeon drew two lines on the patient's face.",
+      "translation": "外科医生在病人的脸上画了两条线。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 10,
+      "source": "The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+      "translation": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+      "stage": "review"
+    }
+  ],
+  "api_calls": [
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":12047,\"completion_tokens_details\":{\"accepted_prediction_tokens\":null,\"audio_tokens\":null,\"reasoning_tokens\":9303,\"rejected_prediction_tokens\":null},\"finish_reason\":\"stop\",\"prompt_tokens\":3132,\"prompt_tokens_details\":{\"audio_tokens\":null,\"cache_write_tokens\":null,\"cached_tokens\":1792},\"response_model\":\"deepseek-flash\",\"response_transport\":\"stream\",\"total_tokens\":15179,\"usage_reported\":true}"
+    }
+  ],
+  "wire_requests": 1,
+  "production_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f"
+}

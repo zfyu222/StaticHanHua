@@ -1,0 +1,11 @@
+{
+  "review_complete": false,
+  "review_summary": "",
+  "snapshot_sha256": "b72e4932067ff45f1556840a08b84f5dc23ceb83f67af2d660f6419f15bf9053",
+  "source_sha256": "d71ea9d9f002019093c2a39f355634c5e8141ad5acce0bfa5139bd849e651a9d",
+  "acknowledged_findings": [],
+  "edits": [],
+  "quarantine": [],
+  "additions": [],
+  "allow_no_match": []
+}

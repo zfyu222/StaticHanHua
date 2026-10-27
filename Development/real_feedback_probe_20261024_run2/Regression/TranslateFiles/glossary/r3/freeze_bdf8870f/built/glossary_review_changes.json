@@ -1,0 +1,157 @@
+{
+  "review_summary": "本批 3 条：e1 为普通NPC通用称谓（含不显示性别控制标记），不是角色专名，整条 quarantine；e2 'user' 在物品说明中仅为普通名词，无游戏特定义，quarantine；e3 'Hardened' 依 metadata 确证为游戏内角色描述词（descriptor）名称，保留为 terms 但降为 reference，并用 whole_record 限定只匹配整条为 'Hardened' 的记录；原译'硬化'按材料义处理不当，按修饰人物语境改为'坚韧'。已核对 audit findings f1、f2。",
+  "changes": [
+    {
+      "action": "edits",
+      "table": "terms",
+      "index": 1,
+      "before": {
+        "category_path": "其他",
+        "recommended_translation": "硬化",
+        "source": "Hardened",
+        "evidence_rows": [
+          1
+        ],
+        "extraction_candidates": [
+          {
+            "table": "terms",
+            "row": {
+              "category_path": "其他",
+              "recommended_translation": "硬化",
+              "source": "Hardened"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              1
+            ],
+            "extraction_tasks": [
+              "extract-r3-00001-a6629b72"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen"
+      },
+      "after": {
+        "category_path": "其他",
+        "recommended_translation": "坚韧",
+        "source": "Hardened",
+        "evidence_rows": [
+          1
+        ],
+        "extraction_candidates": [
+          {
+            "table": "terms",
+            "row": {
+              "category_path": "其他",
+              "recommended_translation": "硬化",
+              "source": "Hardened"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              1
+            ],
+            "extraction_tasks": [
+              "extract-r3-00001-a6629b72"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen",
+        "applicability": {
+          "case_sensitive": true,
+          "mode": "whole_record",
+          "reason": "仅当整条记录文本恰为 'Hardened' 时命中；正文中作普通形容词的 hardened 不在范围内"
+        },
+        "enforcement": "reference",
+        "term_kind": "game_term",
+        "term_reason": "metadata 注 'A set of bonuses granted by the Hardened descriptor.'，且 ordinal 1 整条即为角色特质名 'Hardened'"
+      },
+      "reason": "确证为角色描述词名称但属多义词，限定适用并按人物修饰语境修正译名",
+      "evidence": [
+        {
+          "row": 1,
+          "text": "Hardened"
+        }
+      ]
+    },
+    {
+      "action": "quarantine",
+      "table": "characters",
+      "index": 0,
+      "before": {
+        "gender": "女性",
+        "recommended_translation": "孩童（女性）",
+        "source": "Child {Female}",
+        "evidence_rows": [
+          3
+        ],
+        "extraction_candidates": [
+          {
+            "table": "characters",
+            "row": {
+              "gender": "女性",
+              "recommended_translation": "孩童（女性）",
+              "source": "Child {Female}"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              3
+            ],
+            "extraction_tasks": [
+              "extract-r3-00001-a6629b72"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen"
+      },
+      "after": null,
+      "reason": "普通NPC通用称谓与不显示性别控制标记 {Female} 的组合，不是角色专名，不应保留在 characters",
+      "evidence": [
+        {
+          "row": 3,
+          "text": "Child {Female}"
+        }
+      ]
+    },
+    {
+      "action": "quarantine",
+      "table": "terms",
+      "index": 0,
+      "before": {
+        "category_path": "身份",
+        "recommended_translation": "用户",
+        "source": "user",
+        "evidence_rows": [
+          2
+        ],
+        "extraction_candidates": [
+          {
+            "table": "terms",
+            "row": {
+              "category_path": "身份",
+              "recommended_translation": "用户",
+              "source": "user"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              2
+            ],
+            "extraction_tasks": [
+              "extract-r3-00001-a6629b72"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen"
+      },
+      "after": null,
+      "reason": "user 在此指物品使用者，属普通名词，无游戏特定义，不应作为全局/引用术语",
+      "evidence": [
+        {
+          "row": 2,
+          "text": "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight."
+        }
+      ]
+    }
+  ],
+  "remaining_findings": [],
+  "no_match_exceptions": {}
+}

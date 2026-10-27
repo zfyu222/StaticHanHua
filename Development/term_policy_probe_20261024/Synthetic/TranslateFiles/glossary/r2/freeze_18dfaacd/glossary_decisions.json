@@ -1,0 +1,157 @@
+{
+  "snapshot_sha256": "75da8091e0d443f5b1d299f482d2c9f47b44664c73d49fb039081fdd92d0e9d2",
+  "source_sha256": "afb90c9d53fc2cfe2835ff46077492f58159c4cded74862e27c3747e665a2762",
+  "review_complete": true,
+  "review_summary": "已核对本批 5 条条目：May、Alice 为人物专名，Might 为 UI 力量属性，{0} 与 {Female} 为运行/元数据占位符；译名、分类、适用限定及一致性均无冲突，无需修订或隔离。",
+  "reviewed_refs": [
+    "characters:0",
+    "characters:1",
+    "terms:0",
+    "non_translate:0",
+    "non_translate:1"
+  ],
+  "acknowledged_findings": [],
+  "edits": [],
+  "quarantine": [],
+  "additions": [],
+  "allow_no_match": [],
+  "entry_reviews": [
+    {
+      "checks": {
+        "category": {
+          "evidence": "characters 表、term_kind=proper_name，分类符合人物专名。",
+          "status": "pass"
+        },
+        "consistency": {
+          "evidence": "译名“梅”与 applicability 的 literal_context 限定一致，避免误匹配普通词。",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 3 中 May 位于句首并作 opens 的主语，确为人物名而非情态动词。",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "May 译作女性人名“梅”自然且符合人物表。",
+          "status": "pass"
+        }
+      },
+      "evidence_rows": [
+        3
+      ],
+      "reason": "人物专名，literal_context 限定准确，译名可用。",
+      "ref": "characters:0",
+      "source_excerpt": "May opens the gate."
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "characters 表、term_kind=proper_name，分类正确。",
+          "status": "pass"
+        },
+        "consistency": {
+          "evidence": "女性性别与人物译名一致，未与占位符 {0} 混淆。",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 5 中 Alice 作 has gold 的主语，为人物名。",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "Alice 译作“爱丽丝”为通行女性人名译法。",
+          "status": "pass"
+        }
+      },
+      "evidence_rows": [
+        5
+      ],
+      "reason": "人物专名，女性译名标准，无冲突。",
+      "ref": "characters:1",
+      "source_excerpt": "Alice has {0} gold."
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "category_path=其他 合法，符合 UI 属性词条归类。",
+          "status": "pass"
+        },
+        "consistency": {
+          "evidence": "game_term 且 whole_record 限定仅匹配完整标签，避免与普通词混淆。",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 1 的 metadata.text_type 为 ui，原文独立为 Might，符合属性标签语境。",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "按游戏背景 Might 为力量属性，译作“力量”准确。",
+          "status": "pass"
+        }
+      },
+      "evidence_rows": [
+        1
+      ],
+      "reason": "UI 属性标签，译名“力量”和 whole_record 限定均合适。",
+      "ref": "terms:0",
+      "source_excerpt": "Might"
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "归入 non_translate 表符合运行占位符性质。",
+          "status": "pass"
+        },
+        "consistency": {
+          "evidence": "与同句 Alice has {0} gold. 的变量写法一致，未改写占位符。",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 5 原文包含 {0}，为格式化占位符。",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "non_translate 条目不翻译，保持 {0} 原样以维持格式化。",
+          "status": "pass"
+        }
+      },
+      "evidence_rows": [
+        5
+      ],
+      "reason": "运行变量占位符，保持原样，保护方式正确。",
+      "ref": "non_translate:0",
+      "source_excerpt": "{0}"
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "归入 non_translate 表符合非打印标记性质。",
+          "status": "pass"
+        },
+        "consistency": {
+          "evidence": "未将 Child {Female} 整体误收为专名，也未把裸词扩为全局禁翻。",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 8 原文为 Child {Female}，其中 {Female} 为性别元数据标记。",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "non_translate 条目保持 {Female} 原样，不翻译元数据。",
+          "status": "pass"
+        }
+      },
+      "evidence_rows": [
+        8
+      ],
+      "reason": "非打印性别元数据标记，保持原样，不当作专名。",
+      "ref": "non_translate:1",
+      "source_excerpt": "{Female}"
+    }
+  ],
+  "review_instances": {
+    "characters:0": "api-probe-2c9fb4b4df6f44c3b7fae2b3df8bad47",
+    "characters:1": "api-probe-2c9fb4b4df6f44c3b7fae2b3df8bad47",
+    "terms:0": "api-probe-2c9fb4b4df6f44c3b7fae2b3df8bad47",
+    "non_translate:0": "api-probe-2c9fb4b4df6f44c3b7fae2b3df8bad47",
+    "non_translate:1": "api-probe-2c9fb4b4df6f44c3b7fae2b3df8bad47"
+  }
+}

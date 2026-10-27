@@ -1,0 +1,108 @@
+{
+  "arm": "source_only",
+  "fixture_cases": [
+    {
+      "kind": "actual_bad_scalp_4147",
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "before": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”"
+    },
+    {
+      "kind": "actual_bad_scalp_4257",
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "before": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”"
+    },
+    {
+      "kind": "correct_scalp_control",
+      "source": "He ran a hand over his stubbled scalp.",
+      "before": "他用手抚过留着短发茬的头皮。"
+    },
+    {
+      "kind": "correct_chin_control",
+      "source": "His chin was covered in stubble.",
+      "before": "他的下巴上长满胡茬。"
+    },
+    {
+      "kind": "source_explicit_fantasy_control",
+      "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+      "before": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。"
+    },
+    {
+      "kind": "new_bad_hair_sense",
+      "source": "She ran a hand over her close-cropped hair.",
+      "before": "她用手抚过剪下来的头发。"
+    }
+  ],
+  "wire_limit": 1,
+  "production_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "workflow_module_sha256": "2886c71b55f5300388b155197c14e7e443ad9732e8187572af00a5acef9ba038",
+  "fixture_note": "Developer copied translations, deliberately including historical errors. Empty glossary isolates review; no screenshot, diagnoses, expected corrections, or case kinds sent to API.",
+  "runner": {
+    "accepted": 0,
+    "failed": 2,
+    "stage_clean": false,
+    "needs_attention": [
+      {
+        "session_id": "7630852f081e46c49dd68653f857ad4d",
+        "error": "probe_wire_limit_before_transport"
+      }
+    ],
+    "pending_handoffs": [
+      {
+        "session_id": "7630852f081e46c49dd68653f857ad4d",
+        "status": "waiting",
+        "input_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_only_20261024\\Review\\TranslateFiles\\tasks\\pilot_translate-r2-00001-97f4bdb4\\handoffs\\7630852f081e46c49dd68653f857ad4d\\input.md",
+        "result_file": "D:\\StaticHanHua\\Development\\review_plausibility_source_only_20261024\\Review\\TranslateFiles\\tasks\\pilot_translate-r2-00001-97f4bdb4\\handoffs\\7630852f081e46c49dd68653f857ad4d\\result.json"
+      }
+    ]
+  },
+  "after": [
+    {
+      "ordinal": 1,
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 2,
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 3,
+      "source": "He ran a hand over his stubbled scalp.",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 4,
+      "source": "His chin was covered in stubble.",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 5,
+      "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 6,
+      "source": "She ran a hand over her close-cropped hair.",
+      "translation": null,
+      "stage": "source"
+    }
+  ],
+  "api_calls": [
+    {
+      "status": "APITimeoutError:transport",
+      "usage": "{}"
+    },
+    {
+      "status": "probe_wire_limit_before_transport",
+      "usage": "{\"usage_reported\":false}"
+    }
+  ],
+  "wire_requests": 1,
+  "production_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f"
+}

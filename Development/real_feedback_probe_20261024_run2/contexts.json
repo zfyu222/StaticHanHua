@@ -1,0 +1,32 @@
+{
+  "1": {
+    "original_ordinal": "57207",
+    "text_type": "人物特质名称",
+    "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+    "note": "截图显示阿利格恩人物标题下为“Hardened, a Nano who Fights With His Demons”；原文另有“A set of bonuses granted by the Hardened descriptor.”。"
+  },
+  "2": {
+    "original_ordinal": "63811",
+    "text_type": "物品说明",
+    "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+    "note": ""
+  },
+  "3": {
+    "original_ordinal": "62257",
+    "text_type": "NPC通用称谓",
+    "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+    "note": "原文{Female}为不显示的性别控制标记。"
+  },
+  "4": {
+    "original_ordinal": "4147",
+    "text_type": "对白叙述",
+    "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+    "note": ""
+  },
+  "5": {
+    "original_ordinal": "4257",
+    "text_type": "对白叙述",
+    "evidence_origin": "user screenshot and original stringtable; provided context is factual, no proposed correction",
+    "note": ""
+  }
+}

@@ -1,0 +1,256 @@
+{
+  "schema": 1,
+  "kind": "pilot",
+  "purpose": "calibration",
+  "pilot_key": "542395879d695898613969ab23ffe52c5e3198c6a8eb596841d16fa5783777ee",
+  "source_sha256": "98c3784d6e2501a148a05ba7f207f6619d39f86c2b23a98c04aaabe5b5878ce9",
+  "glossary": {
+    "hash": "d9c1a174a1bd8d0e588f55a4f2e05a934508555093ac39f1c0432255fb9b5ad9",
+    "path": "glossary\\r2\\freeze_6c2e4bb6\\built\\glossary_reviewed.json",
+    "revision": 2
+  },
+  "config": {
+    "agent_attempt_limit": 2,
+    "agent_task_limit": 1,
+    "api": {
+      "api_format": "OpenAI",
+      "api_key_env": "SHH_TRANSLATION_API_KEY",
+      "api_url": "",
+      "concurrency": 50,
+      "extra_body": {},
+      "max_completion_tokens": 16384,
+      "max_requests": 10000,
+      "model_name": "",
+      "request_timeout": 120,
+      "requests_per_minute": 0,
+      "stream": false,
+      "target_platform": "custom_platform_shh",
+      "temperature": 1,
+      "think_switch": false,
+      "tls_switch": false
+    },
+    "backend": "api",
+    "batch_chars": 12000,
+    "batch_records": null,
+    "batch_tokens": 1024,
+    "body_repair_round_limit": 6,
+    "case_sensitive": false,
+    "context_records": 0,
+    "draft_scan_workers": 1,
+    "escalation_backend": "codex",
+    "exclusions": [],
+    "extract_batch_records": null,
+    "extract_batch_tokens": 10000,
+    "game_background": "科幻奇幻角色扮演游戏的叙事和对白。",
+    "glossary_review_batch_records": 12,
+    "glossary_review_batch_tokens": 10000,
+    "layout_normalization": "exact_v1",
+    "lease_seconds": 3600,
+    "max_attempts": 3,
+    "model": "gpt-6-luna",
+    "pilot_batch_count": null,
+    "pilot_call_limit": null,
+    "pilot_ordinals": [],
+    "pilot_records": 10,
+    "placeholder_family_overrides": {},
+    "polish": false,
+    "protect_named_curly": null,
+    "quality_version": 2,
+    "record_constraints": {},
+    "review_batch_records": 80,
+    "review_batch_tokens": 1024,
+    "review_estimate": {
+      "ascii_chars_per_token": 3,
+      "full_base_tokens": 420,
+      "non_ascii_tokens_per_char": 2,
+      "pilot_base_tokens": 120,
+      "translation_multiplier": 3
+    },
+    "review_output_reserve_percent": 20,
+    "review_output_tokens": 32768,
+    "sol_no_progress_limit": 2,
+    "sol_repair_model": "gpt-6-sol",
+    "sol_repair_round_limit": 3,
+    "source_language": "auto",
+    "stage_backends": {
+      "extract": "codex",
+      "glossary_review": "codex",
+      "pilot_translate": "codex",
+      "translate": "codex"
+    },
+    "style": "忠实原意，自然简体中文。保留原文明确的科幻奇幻设定；只修复明确错误，不为偏好改写。",
+    "target_language": "简体中文",
+    "task_input_chars": 48000,
+    "task_input_tokens": 65536,
+    "whole_word": true,
+    "workflow": "custom"
+  },
+  "records": [
+    {
+      "id": "R0000001_abbc502838",
+      "ordinal": 1,
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000002_58abdf6a8a",
+      "ordinal": 2,
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000003_2200a8fc3c",
+      "ordinal": 3,
+      "source": "He ran a hand over his stubbled scalp.",
+      "translation": "他用手抚过留着短发茬的头皮。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000004_254c68d273",
+      "ordinal": 4,
+      "source": "His chin was covered in stubble.",
+      "translation": "他的下巴上长满胡茬。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000005_fae7a5eed3",
+      "ordinal": 5,
+      "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+      "translation": "变种人的头皮上长满浓密的胡须，他仔细地梳理着。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000006_ac3cbca845",
+      "ordinal": 6,
+      "source": "She ran a hand over her close-cropped hair.",
+      "translation": "她用手抚过剪下来的头发。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000007_8aa54d8772",
+      "ordinal": 7,
+      "source": "The scholar knitted her brows as she studied the map.",
+      "translation": "学者一边研究地图，一边编织她的眉毛。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000008_cb97d7bac0",
+      "ordinal": 8,
+      "source": "Years at sea had left the captain's face deeply lined.",
+      "translation": "多年的海上生活让船长的脸上画满了深深的线条。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000009_1d6c8a1323",
+      "ordinal": 9,
+      "source": "The surgeon drew two lines on the patient's face.",
+      "translation": "外科医生在病人的脸上画了两条线。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    },
+    {
+      "id": "R0000010_d85ee15965",
+      "ordinal": 10,
+      "source": "The witch wove a pair of eyebrows from silver thread and fixed them above the doll's eyes.",
+      "translation": "女巫用银线织出一对眉毛，把它们固定在玩偶眼睛上方。",
+      "metadata": {},
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-84baf45c",
+        "instance": "developer-fixture-6c33e87545a444cfa11bb6a107dc1a7f"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "pilot_translate-r2-00001-84baf45c",
+      "stage": "pilot_translate",
+      "status": "done",
+      "attempt": 1,
+      "backend": "codex",
+      "ids": "[\"R0000001_abbc502838\",\"R0000002_58abdf6a8a\",\"R0000003_2200a8fc3c\",\"R0000004_254c68d273\",\"R0000005_fae7a5eed3\",\"R0000006_ac3cbca845\",\"R0000007_8aa54d8772\",\"R0000008_cb97d7bac0\",\"R0000009_1d6c8a1323\",\"R0000010_d85ee15965\"]",
+      "error": null
+    }
+  ],
+  "config_note": "Current configuration. Saved outputs retain their producer task/input snapshots; a settings change alone does not mean these outputs were regenerated.",
+  "ready_for_assessment": true,
+  "statistics": {
+    "sample_records": 10,
+    "translated_records": 10,
+    "mechanical_failed_records": 0,
+    "task_statuses": {
+      "done": 1
+    },
+    "api_request_statuses_cumulative": {}
+  },
+  "failures": [],
+  "note": "Mechanical findings are diagnostic, not a semantic error rate. Main AI assesses pipeline reliability, style and recurring quality problems. Individual errors need not be cleared before accepting calibration.",
+  "snapshot_hash": "e9be6e223f7638865b4461766f55cb78914e1bfcc36d70e869bca5f42bdb2ede",
+  "report_hash": "23a173d1768feee2c27a4b40b5cb1ae8a3695d095195680f82174d42ae99cf36"
+}

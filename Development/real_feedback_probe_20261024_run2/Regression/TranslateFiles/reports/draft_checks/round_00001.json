@@ -1,0 +1,53 @@
+{
+  "phase": "initial_full",
+  "scope": "full",
+  "checked_ids": [
+    "R0000001_c590bc54b8",
+    "R0000002_a0ea110547",
+    "R0000003_36da9ea8c7",
+    "R0000004_abbc502838",
+    "R0000005_58abdf6a8a"
+  ],
+  "checked_records": 5,
+  "passed_ids": [
+    "R0000001_c590bc54b8",
+    "R0000002_a0ea110547",
+    "R0000004_abbc502838",
+    "R0000005_58abdf6a8a"
+  ],
+  "failures": [
+    {
+      "id": "R0000003_36da9ea8c7",
+      "ordinal": 3,
+      "source": "Child {Female}",
+      "translation": "孩童（{Female}）",
+      "diagnostics": [
+        "R0000003_36da9ea8c7: structural mismatch ['hidden_marker_wrapper_added']",
+        "structural mismatch: hidden_marker_wrapper_added"
+      ],
+      "missing_terms": [],
+      "structural_issues": [
+        "hidden_marker_wrapper_added"
+      ],
+      "regressed_terms": []
+    }
+  ],
+  "remaining_failed_ids": [
+    "R0000003_36da9ea8c7"
+  ],
+  "key": "e8d2dea9f1d545a3136bdabaf46a65b41659b9a353e7da0b64a1fb9a89cd3214",
+  "policy_key": "79118068eb0560efeebb9c7c45c4f4d137fbb94e9a4ad0a55d9ff489b0c1a80c",
+  "repair_status": [
+    {
+      "id": "draft-repair-1aff54cb821f4c5ea5f0",
+      "status": "pending",
+      "attempt": 0,
+      "ids": [
+        "R0000003_36da9ea8c7"
+      ],
+      "round": 1
+    }
+  ],
+  "result": "needs_repair",
+  "round": 1
+}

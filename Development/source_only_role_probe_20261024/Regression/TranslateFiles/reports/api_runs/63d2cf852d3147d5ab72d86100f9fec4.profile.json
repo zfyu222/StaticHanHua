@@ -1,0 +1,119 @@
+{
+  "run_id": "63d2cf852d3147d5ab72d86100f9fec4",
+  "stage": "glossary_review",
+  "status": "needs_attention",
+  "elapsed_seconds": 107.6779,
+  "first_request_seconds": 2.8862,
+  "requests_started": 2,
+  "accepted_batches": 0,
+  "failed_attempts": 2,
+  "peak_in_flight": 1,
+  "total_batches": 1,
+  "completed_before_run": 0,
+  "recovered_batches": 0,
+  "records_saved_this_run": 0,
+  "api_cycles": [
+    {
+      "cycle": 1,
+      "accepted": 0,
+      "failed": 2,
+      "records_saved": 0
+    }
+  ],
+  "stage_clean": false,
+  "phase_seconds": {
+    "setup": 0.0102,
+    "prepare": 0.0285,
+    "execute": 104.8295
+  },
+  "unfinished_phases": [],
+  "run_tokens": {
+    "prompt_tokens": 7764,
+    "completion_tokens": 15109,
+    "total_tokens": 22873,
+    "cached_prompt_tokens": 4992,
+    "reasoning_tokens": 12542,
+    "reported_requests": 2,
+    "unknown_requests": 0
+  },
+  "project_tokens": {
+    "prompt_tokens": 7764,
+    "completion_tokens": 15109,
+    "total_tokens": 22873,
+    "cached_prompt_tokens": 4992,
+    "reasoning_tokens": 12542,
+    "reported_requests": 2,
+    "unknown_requests": 0
+  },
+  "counters": {},
+  "timings": {
+    "db_lock_wait": {
+      "count": 100,
+      "sum_seconds": 0.002806,
+      "max_seconds": 0.000195
+    },
+    "config_validate": {
+      "count": 28,
+      "sum_seconds": 0.06289,
+      "max_seconds": 0.007514
+    },
+    "dispatch_index_setup": {
+      "count": 1,
+      "sum_seconds": 0.000193,
+      "max_seconds": 0.000193
+    },
+    "resume": {
+      "count": 1,
+      "sum_seconds": 1e-06,
+      "max_seconds": 1e-06
+    },
+    "token_count": {
+      "count": 10,
+      "sum_seconds": 0.008923,
+      "max_seconds": 0.002857
+    },
+    "task_allocate": {
+      "count": 1,
+      "sum_seconds": 0.006017,
+      "max_seconds": 0.006017
+    },
+    "prepare": {
+      "count": 1,
+      "sum_seconds": 0.028027,
+      "max_seconds": 0.028027
+    },
+    "dispatch_lock_wait": {
+      "count": 8,
+      "sum_seconds": 0.358775,
+      "max_seconds": 0.141227
+    },
+    "batch_open": {
+      "count": 6,
+      "sum_seconds": 0.078944,
+      "max_seconds": 0.021296
+    },
+    "rate_limit_wait": {
+      "count": 2,
+      "sum_seconds": 3e-06,
+      "max_seconds": 1e-06
+    },
+    "api_request": {
+      "count": 2,
+      "sum_seconds": 98.583692,
+      "max_seconds": 64.955608
+    },
+    "result_collect": {
+      "count": 2,
+      "sum_seconds": 0.008429,
+      "max_seconds": 0.005908
+    },
+    "retry_wait": {
+      "count": 2,
+      "sum_seconds": 6.019683,
+      "max_seconds": 4.016833
+    }
+  },
+  "timing_note": "Nested spans overlap; concurrent request sums may exceed elapsed wall time.",
+  "profile_log": "D:\\StaticHanHua\\Development\\source_only_role_probe_20261024\\Regression\\TranslateFiles\\logs\\api_runs\\63d2cf852d3147d5ab72d86100f9fec4.profile.jsonl",
+  "profile_summary": "D:\\StaticHanHua\\Development\\source_only_role_probe_20261024\\Regression\\TranslateFiles\\reports\\api_runs\\63d2cf852d3147d5ab72d86100f9fec4.profile.json"
+}

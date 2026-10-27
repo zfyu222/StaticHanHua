@@ -1,0 +1,115 @@
+{
+  "run_id": "4413766971824566ab66a465069d60aa",
+  "stage": "review",
+  "providers": {
+    "yjapi": {
+      "requests": 1,
+      "responses_received": 1,
+      "requests_completed": 1,
+      "unfinished_requests": 0,
+      "peak_in_flight": 1,
+      "service_failures": 0,
+      "other_transport_failures": 0,
+      "model_or_contract_rejections": 0,
+      "results_collected": 1,
+      "partial_results": 0,
+      "usage_reported_requests": 1,
+      "usage_unknown_requests": 0,
+      "latency_seconds_sum": 54.125,
+      "latency_seconds_max": 54.125,
+      "reported_tokens": {
+        "input": 3653,
+        "output": 9659,
+        "total": 13312,
+        "cached_input": null,
+        "reasoning": null
+      },
+      "token_field_coverage": {
+        "input": 1,
+        "output": 1,
+        "total": 1,
+        "cached_input": 0,
+        "reasoning": 0
+      },
+      "errors": {},
+      "requested_models": [
+        "deepseek-v4.1-flash"
+      ],
+      "response_models": [
+        "deepseek-v4.1-flash"
+      ],
+      "response_success_rate": 1.0,
+      "latency_seconds_mean": 54.125
+    }
+  },
+  "configuration": {
+    "enabled": true,
+    "priority": [
+      "yjapi",
+      "vortex",
+      "acy7",
+      "deepseek"
+    ],
+    "failure_threshold": 5,
+    "cooldown_seconds": 60,
+    "providers": [
+      {
+        "api": "yjapi",
+        "endpoint_host": "yjapi.shop",
+        "model_name": "deepseek-v4.1-flash",
+        "concurrency": 25,
+        "requests_per_minute": 0,
+        "think_switch": true,
+        "request_timeout": 300,
+        "max_completion_tokens": 65536,
+        "max_requests": 100000
+      },
+      {
+        "api": "vortex",
+        "endpoint_host": "vortexapi.xyz",
+        "model_name": "deepseek-v4.1-flash",
+        "concurrency": 25,
+        "requests_per_minute": 0,
+        "think_switch": true,
+        "request_timeout": 300,
+        "max_completion_tokens": 65536,
+        "max_requests": 100000
+      },
+      {
+        "api": "acy7",
+        "endpoint_host": "acy7.com",
+        "model_name": "deepseek-v4.1-flash",
+        "concurrency": 25,
+        "requests_per_minute": 0,
+        "think_switch": true,
+        "request_timeout": 200,
+        "max_completion_tokens": 65536,
+        "max_requests": 100000
+      },
+      {
+        "api": "deepseek",
+        "endpoint_host": "api.deepseek.com",
+        "model_name": "deepseek-flash",
+        "concurrency": 25,
+        "requests_per_minute": 0,
+        "think_switch": true,
+        "request_timeout": 200,
+        "max_completion_tokens": 65536,
+        "max_requests": 100000
+      }
+    ]
+  },
+  "cancelled_without_wire": 0,
+  "transitions": [],
+  "log_file": "D:\\StaticHanHua\\Development\\term_referent_live_20261027_run3\\Review\\TranslateFiles\\logs\\api_failover\\4413766971824566ab66a465069d60aa.jsonl",
+  "state_changes": [],
+  "provider_states": {
+    "yjapi": "normal",
+    "vortex": "normal",
+    "acy7": "normal",
+    "deepseek": "normal"
+  },
+  "elapsed_seconds": 54.258,
+  "stability_note": "Response success measures transport availability, not translation/semantic accuracy; collection failures are separate.",
+  "token_note": "Only server-reported fields summed. Missing remains null/unknown. Cached/reasoning are subsets, not extra totals."
+}

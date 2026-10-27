@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "source_sha256": "98c3784d6e2501a148a05ba7f207f6619d39f86c2b23a98c04aaabe5b5878ce9",
+  "snapshot_sha256": "b72e4932067ff45f1556840a08b84f5dc23ceb83f67af2d660f6419f15bf9053",
+  "original_counts": {
+    "characters": 0,
+    "terms": 0,
+    "non_translate": 0
+  },
+  "findings": []
+}

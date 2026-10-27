@@ -1,0 +1,150 @@
+{
+  "review_complete": true,
+  "review_summary": "已核对本批 5 条条目：May、Alice 为人物专名，Might 为 UI 力量属性，{0} 与 {Female} 为运行/元数据占位符；译名、分类、适用限定及一致性均无冲突，无需修订或隔离。",
+  "acknowledged_findings": [],
+  "edits": [],
+  "quarantine": [],
+  "additions": [],
+  "allow_no_match": [],
+  "entry_reviews": [
+    {
+      "ref": "characters:0",
+      "evidence_rows": [
+        3
+      ],
+      "source_excerpt": "May opens the gate.",
+      "reason": "人物专名，literal_context 限定准确，译名可用。",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 3 中 May 位于句首并作 opens 的主语，确为人物名而非情态动词。"
+        },
+        "translation": {
+          "status": "pass",
+          "evidence": "May 译作女性人名“梅”自然且符合人物表。"
+        },
+        "category": {
+          "status": "pass",
+          "evidence": "characters 表、term_kind=proper_name，分类符合人物专名。"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "译名“梅”与 applicability 的 literal_context 限定一致，避免误匹配普通词。"
+        }
+      }
+    },
+    {
+      "ref": "characters:1",
+      "evidence_rows": [
+        5
+      ],
+      "source_excerpt": "Alice has {0} gold.",
+      "reason": "人物专名，女性译名标准，无冲突。",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 5 中 Alice 作 has gold 的主语，为人物名。"
+        },
+        "translation": {
+          "status": "pass",
+          "evidence": "Alice 译作“爱丽丝”为通行女性人名译法。"
+        },
+        "category": {
+          "status": "pass",
+          "evidence": "characters 表、term_kind=proper_name，分类正确。"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "女性性别与人物译名一致，未与占位符 {0} 混淆。"
+        }
+      }
+    },
+    {
+      "ref": "terms:0",
+      "evidence_rows": [
+        1
+      ],
+      "source_excerpt": "Might",
+      "reason": "UI 属性标签，译名“力量”和 whole_record 限定均合适。",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 1 的 metadata.text_type 为 ui，原文独立为 Might，符合属性标签语境。"
+        },
+        "translation": {
+          "status": "pass",
+          "evidence": "按游戏背景 Might 为力量属性，译作“力量”准确。"
+        },
+        "category": {
+          "status": "pass",
+          "evidence": "category_path=其他 合法，符合 UI 属性词条归类。"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "game_term 且 whole_record 限定仅匹配完整标签，避免与普通词混淆。"
+        }
+      }
+    },
+    {
+      "ref": "non_translate:0",
+      "evidence_rows": [
+        5
+      ],
+      "source_excerpt": "{0}",
+      "reason": "运行变量占位符，保持原样，保护方式正确。",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 5 原文包含 {0}，为格式化占位符。"
+        },
+        "translation": {
+          "status": "pass",
+          "evidence": "non_translate 条目不翻译，保持 {0} 原样以维持格式化。"
+        },
+        "category": {
+          "status": "pass",
+          "evidence": "归入 non_translate 表符合运行占位符性质。"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "与同句 Alice has {0} gold. 的变量写法一致，未改写占位符。"
+        }
+      }
+    },
+    {
+      "ref": "non_translate:1",
+      "evidence_rows": [
+        8
+      ],
+      "source_excerpt": "{Female}",
+      "reason": "非打印性别元数据标记，保持原样，不当作专名。",
+      "checks": {
+        "source": {
+          "status": "pass",
+          "evidence": "ordinal 8 原文为 Child {Female}，其中 {Female} 为性别元数据标记。"
+        },
+        "translation": {
+          "status": "pass",
+          "evidence": "non_translate 条目保持 {Female} 原样，不翻译元数据。"
+        },
+        "category": {
+          "status": "pass",
+          "evidence": "归入 non_translate 表符合非打印标记性质。"
+        },
+        "consistency": {
+          "status": "pass",
+          "evidence": "未将 Child {Female} 整体误收为专名，也未把裸词扩为全局禁翻。"
+        }
+      }
+    }
+  ],
+  "reviewed_refs": [
+    "characters:0",
+    "characters:1",
+    "terms:0",
+    "non_translate:0",
+    "non_translate:1"
+  ],
+  "snapshot_sha256": "75da8091e0d443f5b1d299f482d2c9f47b44664c73d49fb039081fdd92d0e9d2",
+  "source_sha256": "afb90c9d53fc2cfe2835ff46077492f58159c4cded74862e27c3747e665a2762"
+}

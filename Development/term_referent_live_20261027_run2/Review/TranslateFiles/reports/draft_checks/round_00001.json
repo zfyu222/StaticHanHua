@@ -1,0 +1,62 @@
+{
+  "phase": "initial_full",
+  "scope": "full",
+  "checked_ids": [
+    "R0000001_f26da1f5b6",
+    "R0000002_946b636de8",
+    "R0000003_b6378529e9",
+    "R0000004_5425a0b8e0",
+    "R0000005_9c975d0b90",
+    "R0000006_68d9e7ffa2",
+    "R0000007_917eacaf2b"
+  ],
+  "checked_records": 7,
+  "passed_ids": [
+    "R0000001_f26da1f5b6",
+    "R0000003_b6378529e9",
+    "R0000005_9c975d0b90",
+    "R0000006_68d9e7ffa2",
+    "R0000007_917eacaf2b"
+  ],
+  "failures": [
+    {
+      "id": "R0000002_946b636de8",
+      "ordinal": 2,
+      "source": "Qira pointed to her brother. \"Shade, come here.\"",
+      "translation": "琪拉指着她的兄弟。“幽影，过来。”",
+      "diagnostics": [
+        "R0000002_946b636de8: terminology mismatch ['Shade']",
+        "terminology mismatch: Shade"
+      ],
+      "missing_terms": [
+        "Shade"
+      ],
+      "structural_issues": [],
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000004_5425a0b8e0",
+      "ordinal": 4,
+      "source": "They rested in the shade of a tree.",
+      "translation": "他们在树荫下休息。",
+      "diagnostics": [
+        "R0000004_5425a0b8e0: terminology mismatch ['shade']",
+        "terminology mismatch: shade"
+      ],
+      "missing_terms": [
+        "shade"
+      ],
+      "structural_issues": [],
+      "regressed_terms": []
+    }
+  ],
+  "remaining_failed_ids": [
+    "R0000002_946b636de8",
+    "R0000004_5425a0b8e0"
+  ],
+  "key": "efb909cd94a978193a53ef04885ae6e1a8609fa39678d34e63e51d80635bca2d",
+  "policy_key": "00350b23d4b6bab888f9b7d45887dd8240913205b645c42bd8b2cfeee51aad15",
+  "repair_status": [],
+  "result": "needs_repair",
+  "round": 1
+}

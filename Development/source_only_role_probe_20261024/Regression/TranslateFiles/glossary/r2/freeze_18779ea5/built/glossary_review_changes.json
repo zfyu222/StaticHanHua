@@ -1,0 +1,177 @@
+{
+  "review_summary": "本批 3 条：e1（Child {Female}）为普通 NPC 称谓与性别控制标记组合，不构成专名，隔离；e2（user）在 ordinal 2 中仅是法球使用者的普通名词，非游戏术语，隔离；e3（Hardened）经 ordinal 6、7 证实为角色创建 Descriptor 名称，保留为 game_term/reference，纠正候选直译'硬化'为'坚韧'，并以 literal_context 限定其仅匹配 'the Hardened descriptor'，避免与普通形容词 hardened 冲突。已逐条核对 f1、f2。",
+  "changes": [
+    {
+      "action": "edits",
+      "table": "terms",
+      "index": 1,
+      "before": {
+        "category_path": "其他",
+        "recommended_translation": "硬化",
+        "source": "Hardened",
+        "evidence_rows": [
+          1
+        ],
+        "extraction_candidates": [
+          {
+            "table": "terms",
+            "row": {
+              "category_path": "其他",
+              "recommended_translation": "硬化",
+              "source": "Hardened"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              1
+            ],
+            "extraction_tasks": [
+              "extract-r2-00001-0bddf94b"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen",
+        "corpus_evidence_rows": [
+          6,
+          7
+        ],
+        "corpus_evidence_note": "Literal source match in definition/role cue records; may include one definition of the literal role following this term. Candidate evidence, not confirmed semantic equivalence; distinguish homonyms."
+      },
+      "after": {
+        "category_path": "其他",
+        "recommended_translation": "坚韧",
+        "source": "Hardened",
+        "evidence_rows": [
+          1
+        ],
+        "extraction_candidates": [
+          {
+            "table": "terms",
+            "row": {
+              "category_path": "其他",
+              "recommended_translation": "硬化",
+              "source": "Hardened"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              1
+            ],
+            "extraction_tasks": [
+              "extract-r2-00001-0bddf94b"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen",
+        "corpus_evidence_rows": [
+          6,
+          7
+        ],
+        "corpus_evidence_note": "Literal source match in definition/role cue records; may include one definition of the literal role following this term. Candidate evidence, not confirmed semantic equivalence; distinguish homonyms.",
+        "applicability": {
+          "case_sensitive": true,
+          "mode": "literal_context",
+          "prefix": "the ",
+          "reason": "ordinal 6 中仅 'the Hardened descriptor' 这一紧邻字串指 Descriptor 名；单字记录 ordinal 1 为同名 Descriptor 标签，但为避免与普通形容词 hardened 全局误配，不设 text 全局匹配。",
+          "suffix": " descriptor"
+        },
+        "enforcement": "reference",
+        "term_kind": "game_term",
+        "term_reason": "ordinal 6 原文 'A set of bonuses granted by the Hardened descriptor.' 与 ordinal 7 的 Descriptor 说明共同表明 Hardened 是角色创建时赋予初始属性/技能修正的 Descriptor 名称，修饰对象为人物特质（经磨砺而强韧），而非材料'硬化'；该词同时是普通形容词，故仅作 reference 并限定语境。"
+      },
+      "reason": "候选译名'硬化'按字面取材料义，与 Descriptor 所修饰的人物特质不符；据 ordinal 6、7 的 Descriptor 机制改为'坚韧'，并补齐 term_kind/enforcement/applicability 以限定使用范围。",
+      "evidence": [
+        {
+          "row": 1,
+          "text": "Hardened"
+        },
+        {
+          "row": 6,
+          "text": "A set of bonuses granted by the Hardened descriptor."
+        },
+        {
+          "row": 7,
+          "text": "Your Descriptor provides additional modifiers to your starting Stats and Skills.\\nOnce selected, your Descriptor cannot be changed."
+        }
+      ]
+    },
+    {
+      "action": "quarantine",
+      "table": "characters",
+      "index": 0,
+      "before": {
+        "gender": "女性",
+        "recommended_translation": "孩童（女性）",
+        "source": "Child {Female}",
+        "evidence_rows": [
+          3
+        ],
+        "extraction_candidates": [
+          {
+            "table": "characters",
+            "row": {
+              "gender": "女性",
+              "recommended_translation": "孩童（女性）",
+              "source": "Child {Female}"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              3
+            ],
+            "extraction_tasks": [
+              "extract-r2-00001-0bddf94b"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen"
+      },
+      "after": null,
+      "reason": "'Child {Female}' 是普通 NPC 称谓加 {Female} 性别控制标记的组合，不构成专名；{Female} 属运行时标记，应由保护规则处理，不收为 characters 术语。",
+      "evidence": [
+        {
+          "row": 3,
+          "text": "Child {Female}"
+        }
+      ]
+    },
+    {
+      "action": "quarantine",
+      "table": "terms",
+      "index": 0,
+      "before": {
+        "category_path": "身份",
+        "recommended_translation": "用户",
+        "source": "user",
+        "evidence_rows": [
+          2
+        ],
+        "extraction_candidates": [
+          {
+            "table": "terms",
+            "row": {
+              "category_path": "身份",
+              "recommended_translation": "用户",
+              "source": "user"
+            },
+            "extraction_count": 1,
+            "evidence_rows": [
+              2
+            ],
+            "extraction_tasks": [
+              "extract-r2-00001-0bddf94b"
+            ]
+          }
+        ],
+        "provisional_selection": "most_extraction_proposals_then_first_seen"
+      },
+      "after": null,
+      "reason": "ordinal 2 中 'the bounder absorbs the user' 的 user 指使用该球体的普通人，是普通施动者名词，无游戏特定含义，不按'身份'术语冻结。",
+      "evidence": [
+        {
+          "row": 2,
+          "text": "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight."
+        }
+      ]
+    }
+  ],
+  "remaining_findings": [],
+  "no_match_exceptions": {}
+}

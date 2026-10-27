@@ -1,0 +1,72 @@
+{
+  "wire_limit": 1,
+  "sources": [
+    "The device grants {0} points.",
+    "Continue.\\nKeep <b>{0}</b> items."
+  ],
+  "runner": {
+    "accepted": 1,
+    "failed": 0,
+    "drafts_complete": null,
+    "needs_attention": []
+  },
+  "readings": {
+    "The device grants {0} points.": {
+      "source_sha256": "97aac1555c9911667642df1ffd934b757defb2410261356249d1214a5da07036",
+      "reading": "该设备提供{0}点数。",
+      "proof": {
+        "project": "D:\\StaticHanHua\\Development\\review_reading_marker_live_20261024",
+        "task_id": "pilot_translate-r2-00001-65c0135a",
+        "input_hash": "746e743fa3a9b3247ded3c9dd43be426ae41628fd28096fa5b39dae90f9cbb6a",
+        "source_file_sha256": "b4bc24a791a828dc924871612d18175e5dc6049212e9eaf8d4b22a4e4e5f4ed9"
+      }
+    },
+    "Continue.\\nKeep <b>{0}</b> items.": {
+      "source_sha256": "08c03ebc9a60a4790ddbfc47e3070460f9a783d8fbcb417dc32249363067d42b",
+      "reading": "继续。\\n保留 <b>{0}</b> 件物品。",
+      "proof": {
+        "project": "D:\\StaticHanHua\\Development\\review_reading_marker_live_20261024",
+        "task_id": "pilot_translate-r2-00001-65c0135a",
+        "input_hash": "746e743fa3a9b3247ded3c9dd43be426ae41628fd28096fa5b39dae90f9cbb6a",
+        "source_file_sha256": "b4bc24a791a828dc924871612d18175e5dc6049212e9eaf8d4b22a4e4e5f4ed9"
+      }
+    }
+  },
+  "calls": [
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":370,\"completion_tokens_details\":{\"accepted_prediction_tokens\":null,\"audio_tokens\":null,\"reasoning_tokens\":319,\"rejected_prediction_tokens\":null},\"finish_reason\":\"stop\",\"prompt_tokens\":1163,\"prompt_tokens_details\":{\"audio_tokens\":null,\"cache_write_tokens\":null,\"cached_tokens\":128},\"response_model\":\"deepseek-flash\",\"response_transport\":\"stream\",\"total_tokens\":1533,\"usage_reported\":true}"
+    }
+  ],
+  "session_id": "25d047544e654436a965e091bdf085ef",
+  "input_sha256": "3e1f3c59c7b7749789062d5434984403e96e15682bfe9ffce14fdfddfcdff63c",
+  "raw_reply": "{\"records\":[{\"id\":\"1\",\"translation\":\"该设备提供[P1]点数。\"},{\"id\":\"2\",\"translation\":\"继续。[P1]保留 [P2][P3][P4] 件物品。\"}]}",
+  "protected_input_tokens": [
+    [
+      {
+        "original": "{0}",
+        "placeholder": "[P1]"
+      }
+    ],
+    [
+      {
+        "original": "\\n",
+        "placeholder": "[P1]"
+      },
+      {
+        "original": "<b>",
+        "placeholder": "[P2]"
+      },
+      {
+        "original": "{0}",
+        "placeholder": "[P3]"
+      },
+      {
+        "original": "</b>",
+        "placeholder": "[P4]"
+      }
+    ]
+  ],
+  "binding_verified": true,
+  "actual_wire_requests": 1
+}

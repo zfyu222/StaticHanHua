@@ -1,0 +1,103 @@
+{
+  "old_report": "D:\\StaticHanHua\\Development\\review_plausibility_source_only_20261024\\report.json",
+  "previous_wire_requests": 1,
+  "new_wire_limit": 2,
+  "started": 1792828537.8315458,
+  "method": "Resume existing source-only pilot via public resume; no previous translation, screenshots, proposed correction or error diagnosis supplied to model.",
+  "production_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "attempts_before": [
+    {
+      "id": "extract-r2-00001-95589069",
+      "stage": "extract",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "glossary_review-r2-00001-332b8685",
+      "stage": "glossary_review",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "pilot_translate-r2-00001-97f4bdb4",
+      "stage": "pilot_translate",
+      "status": "running",
+      "attempt": 2
+    }
+  ],
+  "runner": {
+    "accepted": 1,
+    "failed": 0,
+    "paused": false,
+    "needs_attention": [],
+    "pending_handoffs": [],
+    "next_action": "pilot-decide"
+  },
+  "after": [
+    {
+      "ordinal": 1,
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "但尽管他话说得难听，他的目光还是落在了你身上。端详着。斟酌着。他的嘴抿成一条不耐烦的线。\r\n\r\n“听着，”他一边说，一边用手摸了摸自己长着短发茬的头皮。“你藏得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费解答。”",
+      "stage": "pilot_translate"
+    },
+    {
+      "ordinal": 2,
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": "他盯着她，咬着嘴唇，显然在努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出一丝苦笑，转回身看向你。\r\n\r\n“听着，”他一边说，一边用手摸了摸自己长着短发茬的头皮。“你藏得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费解答。”",
+      "stage": "pilot_translate"
+    },
+    {
+      "ordinal": 3,
+      "source": "He ran a hand over his stubbled scalp.",
+      "translation": "他用手摸了摸自己长着短发茬的头皮。",
+      "stage": "pilot_translate"
+    },
+    {
+      "ordinal": 4,
+      "source": "His chin was covered in stubble.",
+      "translation": "他下巴上满是胡茬。",
+      "stage": "pilot_translate"
+    },
+    {
+      "ordinal": 5,
+      "source": "The mutant's scalp was covered in a thick beard, which he combed carefully.",
+      "translation": "那个变异体的头皮上长着浓密的胡须，他仔细地梳理着。",
+      "stage": "pilot_translate"
+    },
+    {
+      "ordinal": 6,
+      "source": "She ran a hand over her close-cropped hair.",
+      "translation": "她用手抚过自己剪得很短的头发。",
+      "stage": "pilot_translate"
+    }
+  ],
+  "attempts_after": [
+    {
+      "id": "extract-r2-00001-95589069",
+      "stage": "extract",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "glossary_review-r2-00001-332b8685",
+      "stage": "glossary_review",
+      "status": "done",
+      "attempt": 1
+    },
+    {
+      "id": "pilot_translate-r2-00001-97f4bdb4",
+      "stage": "pilot_translate",
+      "status": "done",
+      "attempt": 3
+    }
+  ],
+  "new_api_calls": [
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":4340,\"completion_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cached_tokens\":0,\"reasoning_tokens\":4034,\"rejected_prediction_tokens\":0},\"finish_reason\":\"stop\",\"prompt_tokens\":1358,\"prompt_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cache_write_tokens\":null,\"cached_tokens\":0,\"reasoning_tokens\":0,\"rejected_prediction_tokens\":0},\"response_model\":\"deepseek-v4.1-flash\",\"total_tokens\":5698,\"usage_reported\":true}"
+    }
+  ],
+  "new_wire_requests": 1,
+  "elapsed_seconds": 40.373,
+  "production_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f"
+}

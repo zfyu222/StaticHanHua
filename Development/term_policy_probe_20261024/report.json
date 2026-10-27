@@ -1,0 +1,152 @@
+{
+  "synthetic_only": true,
+  "production_project_access": false,
+  "initial_request_limit": 3,
+  "max_wire_requests_including_retries": 24,
+  "stages": [
+    {
+      "stage": "extract",
+      "accepted": 1,
+      "failed": 0,
+      "paused": false,
+      "needs_attention": []
+    },
+    {
+      "stage": "glossary_review",
+      "accepted": 1,
+      "failed": 0,
+      "paused": false,
+      "needs_attention": []
+    },
+    {
+      "stage": "review",
+      "accepted": 0,
+      "failed": 0,
+      "paused": false,
+      "needs_attention": []
+    }
+  ],
+  "prerequisite_translations": "fixed synthetic fixtures; not API-produced game translations",
+  "status": "completed",
+  "error_type": "ValueError",
+  "error": "Stop on service/contract failure; no extra manual retries",
+  "bounded_followup_max_calls": 1,
+  "followup": {
+    "accepted": 1,
+    "failed": 0,
+    "paused": false,
+    "needs_attention": [],
+    "pending_handoffs": []
+  },
+  "review_scan": {
+    "stage": "review",
+    "phase": "round_checked",
+    "scope": "review_round",
+    "checked_records": 2,
+    "passed_ids": [
+      "R0000006_4cad1b3ce1",
+      "R0000007_0c9bb70286"
+    ],
+    "failure_summary": {
+      "basis": "first_failing_gate_in_this_scan; later checks may be blocked; not translation accuracy",
+      "checked_failures": {},
+      "outstanding_failures": {},
+      "regression_overlap": 0
+    },
+    "failed_records": 0,
+    "repair_tasks": [],
+    "repair_dispatch": [],
+    "needs_attention_ids": [],
+    "clean": true,
+    "repair_stop_reasons": {},
+    "status": "clean",
+    "round": 2,
+    "round_report": "D:\\StaticHanHua\\Development\\term_policy_probe_20261024\\Synthetic\\TranslateFiles\\reports\\review_rounds\\review_00002.json",
+    "report_file": "D:\\StaticHanHua\\Development\\term_policy_probe_20261024\\Synthetic\\TranslateFiles\\reports\\review_round_status.json"
+  },
+  "records": [
+    {
+      "ordinal": 1,
+      "source": "Might",
+      "translation": "力量",
+      "stage": "review"
+    },
+    {
+      "ordinal": 2,
+      "source": "I might return tomorrow.",
+      "translation": "我明天可能回来。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 3,
+      "source": "May opens the gate.",
+      "translation": "梅打开了门。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 4,
+      "source": "You may enter.",
+      "translation": "你可以进去。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 5,
+      "source": "  Alice has {0} gold.\r\nWait here. \t",
+      "translation": "  爱丽丝有{0}金币。\r\n在这里等候。 \t",
+      "stage": "review"
+    },
+    {
+      "ordinal": 6,
+      "source": "The gate is not locked.",
+      "translation": "门没有上锁。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 7,
+      "source": "He runs a hand over his stubbled scalp.",
+      "translation": "他用手抚过留着发茬的头皮。",
+      "stage": "review"
+    },
+    {
+      "ordinal": 8,
+      "source": "Child {Female}",
+      "translation": "孩童 {Female}",
+      "stage": "review"
+    },
+    {
+      "ordinal": 9,
+      "source": "When activated, the orb absorbs its user and transports them nearby.",
+      "translation": "激活后，圆球会吸入用户，并将其传送到附近。",
+      "stage": "review"
+    }
+  ],
+  "api_calls": [
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":3917,\"completion_tokens_details\":{\"accepted_prediction_tokens\":null,\"audio_tokens\":null,\"reasoning_tokens\":3621,\"rejected_prediction_tokens\":null},\"finish_reason\":\"stop\",\"prompt_tokens\":1164,\"prompt_tokens_details\":{\"audio_tokens\":null,\"cache_write_tokens\":null,\"cached_tokens\":0},\"response_model\":\"deepseek-flash\",\"response_transport\":\"stream\",\"total_tokens\":5081,\"usage_reported\":true}"
+    },
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":2382,\"completion_tokens_details\":{\"accepted_prediction_tokens\":null,\"audio_tokens\":null,\"reasoning_tokens\":1559,\"rejected_prediction_tokens\":null},\"finish_reason\":\"stop\",\"prompt_tokens\":2647,\"prompt_tokens_details\":{\"audio_tokens\":null,\"cache_write_tokens\":null,\"cached_tokens\":256},\"response_model\":\"deepseek-flash\",\"response_transport\":\"stream\",\"total_tokens\":5029,\"usage_reported\":true}"
+    },
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":3884,\"completion_tokens_details\":{\"accepted_prediction_tokens\":null,\"audio_tokens\":null,\"reasoning_tokens\":1371,\"rejected_prediction_tokens\":null},\"finish_reason\":\"stop\",\"prompt_tokens\":3092,\"prompt_tokens_details\":{\"audio_tokens\":null,\"cache_write_tokens\":null,\"cached_tokens\":0},\"response_model\":\"deepseek-flash\",\"response_transport\":\"stream\",\"total_tokens\":6976,\"usage_reported\":true}"
+    },
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":2204,\"completion_tokens_details\":{\"accepted_prediction_tokens\":null,\"audio_tokens\":null,\"reasoning_tokens\":1698,\"rejected_prediction_tokens\":null},\"finish_reason\":\"stop\",\"prompt_tokens\":3126,\"prompt_tokens_details\":{\"audio_tokens\":null,\"cache_write_tokens\":null,\"cached_tokens\":256},\"response_model\":\"deepseek-flash\",\"response_transport\":\"stream\",\"total_tokens\":5330,\"usage_reported\":true}"
+    },
+    {
+      "status": "received",
+      "usage": "{\"completion_tokens\":3085,\"completion_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cached_tokens\":0,\"reasoning_tokens\":2501,\"rejected_prediction_tokens\":0},\"finish_reason\":\"stop\",\"prompt_tokens\":3264,\"prompt_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cache_write_tokens\":null,\"cached_tokens\":0,\"reasoning_tokens\":0,\"rejected_prediction_tokens\":0},\"response_model\":\"deepseek-v4.1-flash\",\"total_tokens\":6349,\"usage_reported\":true}"
+    }
+  ],
+  "explicit_translation_guard_followup": {
+    "accepted": 1,
+    "failed": 0,
+    "needs_attention": [],
+    "pending_handoffs": []
+  },
+  "replayed_fixture": "Two unchanged previously received API candidates, new program-bound task/hash only; not a new model result."
+}

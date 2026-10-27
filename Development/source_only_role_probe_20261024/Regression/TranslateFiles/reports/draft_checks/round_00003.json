@@ -1,0 +1,40 @@
+{
+  "phase": "final_full",
+  "scope": "full",
+  "checked_ids": [
+    "R0000001_c590bc54b8",
+    "R0000002_a0ea110547",
+    "R0000003_36da9ea8c7",
+    "R0000004_abbc502838",
+    "R0000005_58abdf6a8a",
+    "R0000006_9546a1921f",
+    "R0000007_d407a6bfda"
+  ],
+  "checked_records": 7,
+  "passed_ids": [
+    "R0000001_c590bc54b8",
+    "R0000002_a0ea110547",
+    "R0000003_36da9ea8c7",
+    "R0000004_abbc502838",
+    "R0000005_58abdf6a8a",
+    "R0000006_9546a1921f",
+    "R0000007_d407a6bfda"
+  ],
+  "failures": [],
+  "remaining_failed_ids": [],
+  "key": "5fea57b10adb6808367cc217a0ce25a59e23983e9a00b37cc279b995ae57d9ab",
+  "policy_key": "e00767b086e4027035ad859a39373003995280edf6520e8b4345d14d15d8a873",
+  "repair_status": [
+    {
+      "id": "draft-repair-6e4648a4ec734f2485b2",
+      "status": "done",
+      "attempt": 1,
+      "ids": [
+        "R0000003_36da9ea8c7"
+      ],
+      "round": 1
+    }
+  ],
+  "result": "passed",
+  "round": 3
+}

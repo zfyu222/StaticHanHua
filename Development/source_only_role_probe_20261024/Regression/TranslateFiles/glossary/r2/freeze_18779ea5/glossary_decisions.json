@@ -1,0 +1,147 @@
+{
+  "snapshot_sha256": "05e80b5531d0b4ec1218503220b9bd95ff5df70567555166239cb9afd62733b5",
+  "source_sha256": "a6b2b2fdd4d07a81c2380b8e2e86c45fedf7f35ee67cc4d84278747a894bac5c",
+  "review_complete": true,
+  "review_summary": "本批 3 条：e1（Child {Female}）为普通 NPC 称谓与性别控制标记组合，不构成专名，隔离；e2（user）在 ordinal 2 中仅是法球使用者的普通名词，非游戏术语，隔离；e3（Hardened）经 ordinal 6、7 证实为角色创建 Descriptor 名称，保留为 game_term/reference，纠正候选直译'硬化'为'坚韧'，并以 literal_context 限定其仅匹配 'the Hardened descriptor'，避免与普通形容词 hardened 冲突。已逐条核对 f1、f2。",
+  "reviewed_refs": [
+    "characters:0",
+    "terms:0",
+    "terms:1"
+  ],
+  "acknowledged_findings": [
+    "F0000",
+    "F0001"
+  ],
+  "edits": [
+    {
+      "evidence_rows": [
+        1,
+        6,
+        7
+      ],
+      "index": 1,
+      "patch": {
+        "applicability": {
+          "case_sensitive": true,
+          "mode": "literal_context",
+          "prefix": "the ",
+          "reason": "ordinal 6 中仅 'the Hardened descriptor' 这一紧邻字串指 Descriptor 名；单字记录 ordinal 1 为同名 Descriptor 标签，但为避免与普通形容词 hardened 全局误配，不设 text 全局匹配。",
+          "suffix": " descriptor"
+        },
+        "category_path": "其他",
+        "enforcement": "reference",
+        "recommended_translation": "坚韧",
+        "term_kind": "game_term",
+        "term_reason": "ordinal 6 原文 'A set of bonuses granted by the Hardened descriptor.' 与 ordinal 7 的 Descriptor 说明共同表明 Hardened 是角色创建时赋予初始属性/技能修正的 Descriptor 名称，修饰对象为人物特质（经磨砺而强韧），而非材料'硬化'；该词同时是普通形容词，故仅作 reference 并限定语境。"
+      },
+      "reason": "候选译名'硬化'按字面取材料义，与 Descriptor 所修饰的人物特质不符；据 ordinal 6、7 的 Descriptor 机制改为'坚韧'，并补齐 term_kind/enforcement/applicability 以限定使用范围。",
+      "table": "terms"
+    }
+  ],
+  "quarantine": [
+    {
+      "evidence_rows": [
+        3
+      ],
+      "index": 0,
+      "reason": "'Child {Female}' 是普通 NPC 称谓加 {Female} 性别控制标记的组合，不构成专名；{Female} 属运行时标记，应由保护规则处理，不收为 characters 术语。",
+      "table": "characters"
+    },
+    {
+      "evidence_rows": [
+        2
+      ],
+      "index": 0,
+      "reason": "ordinal 2 中 'the bounder absorbs the user' 的 user 指使用该球体的普通人，是普通施动者名词，无游戏特定含义，不按'身份'术语冻结。",
+      "table": "terms"
+    }
+  ],
+  "additions": [],
+  "allow_no_match": [],
+  "entry_reviews": [
+    {
+      "checks": {
+        "category": {
+          "evidence": "不作为 characters 专名收录：该组合属普通称谓＋运行时性别标记，gender='女性' 虽与 {Female} 相符，但不足以支持入表",
+          "status": "not_applicable"
+        },
+        "consistency": {
+          "evidence": "本批无同源变体，隔离后不产生跨条译名一致性问题",
+          "status": "not_applicable"
+        },
+        "source": {
+          "evidence": "ordinal 3 原文为 'Child {Female}'，与条目 source 逐字一致",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "条目隔离，'孩童（女性）'不作为标准译名保留；实际翻译时 Child 按语境处理，{Female} 由保护规则保留",
+          "status": "not_applicable"
+        }
+      },
+      "evidence_rows": [
+        3
+      ],
+      "reason": "普通 NPC 称谓与性别标记的组合，按政策隔离而非冻结为专名。",
+      "ref": "characters:0",
+      "source_excerpt": "Child {Female}"
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "'身份' 分类不成立：user 是普通施动者称谓，不是游戏身份、组织或专名",
+          "status": "not_applicable"
+        },
+        "consistency": {
+          "evidence": "无同源变体或共用译名，隔离后无一致性要求",
+          "status": "not_applicable"
+        },
+        "source": {
+          "evidence": "ordinal 2 中 'the bounder absorbs the user' 表明 user 为使用该球体的普通人，与条目 source 一致",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "普通名词'用户'无需冻结为标准译名，条目隔离后不维护译名",
+          "status": "not_applicable"
+        }
+      },
+      "evidence_rows": [
+        2
+      ],
+      "reason": "user 为普通名词，仅指道具使用者，不具备游戏术语地位。",
+      "ref": "terms:0",
+      "source_excerpt": "the bounder absorbs the user and teleports them to a nearby location within line of sight."
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "category_path '其他' 为合法值；Descriptor 属角色创建特质，不归入物品/地名/组织/技能/种族，归'其他'可接受",
+          "status": "pass"
+        },
+        "consistency": {
+          "evidence": "term_families 候选为空，术语表内无其他 Hardened 相关条目；统一采用'坚韧'，并以 applicability 限定 'the Hardened descriptor' 语境，与普通形容词 hardened 区分",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 1 为 'Hardened'，与条目 source 一致；ordinal 6 'granted by the Hardened descriptor' 与 ordinal 7 的 Descriptor 说明证实其为角色创建中的 Descriptor 名",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "'硬化'为材料义，修饰人物 Descriptor 不成立；改为'坚韧'，指角色经磨砺而强韧的特质",
+          "status": "corrected"
+        }
+      },
+      "evidence_rows": [
+        1,
+        6
+      ],
+      "reason": "经 Descriptor 机制证据确认其为角色特质名，纠正直译为'坚韧'并限定适用语境。",
+      "ref": "terms:1",
+      "source_excerpt": "A set of bonuses granted by the Hardened descriptor."
+    }
+  ],
+  "review_instances": {
+    "characters:0": "dev-resume-89c33873c78846a1a15de1449608d9fd",
+    "terms:0": "dev-resume-89c33873c78846a1a15de1449608d9fd",
+    "terms:1": "dev-resume-89c33873c78846a1a15de1449608d9fd"
+  }
+}

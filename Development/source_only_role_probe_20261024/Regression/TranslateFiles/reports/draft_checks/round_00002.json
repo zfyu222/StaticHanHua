@@ -1,0 +1,28 @@
+{
+  "phase": "issue_recheck",
+  "scope": "issues",
+  "checked_ids": [
+    "R0000003_36da9ea8c7"
+  ],
+  "checked_records": 1,
+  "passed_ids": [
+    "R0000003_36da9ea8c7"
+  ],
+  "failures": [],
+  "remaining_failed_ids": [],
+  "key": "5fea57b10adb6808367cc217a0ce25a59e23983e9a00b37cc279b995ae57d9ab",
+  "policy_key": "e00767b086e4027035ad859a39373003995280edf6520e8b4345d14d15d8a873",
+  "repair_status": [
+    {
+      "id": "draft-repair-6e4648a4ec734f2485b2",
+      "status": "done",
+      "attempt": 1,
+      "ids": [
+        "R0000003_36da9ea8c7"
+      ],
+      "round": 1
+    }
+  ],
+  "result": "passed",
+  "round": 2
+}

@@ -2,8 +2,6 @@
 
 ## 项目概述
 
-**图片抽取正式入口**：启用图片步骤并授权本地推理后，统一使用 `Tools/image_text/run.ps1 pipeline --project <项目> --out <新工作目录> --policy <策略JSON>`。全量GPU PP-OCRv6 medium完成且子进程退出后，再做选择性本地Qwen和对话Agent视觉确认。RapidOCR可作为Paddle模型的CUDA封装使用；禁止自选CPU/small或独立OCR脚本替代。CUDA不可用时停止报告，不自动降级。CPU/非medium仅限用户明确要求的实验，须加`--allow-nonstandard-ocr`；实验结果不能接入正式`plan`/`qwen`，旧扫描与进度保留。
-
 本项目是游戏汉化工作区，用于对各类游戏进行静态汉化（反编译、文本提取、翻译、回填）。
 
 ## 跨 Agent 工具兼容
@@ -29,7 +27,7 @@ StaticHanHua/
 │       └── TranslateFiles/               # 翻译配置、术语、任务、报告、缓存等中间产物
 │
 ├── Tools/             # 工具集
-│   ├── AINiee/        # AI 翻译工具（主翻译引擎）
+│   ├── AINiee/        # 翻译底层复用依赖及 StevExtraction 提取工具
 │   ├── dnSpy-net-win64/  # .NET 反编译工具
 │   ├── AssetRipper_win_x64/  # Unity 资源提取工具（旧版 GUI）
 │   ├── AssetRipper-CLI/  # Unity 资源提取工具（命令行版，推荐）
@@ -39,7 +37,11 @@ StaticHanHua/
 └── .mcp.json          # MCP 服务器配置（含 REA + Ghidra MCP）
 ```
 
-## 汉化流程（四步走）
+## 汉化流程（图片文字步骤可选）
+
+项目开始时由 `start-translate` 询问是否加入图片文字翻译，并在根目录 `localization_project.json` 保存 enabled / disabled / undecided。用户已明确选择时沿用，不重复询问；未决定时可先做独立的常规解包，不能默认执行图片步骤。修改偏好不删除既有进度。
+
+主流程：初始化 → 常规文本提取 → **图片文字抽取（可选，game-image-extract）** → 正式翻译 → **图片文字合入（可选，game-image-repack）** → 引擎回填 → 发布。图片原文/译文在项目根目录独立保存，正式翻译复用同一套规范但隔离任务状态。
 
 ### 第 1 步：提取文本（解包）
 
@@ -64,40 +66,47 @@ StaticHanHua/
 
 **完成后必须**：将提取所用的技术栈、工具版本、关键步骤写入 `README.md`，并在项目目录提交 git（`git add {gamename}_text.csv README.md && git commit`，详见下方「Git 与 README 协作规范」）。
 
+**图片文字辅助提取**：菜单、美术字、标牌、便条等可能位于贴图中。图片导出后可用 `Tools/image_text/`（说明见 `Tools/image_text/README.md`）完成本地检测/OCR、候选复核及未检出抽查；检测框和识别结果分开保留。默认可用平衡筛选以降低多模态成本，允许少量假阴性；以已知含字样本和被排除图片的抽查评估门槛，记录漏检，不把模型分数视为正确率。源文确定为拉丁文字时可显式使用latin筛选，其他语言保留any；需要更少漏检时切换recall-first。原检测结果保留，被筛除和未检出均不是已确认无字。只有明确确认的原文才导出单列CSV，来源/坐标另存mapping，再进入正式翻译。未检出、模型高分、队列生成均不代表已人工确认或全游戏无漏字；不得自动覆盖已有源文及翻译进度。当前默认只准备离线多模态队列，不调用付费接口。
+
+已授权本地推理时可用 `local-pipeline`：独立 CUDA 环境全量运行 PP-OCRv6 medium，OCR 子进程退出释放显存后，再加载本地 Qwen3-VL 8B 逐图复核/转写。禁止两阶段并行占用GPU；保留模型摘要、原始回复、缓存和实测用量。工具拒绝 CUDA 静默回退，不启用云模型；本地模型结果仍须审核，不能把 no_text 当作已人工确认无字。`--policy full-audit` 才会把全部图片交给Qwen，默认筛选加抽查不代表全图多模态覆盖。
+
+**正式图片抽取入口（必须遵守）**：启用且授权图片本地推理后，统一使用 `Tools/image_text/run.ps1 pipeline --project <项目> --out <新工作目录> --policy <策略JSON>`，执行GPU PP-OCRv6 medium→选择性本地Qwen→对话Agent视觉确认。RapidOCR是本工具运行Paddle模型的封装，不是替代模型；不得自行用RapidOCR默认CPU/small或其他独立OCR脚本绕开管线。`scan`默认GPU medium但仅代表L1；CUDA不可用时停止并报告，不自动降级。CPU/非medium仅用于用户明确要求的实验，必须显式加 `--allow-nonstandard-ocr`，其实验扫描不能进入正式`plan`/`qwen`；旧数据保留，禁止改写元数据冒充正式扫描。
+
 ### 第 2 步：翻译
 
-> 使用 `game-translate` Skill 完成翻译阶段。保留 AINiee 工作流，也可选择自定义工作流；自定义可用 Codex 子代理或 API 程序执行。内部规则与工具见该技能，不在基础文档展开。
+启用图片步骤时，先使用 `game-image-extract` 完成三级抽取、对话Agent视觉裁决和确认导出，得到 `{gamename}_images_text.csv` 及 `.mapping.json`。工具 `Tools/image_text/image_workflow.py` 提供路由、选择性本地Qwen和Agent包；默认不把双模型一致当人工确认。图片翻译用 `TranslateFiles/image-text/` 隔离子工程复用 `game-translate`，导出校验后收回 `{gamename}_images_text_translated.csv`，不得重置常规文本翻译状态。
+
+> 使用 `game-translate` Skill 完成翻译阶段。翻译仅提供 SubAgent（Codex 子代理）和 API（程序请求）两条路线，共用同一套流程与验收规则。内部规则与工具见该技能，不在基础文档展开。
 
 开发、诊断或优化翻译流程本身时，使用 `translation-workflow-dev` Skill，遵循减少 API 模型机械负担、优先简单有效方案及基于数据验证的原则；实际翻译继续使用 `game-translate`。
 
 自定义的 SubAgent 与 API 共用同一份流程规范、任务输入产出及批次程序，以现有 SubAgent 规范为准；API 只作单次请求，由程序解析回复并落盘。升级修复可强制使用 Sol SubAgent，共同规则统一在 `game-translate` 技能及共用程序中维护。
 
-首次执行让用户选择工作流，已明确选择直接沿用。源文和正式译文在项目根目录；所有翻译中间产物统一放 `TranslateFiles/`，包括 `TranslateDoc.md`、配置、术语审校、任务、结果、报告、缓存与备份。
+首次执行让用户选择 SubAgent 或 API 路线，已明确选择直接沿用。源文和正式译文在项目根目录；所有翻译中间产物统一放 `TranslateFiles/`，包括 `TranslateDoc.md`、配置、术语审校、任务、结果、报告、缓存与备份。
+
+**API 选路与费用边界（必须遵守）**：选择“API 路线”不代表授权 Agent 自行选择、更换或固定某一家接口。已有 `api.local.jsonc` 优先级配置时，必须由程序按原优先级和故障转移规则选路；恢复、重试、拆批和阶段切换也必须沿用。未经用户明确指定某个接口，禁止添加 `--api` 绕过优先级，尤其不得因超时、格式错误、推理耗尽或认为官方接口更可靠就直接切官方。配置中存在某接口或密钥不等于授权固定使用它。故障按既有规则处理，无法继续则停止付费请求并报告，不擅自扩大重试次数、请求额度或输入/输出 Token 上限。修改接口、优先级或这些费用边界须先得到用户明确同意。用户要求停止费用消耗时立即终止本任务执行器及子进程，保留已完成结果与未知用量，不自动恢复请求。
 
 | 项目 | 说明 |
 |------|------|
 | **输入** | `{gamename}_text.csv`（1 列，逐行原文） |
 | **输出** | `{gamename}_text_translated.csv`（逐行译文，与原文一一对应） |
-| **方式** | AINiee 工作流 / 自定义工作流（Codex 子代理或 API） / 手动翻译 |
+| **方式** | SubAgent（Codex 子代理） / API（程序请求） |
 | **AI 接口** | DeepSeek（推荐）、OpenAI、Anthropic、Google 等 |
 
 **翻译流程**：
-1. 将 `{gamename}_text.csv` 作为翻译源文件。
-2. 若使用 AI 辅助翻译（AiNiee）：
-   - 启动 AINiee：`cd Tools\AINiee && .\venv\Scripts\python.exe AiNiee.py`
-   - 在「接口管理」中添加并激活 API（如 DeepSeek）
-   - 新项目导入 `TranslateFiles/source/{gamename}_text.csv` 源文快照，设置源语言/目标语言；既有项目沿用已保存的缓存与进度
-   - 先提取项目术语（全文分析），完成下面的固定术语审校步骤并应用审校版
-   - 点击「开始翻译」
-3. 翻译完成后将译文保存为 `{gamename}_text_translated.csv`，与原文逐行一一对应。
+1. 将 `{gamename}_text.csv` 作为翻译源文件，保存所选路线与项目配置。
+2. 通过共用程序完成全文术语提取、语义审校和冻结，再按技能规范完成翻译与审校；SubAgent 由主代理调度，API 由程序请求用户已选接口。
+3. 全部质量门槛通过后，由程序导出 `{gamename}_text_translated.csv`，与原文逐条一一对应。
 
-**共同要求**：正文前先完成全文术语整理与语义审校，再冻结使用；程序检查通过不等于语义审校完成。两种工作流都需保护占位符并完成译后校验。具体内部阶段、调度、缓存与修复规则由 `.agents/skills/game-translate/` 维护。缓存、备份和凭据不入库。
+**共同要求**：正文前先完成全文术语整理与语义审校，再冻结使用；程序检查通过不等于语义审校完成。两条路线都需保护占位符并完成译后校验。具体内部阶段、调度、缓存与修复规则由 `.agents/skills/game-translate/` 维护。缓存、备份和凭据不入库。
 
 **翻译过程中**：如果有需要注意的信息（字体选择、术语表、特殊语境说明、文本分组等），补充到 `README.md` 中，供打包阶段参考。
 
 **完成后必须**：将翻译方式、占位符/禁翻表、校验结果写入 `README.md` 的「翻译」节，并提交 git（`git add {gamename}_text_translated.csv README.md TranslateFiles/TranslateDoc.md && git commit`）。
 
 ### 第 3 步：打包回填
+
+启用图片步骤时，先使用 `game-image-repack` 验证正式图片译文与mapping，生成同尺寸中文贴图或运行时overlay清单并查看静态预览，再交本节引擎工具导入。所有游戏的图片汉化都优先保留原画，以局部清字/修补、协调字体配色及细描边添加中文；禁止粗暴铺不透明或近不透明的背景色块遮图。必要底色默认约25%不透明度，须逐图调整并检查英文重影、修补痕迹及画面协调，不能把低alpha或构建通过当成美观验收。工具输出 `ready_for_engine_adapter` 不等于已安装或实机通过；没有通用工具能把任意游戏的PNG/JSON直接视为补丁。
 
 > 使用 `game-repack` Skill 将翻译后的文本重新打包回游戏中。
 
@@ -119,10 +128,10 @@ StaticHanHua/
 
 - **输出目录**：`Projects/{GameName}/Dispatch/`
 - **ZIP 命名与版本**：固定为 `{游戏名}_子非鱼汉化{版本号}.zip`。首次发布为 `1.0`；以后每次对外发布取现有最高版本加 `0.1`。补丁标题同步使用版本号，默认 `《{游戏名}》子非鱼AI汉化补丁 v{版本号}`。
-- **补丁结构**：游戏根目录相对路径的补丁载荷 + 根目录 `补丁说明.txt` + `PATCH_MANIFEST.json` + `SHA256SUMS.txt`
-- **压缩前载荷**：将本次发布的文件按游戏根目录相对路径复制到 `Dispatch/Files/`，确认无误后只从该目录生成 ZIP。
-- **补丁说明**：标题必须包含「子非鱼AI汉化」，并写明介绍、覆盖范围、支持的游戏版本和平台、汉化日期、AI 汉化提示、安装/卸载方法、验证结果与已知问题。
-- **后续更新提醒**：发布说明必须提醒玩家「补丁后续可能会更新，建议关注或订阅本项目的 GitHub 仓库 / Releases，及时获取新版补丁」。已有公开链接时附上对应链接，不编造地址。
+- **补丁结构**：支持根目录直接解压或解压后运行安装脚本；优先提供安装/卸载脚本，脚本模式载荷放 `汉化文件/`，清单保留真实游戏目标路径。根目录包含 `补丁说明.txt`、`PATCH_MANIFEST.json`、`SHA256SUMS.txt`。
+- **压缩前载荷**：将本次发布的文件按实际ZIP目录结构准备到 `Dispatch/Files/`；直接解压模式使用游戏相对路径，脚本模式使用载荷子目录并在清单记录目标路径，确认无误后只从该目录生成 ZIP。
+- **补丁说明**：标题后最前面放下载地址、网盘、订阅及反馈区；紧接一句安装说明，随后简短升级、卸载说明；只支持解压到指定目录或解压后运行脚本，不教玩家逐文件复制、备份、删除，不写防御性说明。玩家脚本不依赖Python/Node等额外开发环境，Windows使用自带CMD/Windows PowerShell。不设置运行情况栏目，发布时不向用户询问运行情况或索要运行确认，也不把此类情况写进文档。AI提示固定为「本补丁使用 AI 辅助翻译，请适当降低预期。」不写用户答复/代理过程/技术限制。技术细节和真实限制留在工程README及报告。TXT与GitHub正文同步此规则。
+- **下载与反馈**：必须列GitHub Releases下载地址及已提供的网盘分享名称/地址；紧接「请订阅github地址或者网盘地址，以便在补丁更新时获得通知」，随后「有问题请反馈至【腾讯文档】{反馈名称}」和链接。网盘与腾讯文档按游戏独立保存，缺少时向于鸿鹄询问；联系方式未明确时请当前用户提供或转达，不编造地址。
 - **更新日志**：首次发布在说明书末尾记录 `v1.0：首次发布`；每次升级必须把本版更新内容追加到说明书末尾，保留历次记录。
 - **安全边界**：不得打包 `Game/`、游戏本体、原始可分发资源、密钥或开发日志；仅包含玩家安装补丁所需的文件。
 - **完成后必须**：在项目 `README.md` 的「对外发布」节记录补丁名称、支持版本、载荷、验证结果与已知问题，并提交文档（大体积 ZIP 和二进制产物默认不入库）。
@@ -265,11 +274,8 @@ StaticHanHua/
   **调试经验**：遇到 CLI 与 GUI 行为不一致时，第一步应对比 GUI 入口（`MainWindow.axaml.cs`）与 CLI 入口（`CommandLineHandler.cs`）的初始化代码差异，而非在下游函数中反复调试。
 
 ### 翻译工具
-- **AINiee** — `Tools/AINiee/` — 主翻译工具，基于 PyQt5 的桌面应用，支持多种 AI 接口（OpenAI、Anthropic、DeepSeek 等），支持游戏文本、字幕、文档等多种格式
-  - **启动命令**：`.\venv\Scripts\python.exe AiNiee.py`（需 Python 3.12 虚拟环境）
-  - 依赖：`Tools/AINiee/requirements.txt`
-  - 虚拟环境：`Tools/AINiee/venv/`（Python 3.12，已安装所有依赖包括 babeldoc）
-  - 包含 `StevExtraction/` 子工具用于 RPG Maker 游戏文本提取
+- **共用流程程序** — `Tools/localization/translation_workflow.py` — 提供 SubAgent 和 API 两条执行路线，共用任务、术语、审校、恢复与导出验收。
+- **底层复用依赖** — `Tools/AINiee/` — 提供现有客户端、文本处理与 Token 计数模块，以及 RPG Maker 提取用的 `StevExtraction/`；不作为翻译阶段的执行路线。现有 Python 3.12 环境位于 `Tools/AINiee/venv/`。
 
 ## Git 与 README 协作规范
 
@@ -283,8 +289,10 @@ StaticHanHua/
 |------|-----------|----------|-------------|
 | 初始化 | `start-translate` | `README.md` + `.gitignore`（脚本自动提交） | `初始化汉化项目工作区 (start-translate)` |
 | 提取 | `game-unpack` | `{gamename}_text.csv` + `README.md`（文本提取节） | `提取: 从 resources.assets 提取 1234 条文本` |
-| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateFiles/` 内适合入库的配置、术语审校及交付报告 | `翻译: 完成 AINiee 翻译并校验通过` |
+| 图片提取（可选） | `game-image-extract` | `{gamename}_images_text.csv` + mapping + README + 策略/确认报告 | `提取: 完成图片文字视觉确认` |
+| 翻译 | `game-translate` | `{gamename}_text_translated.csv` + `README.md`（翻译节）+ `TranslateFiles/` 内适合入库的配置、术语审校及交付报告 | `翻译: 完成 SubAgent/API 翻译并校验通过` |
 | 回填 | `game-repack` | `README.md`（回填/已知问题节）+ 汉化产物（视体积） | `回填: 替换 12 个 TextAsset，游戏内验证通过` |
+| 图片合入（可选） | `game-image-repack` | README + 图片/overlay载荷清单（大图默认排除） | `回填: 构建图片文字载荷并静态检查` |
 | 发布 | `game-release-patch` | `README.md`（对外发布节）+ 小型说明/清单 | `发布: 生成 v1.0 对外汉化补丁` |
 
 ### 提交规范

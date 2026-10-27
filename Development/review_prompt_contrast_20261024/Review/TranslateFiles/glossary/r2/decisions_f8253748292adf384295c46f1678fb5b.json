@@ -1,0 +1,13 @@
+{
+  "snapshot_sha256": "dd164659cdd8640290b24e494b4886a08b9ea2753b1bd7fe9d5dc394b66b1fae",
+  "source_sha256": "98c3784d6e2501a148a05ba7f207f6619d39f86c2b23a98c04aaabe5b5878ce9",
+  "review_complete": true,
+  "review_summary": "Development fixture intentionally uses no frozen terms to isolate semantic review.",
+  "reviewed_refs": [],
+  "entry_reviews": [],
+  "acknowledged_findings": [],
+  "edits": [],
+  "quarantine": [],
+  "additions": [],
+  "allow_no_match": []
+}

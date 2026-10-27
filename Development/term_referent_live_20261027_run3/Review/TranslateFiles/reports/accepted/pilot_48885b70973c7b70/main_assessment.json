@@ -1,0 +1,6 @@
+{
+  "report_hash": "48885b70973c7b70a01d090091170c87c5fab970de646ebf8820942fc5a9d08c",
+  "reviewer": "main",
+  "decision": "accept",
+  "summary": "Isolated seeded regression inputs contain deliberate errors, not approved production translations."
+}

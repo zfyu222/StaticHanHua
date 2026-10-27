@@ -1,0 +1,86 @@
+{
+  "stage": "review",
+  "phase": "round_checked",
+  "scope": "review_round",
+  "checked_records": 6,
+  "checks": [
+    {
+      "id": "R0000001_abbc502838",
+      "instance": "api-review-750893a6ad83492daca1cb5624f2cc9a",
+      "task_id": "review-r3-00001-62b11c92",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000002_58abdf6a8a",
+      "instance": "api-review-750893a6ad83492daca1cb5624f2cc9a",
+      "task_id": "review-r3-00001-62b11c92",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000003_2200a8fc3c",
+      "instance": "api-review-750893a6ad83492daca1cb5624f2cc9a",
+      "task_id": "review-r3-00001-62b11c92",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000004_254c68d273",
+      "instance": "api-review-750893a6ad83492daca1cb5624f2cc9a",
+      "task_id": "review-r3-00001-62b11c92",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000005_fae7a5eed3",
+      "instance": "api-review-750893a6ad83492daca1cb5624f2cc9a",
+      "task_id": "review-r3-00001-62b11c92",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    },
+    {
+      "id": "R0000006_ac3cbca845",
+      "instance": "api-review-bedee3e6f1b946e289ef1b511958f278",
+      "task_id": "review-r3-00001-62b11c92",
+      "result": "passed",
+      "diagnostic": null,
+      "diagnostic_detail": null,
+      "regressed_terms": []
+    }
+  ],
+  "passed_ids": [
+    "R0000001_abbc502838",
+    "R0000002_58abdf6a8a",
+    "R0000003_2200a8fc3c",
+    "R0000004_254c68d273",
+    "R0000005_fae7a5eed3",
+    "R0000006_ac3cbca845"
+  ],
+  "failure_summary": {
+    "basis": "first_failing_gate_in_this_scan; later checks may be blocked; not translation accuracy",
+    "checked_failures": {},
+    "outstanding_failures": {},
+    "regression_overlap": 0
+  },
+  "failed_records": 0,
+  "problems": {},
+  "repair_tasks": [],
+  "repair_dispatch": [],
+  "needs_attention_ids": [],
+  "clean": true,
+  "repair_stop_reasons": {},
+  "status": "clean",
+  "round": 1,
+  "round_report": "D:\\StaticHanHua\\Development\\review_plausibility_candidate_20261024\\Review\\TranslateFiles\\reports\\review_rounds\\review_00001.json"
+}

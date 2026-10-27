@@ -1,0 +1,267 @@
+{
+  "schema": 1,
+  "kind": "pilot",
+  "purpose": "calibration",
+  "pilot_key": "3755a02fc0fce3a4c517a16ee4a05efc42e24518205da670cf07f263186bcf0a",
+  "source_sha256": "afb90c9d53fc2cfe2835ff46077492f58159c4cded74862e27c3747e665a2762",
+  "glossary": {
+    "hash": "935af59c07b1c583fbfcb5135c8705de22abf5737178694cf77b0ae75e746d56",
+    "path": "glossary\\r2\\freeze_18dfaacd\\built\\glossary_reviewed.json",
+    "revision": 2
+  },
+  "config": {
+    "agent_attempt_limit": 2,
+    "agent_task_limit": 1,
+    "api": {
+      "api_format": "OpenAI",
+      "api_key_env": "SHH_TRANSLATION_API_KEY",
+      "api_url": "",
+      "concurrency": 50,
+      "extra_body": {},
+      "max_completion_tokens": 16384,
+      "max_requests": 10000,
+      "model_name": "",
+      "request_timeout": 120,
+      "requests_per_minute": 0,
+      "stream": false,
+      "target_platform": "custom_platform_shh",
+      "temperature": 1,
+      "think_switch": false,
+      "tls_switch": false
+    },
+    "backend": "api",
+    "batch_chars": 12000,
+    "batch_records": null,
+    "batch_tokens": 1024,
+    "body_repair_round_limit": 6,
+    "case_sensitive": false,
+    "context_records": 0,
+    "draft_scan_workers": 1,
+    "escalation_backend": "codex",
+    "exclusions": [],
+    "extract_batch_records": null,
+    "extract_batch_tokens": 10000,
+    "game_background": "合成奇幻样本：Might为力量属性，May与Alice是人物。",
+    "glossary_review_batch_records": 12,
+    "glossary_review_batch_tokens": 10000,
+    "layout_normalization": "exact_v1",
+    "lease_seconds": 3600,
+    "max_attempts": 3,
+    "model": "gpt-6-luna",
+    "pilot_batch_count": null,
+    "pilot_call_limit": null,
+    "pilot_ordinals": [],
+    "pilot_records": 9,
+    "placeholder_family_overrides": {},
+    "polish": false,
+    "protect_named_curly": null,
+    "quality_version": 2,
+    "record_constraints": {},
+    "review_batch_records": 80,
+    "review_batch_tokens": 1024,
+    "review_estimate": {
+      "ascii_chars_per_token": 3,
+      "full_base_tokens": 420,
+      "non_ascii_tokens_per_char": 2,
+      "pilot_base_tokens": 120,
+      "translation_multiplier": 3
+    },
+    "review_output_reserve_percent": 20,
+    "review_output_tokens": 32768,
+    "sol_no_progress_limit": 2,
+    "sol_repair_model": "gpt-6-sol",
+    "sol_repair_round_limit": 3,
+    "source_language": "auto",
+    "stage_backends": {
+      "pilot_translate": "codex",
+      "translate": "codex"
+    },
+    "style": "自然简体中文，保留原意、否定、变量和段落。",
+    "target_language": "简体中文",
+    "task_input_chars": 48000,
+    "task_input_tokens": 65536,
+    "whole_word": true,
+    "workflow": "custom"
+  },
+  "records": [
+    {
+      "id": "R0000001_f68b032edc",
+      "ordinal": 1,
+      "source": "Might",
+      "translation": "力量",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "ui"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000002_fdb15a6ffc",
+      "ordinal": 2,
+      "source": "I might return tomorrow.",
+      "translation": "我明天可能回来。",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000003_42f39ff997",
+      "ordinal": 3,
+      "source": "May opens the gate.",
+      "translation": "梅打开了门。",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000004_48206415d5",
+      "ordinal": 4,
+      "source": "You may enter.",
+      "translation": "你可以进去。",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000005_3b3a446ec4",
+      "ordinal": 5,
+      "source": "  Alice has {0} gold.\r\nWait here. \t",
+      "translation": "  爱丽丝有{0}金币。\r\n在这里等候。 \t",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000006_4cad1b3ce1",
+      "ordinal": 6,
+      "source": "The gate is not locked.",
+      "translation": "门没有上锁。",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000007_0c9bb70286",
+      "ordinal": 7,
+      "source": "He runs a hand over his stubbled scalp.",
+      "translation": "他用手抚过长着短发茬的头皮。",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000008_36da9ea8c7",
+      "ordinal": 8,
+      "source": "Child {Female}",
+      "translation": "孩童 {Female}",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    },
+    {
+      "id": "R0000009_c7669bdfd7",
+      "ordinal": 9,
+      "source": "When activated, the orb absorbs its user and transports them nearby.",
+      "translation": "激活后，圆球会吸入使用者，并将其传送到附近。",
+      "metadata": {
+        "note": "Synthetic: Might is a strength UI attribute; May and Alice are people. Child is a generic NPC label; {Female} is nonprinting gender metadata. user is an ordinary device operator, not a game term.",
+        "text_type": "dialogue"
+      },
+      "exceptions": [],
+      "issues": [],
+      "diagnostics": [],
+      "producer": {
+        "task_id": "pilot_translate-r2-00001-0d90419e",
+        "instance": "fixture-b9ae4518ef5e4fb2a6c50cb431795448"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "id": "pilot_translate-r2-00001-0d90419e",
+      "stage": "pilot_translate",
+      "status": "done",
+      "attempt": 1,
+      "backend": "codex",
+      "ids": "[\"R0000001_f68b032edc\",\"R0000002_fdb15a6ffc\",\"R0000003_42f39ff997\",\"R0000004_48206415d5\",\"R0000005_3b3a446ec4\",\"R0000006_4cad1b3ce1\",\"R0000007_0c9bb70286\",\"R0000008_36da9ea8c7\",\"R0000009_c7669bdfd7\"]",
+      "error": null
+    }
+  ],
+  "config_note": "Current configuration. Saved outputs retain their producer task/input snapshots; a settings change alone does not mean these outputs were regenerated.",
+  "ready_for_assessment": true,
+  "statistics": {
+    "sample_records": 9,
+    "translated_records": 9,
+    "mechanical_failed_records": 0,
+    "task_statuses": {
+      "done": 1
+    },
+    "api_request_statuses_cumulative": {}
+  },
+  "failures": [],
+  "note": "Mechanical findings are diagnostic, not a semantic error rate. Main AI assesses pipeline reliability, style and recurring quality problems. Individual errors need not be cleared before accepting calibration.",
+  "snapshot_hash": "f1638cda3090e0dd84e14d5c37b458bb0811c94a870ccc8061ed92b9043a3f15",
+  "report_hash": "8034412304cc0a526cedda682afb5874dc4faefd1f4d9939980d2d9baed7de5a"
+}

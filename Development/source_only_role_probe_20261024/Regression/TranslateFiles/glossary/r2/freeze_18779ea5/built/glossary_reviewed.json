@@ -1,0 +1,56 @@
+{
+  "characters": [],
+  "terms": [
+    {
+      "category_path": "其他",
+      "recommended_translation": "坚韧",
+      "source": "Hardened",
+      "evidence_rows": [
+        1
+      ],
+      "extraction_candidates": [
+        {
+          "table": "terms",
+          "row": {
+            "category_path": "其他",
+            "recommended_translation": "硬化",
+            "source": "Hardened"
+          },
+          "extraction_count": 1,
+          "evidence_rows": [
+            1
+          ],
+          "extraction_tasks": [
+            "extract-r2-00001-0bddf94b"
+          ]
+        }
+      ],
+      "provisional_selection": "most_extraction_proposals_then_first_seen",
+      "corpus_evidence_rows": [
+        6,
+        7
+      ],
+      "corpus_evidence_note": "Literal source match in definition/role cue records; may include one definition of the literal role following this term. Candidate evidence, not confirmed semantic equivalence; distinguish homonyms.",
+      "applicability": {
+        "case_sensitive": true,
+        "mode": "literal_context",
+        "prefix": "the ",
+        "reason": "ordinal 6 中仅 'the Hardened descriptor' 这一紧邻字串指 Descriptor 名；单字记录 ordinal 1 为同名 Descriptor 标签，但为避免与普通形容词 hardened 全局误配，不设 text 全局匹配。",
+        "suffix": " descriptor"
+      },
+      "enforcement": "reference",
+      "term_kind": "game_term",
+      "term_reason": "ordinal 6 原文 'A set of bonuses granted by the Hardened descriptor.' 与 ordinal 7 的 Descriptor 说明共同表明 Hardened 是角色创建时赋予初始属性/技能修正的 Descriptor 名称，修饰对象为人物特质（经磨砺而强韧），而非材料'硬化'；该词同时是普通形容词，故仅作 reference 并限定语境。"
+    }
+  ],
+  "non_translate": [],
+  "applicability_policy": 1,
+  "terminology_policy": 1,
+  "corpus_evidence_policy": 1,
+  "stats": {
+    "character_count": 0,
+    "term_count": 1,
+    "non_translate_count": 0,
+    "total_hits": 1
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "snapshot_sha256": "d6b7260f59378d66556d43959c481d8c06e3d30fc5c8dee391b0d648633e3e53",
+  "source_sha256": "95e4f901188af733237e32453cfe8358cda2740cb7359c94b194c75cfa37b054",
+  "review_complete": true,
+  "review_summary": "本批 3 条：e1 为普通NPC通用称谓（含不显示性别控制标记），不是角色专名，整条 quarantine；e2 'user' 在物品说明中仅为普通名词，无游戏特定义，quarantine；e3 'Hardened' 依 metadata 确证为游戏内角色描述词（descriptor）名称，保留为 terms 但降为 reference，并用 whole_record 限定只匹配整条为 'Hardened' 的记录；原译'硬化'按材料义处理不当，按修饰人物语境改为'坚韧'。已核对 audit findings f1、f2。",
+  "reviewed_refs": [
+    "characters:0",
+    "terms:0",
+    "terms:1"
+  ],
+  "acknowledged_findings": [
+    "F0000",
+    "F0001"
+  ],
+  "edits": [
+    {
+      "evidence_rows": [
+        1
+      ],
+      "index": 1,
+      "patch": {
+        "applicability": {
+          "case_sensitive": true,
+          "mode": "whole_record",
+          "reason": "仅当整条记录文本恰为 'Hardened' 时命中；正文中作普通形容词的 hardened 不在范围内"
+        },
+        "enforcement": "reference",
+        "recommended_translation": "坚韧",
+        "term_kind": "game_term",
+        "term_reason": "metadata 注 'A set of bonuses granted by the Hardened descriptor.'，且 ordinal 1 整条即为角色特质名 'Hardened'"
+      },
+      "reason": "确证为角色描述词名称但属多义词，限定适用并按人物修饰语境修正译名",
+      "table": "terms"
+    }
+  ],
+  "quarantine": [
+    {
+      "evidence_rows": [
+        3
+      ],
+      "index": 0,
+      "reason": "普通NPC通用称谓与不显示性别控制标记 {Female} 的组合，不是角色专名，不应保留在 characters",
+      "table": "characters"
+    },
+    {
+      "evidence_rows": [
+        2
+      ],
+      "index": 0,
+      "reason": "user 在此指物品使用者，属普通名词，无游戏特定义，不应作为全局/引用术语",
+      "table": "terms"
+    }
+  ],
+  "additions": [],
+  "allow_no_match": [],
+  "entry_reviews": [
+    {
+      "checks": {
+        "category": {
+          "evidence": "characters 表用于角色专名，此为普通NPC称谓，应 quarantine 而非入库",
+          "status": "corrected"
+        },
+        "consistency": {
+          "evidence": "本批无同源条目与词族候选，无跨批译名冲突",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 3 原文即 'Child {Female}'，与条目 source 逐字一致",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "metadata 说明 {Female} 为不显示性别控制标记，'孩童（女性）' 属通用称谓译法，不应作为角色专名保留",
+          "status": "corrected"
+        }
+      },
+      "evidence_rows": [
+        3
+      ],
+      "reason": "通用称谓组合，整条隔离",
+      "ref": "characters:0",
+      "source_excerpt": "Child {Female}"
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "普通名词不属'身份'类术语，应 quarantine",
+          "status": "corrected"
+        },
+        "consistency": {
+          "evidence": "无同源条目或词族候选，无一致性冲突",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 2 原文 'absorbs the user and teleports them' 中 user 与条目 source 一致",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "user 指吸收该球体的使用者，属普通名词，无游戏特定义；条目不保留'用户'译名",
+          "status": "corrected"
+        }
+      },
+      "evidence_rows": [
+        2
+      ],
+      "reason": "普通名词，隔离",
+      "ref": "terms:0",
+      "source_excerpt": "the user"
+    },
+    {
+      "checks": {
+        "category": {
+          "evidence": "category_path '其他' 为合法取值；该词为游戏内角色描述词（descriptor），保留在 terms",
+          "status": "pass"
+        },
+        "consistency": {
+          "evidence": "term_families 无 candidates 与 related_terms，本批无变体或复合词可比对，无冲突",
+          "status": "pass"
+        },
+        "source": {
+          "evidence": "ordinal 1 整条原文即 'Hardened'；metadata 注 'A set of bonuses granted by the Hardened descriptor.' 支持其为角色描述词名称",
+          "status": "pass"
+        },
+        "translation": {
+          "evidence": "原提案'硬化'取材料硬化义；该词在此修饰人物（Hardened, a Nano who Fights With His Demons），应取描述角色性情义，改为'坚韧'",
+          "status": "corrected"
+        }
+      },
+      "evidence_rows": [
+        1
+      ],
+      "reason": "描述词名保留并限定适用范围，修正译名",
+      "ref": "terms:1",
+      "source_excerpt": "Hardened"
+    }
+  ],
+  "review_instances": {
+    "characters:0": "api-glossary_review-fc86d3958c244efebb039822133421a0",
+    "terms:0": "api-glossary_review-fc86d3958c244efebb039822133421a0",
+    "terms:1": "api-glossary_review-fc86d3958c244efebb039822133421a0"
+  }
+}

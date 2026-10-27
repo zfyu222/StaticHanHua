@@ -1,0 +1,138 @@
+{
+  "original_game_ordinals": [
+    57207,
+    63811,
+    62257,
+    4147,
+    4257,
+    57530
+  ],
+  "production_translation_sha256_before": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f",
+  "legacy_terms_copied_unchanged": {
+    "characters": [
+      {
+        "source": "Child {Female}",
+        "recommended_translation": "孩童（女性）",
+        "gender": "女性",
+        "evidence_rows": [
+          3
+        ]
+      }
+    ],
+    "terms": [
+      {
+        "source": "user",
+        "recommended_translation": "用户",
+        "category_path": "身份",
+        "evidence_rows": [
+          2
+        ]
+      },
+      {
+        "source": "Hardened",
+        "recommended_translation": "硬化",
+        "category_path": "其他",
+        "evidence_rows": [
+          1
+        ]
+      }
+    ],
+    "non_translate": []
+  },
+  "context_source": {},
+  "source_only": true,
+  "sources": [
+    "Hardened",
+    "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight.",
+    "Child {Female}",
+    "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+    "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+    "A set of bonuses granted by the Hardened descriptor."
+  ],
+  "before": [
+    "硬化",
+    "这枚棕色圆球沉重而坚实，摸起来像一块被源源不断的水流磨得光滑的岩石。球体一侧有一处恰好贴合人类手掌的凹槽。激活后，这件跃迁会吸收用户，并将其传送至视线范围内的附近地点。",
+    "孩童（{Female}）",
+    "但尽管他话说得硬，他的目光却落在你身上。端详。斟酌。他的嘴抿成一条烦躁的直线。  \r\n\r\n“听着，”他说，一只手抚过布满胡茬的头皮。“你掩饰得很好，但我看得出来你是新来的。我不是想冒犯你，只是我……不喜欢让初到萨古斯的人独自待着。如果你对这座城市——或者尤其是小竞技场——有什么问题，我会回答，不收钱。”",
+    "他盯着她，咬着嘴唇，显然正努力鼓起勇气跟她说话……想说服她什么。最后，他嘴角一歪，露出苦笑，重新转向你。\r\n\r\n“听着，”他说着，用手抚过满是胡茬的头皮，“你掩饰得很好，但我看得出你是新来的。我不是想冒犯你，只是我……不喜欢把初到萨古斯的人丢下不管。如果你对这座城市——尤其是小竞技场——有什么疑问，我会免费回答。”",
+    "由“硬化”描述符提供的一组加成。"
+  ],
+  "wire_request_limit": 8,
+  "stages": [
+    {
+      "stage": null,
+      "accepted": 0,
+      "failed": 2,
+      "paused": false,
+      "stage_clean": false,
+      "needs_attention": [
+        {
+          "session_id": "855f76d50a224758a4c3231840843b9d",
+          "error": "One automatic format retry allowed; unresolved envelope needs attention"
+        }
+      ],
+      "pending_handoffs": [
+        {
+          "session_id": "855f76d50a224758a4c3231840843b9d",
+          "status": "waiting",
+          "input_file": "D:\\StaticHanHua\\Development\\source_only_feedback_probe_20261024\\Regression\\TranslateFiles\\tasks\\glossary_review-r2-00001-025053e5\\handoffs\\855f76d50a224758a4c3231840843b9d\\input.md",
+          "result_file": "D:\\StaticHanHua\\Development\\source_only_feedback_probe_20261024\\Regression\\TranslateFiles\\tasks\\glossary_review-r2-00001-025053e5\\handoffs\\855f76d50a224758a4c3231840843b9d\\result.json"
+        }
+      ]
+    }
+  ],
+  "fixture_seeding": "Copied original bad glossary and existing translations, not model outputs; production state untouched.",
+  "status": "needs_attention",
+  "error_type": "ValueError",
+  "error": "Stop after unresolved API/contract/quality failure",
+  "after": [
+    {
+      "ordinal": 1,
+      "source": "Hardened",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 2,
+      "source": "Heavy and solid, this brown orb feels like a rock that has been worn smooth by a constant flow of water. On one side, there's an indentation that just fits a human hand. When activated, the bounder absorbs the user and teleports them to a nearby location within line of sight.",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 3,
+      "source": "Child {Female}",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 4,
+      "source": "But despite his hard words, his eyes settle on yours. Studying. Deciding. His mouth settles into an irritated line.  \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 5,
+      "source": "He stares at her, chewing his lip, clearly trying to work up the courage to talk to her... to convince her of something. Finally, with a wry twist of his mouth, he turns back at you. \r\n\r\n\"Look,\" he says, running a hand over his stubbled scalp. \"You hide it well, but I can tell you're new here. I ent trying to offend you, but I... don't like leaving folk new to Sagus on their own. If you have questions about the city - or Circus Minor in particular - I'll answer 'em, free of charge.\"",
+      "translation": null,
+      "stage": "source"
+    },
+    {
+      "ordinal": 6,
+      "source": "A set of bonuses granted by the Hardened descriptor.",
+      "translation": null,
+      "stage": "source"
+    }
+  ],
+  "api_calls": [
+    {
+      "status": "invalid_model_result",
+      "usage": "{\"completion_tokens\":6325,\"completion_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cached_tokens\":0,\"reasoning_tokens\":5051,\"rejected_prediction_tokens\":0},\"finish_reason\":\"stop\",\"prompt_tokens\":3729,\"prompt_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cache_write_tokens\":null,\"cached_tokens\":2304,\"reasoning_tokens\":0,\"rejected_prediction_tokens\":0},\"response_model\":\"deepseek-v4.1-flash\",\"total_tokens\":10054,\"usage_reported\":true}"
+    },
+    {
+      "status": "invalid_model_result",
+      "usage": "{\"completion_tokens\":6201,\"completion_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cached_tokens\":0,\"reasoning_tokens\":3618,\"rejected_prediction_tokens\":0},\"finish_reason\":\"stop\",\"prompt_tokens\":5165,\"prompt_tokens_details\":{\"accepted_prediction_tokens\":0,\"audio_tokens\":0,\"cache_write_tokens\":null,\"cached_tokens\":3584,\"reasoning_tokens\":0,\"rejected_prediction_tokens\":0},\"response_model\":\"deepseek-v4.1-flash\",\"total_tokens\":11366,\"usage_reported\":true}"
+    }
+  ],
+  "wire_requests": 2,
+  "production_translation_sha256_after": "36d5b3a85f6353f67fbe23b7726b57861dcd0b64195461b984dfadd969db0f9f"
+}

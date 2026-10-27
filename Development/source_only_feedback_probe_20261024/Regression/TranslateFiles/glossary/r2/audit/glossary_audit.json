@@ -1,0 +1,28 @@
+{
+  "format_version": 1,
+  "source_sha256": "da23794f8a2f28a1faea202b81bd782a625641bded3e3ac1fdb53b970ae85ad1",
+  "snapshot_sha256": "b6619fbc2bde85edf58b545cdf8e640929fcfdd3a9584cd0ffad3e5083ff0004",
+  "original_counts": {
+    "characters": 1,
+    "terms": 2,
+    "non_translate": 0
+  },
+  "findings": [
+    {
+      "id": "F0000",
+      "code": "ambiguous_applicability",
+      "refs": [
+        "terms:0"
+      ],
+      "message": "Ordinary word/single letter: quarantine unless a real game-specific meaning is evidenced; otherwise supply explicit applicability, case sensitivity and reason."
+    },
+    {
+      "id": "F0001",
+      "code": "ambiguous_applicability",
+      "refs": [
+        "terms:1"
+      ],
+      "message": "Ordinary word/single letter: quarantine unless a real game-specific meaning is evidenced; otherwise supply explicit applicability, case sensitivity and reason."
+    }
+  ]
+}

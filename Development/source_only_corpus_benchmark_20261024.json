@@ -1,0 +1,20 @@
+{
+  "attached_record_links": 1648,
+  "cue_records": 1468,
+  "seconds": 0.648,
+  "source_records": 70163,
+  "entry_count": 5579,
+  "entries_enriched": 1019,
+  "hardened_evidence": [
+    {
+      "ordinal": 57530,
+      "source": "A set of bonuses granted by the Hardened descriptor."
+    },
+    {
+      "ordinal": 67743,
+      "source": "Your Descriptor provides additional modifiers to your starting Stats and Skills.\\nOnce selected, your Descriptor cannot be changed."
+    }
+  ],
+  "raw_link_text_tokens_local_estimate": 99663,
+  "token_estimate_note": "Sum of new linked source text only, before per-batch dedup; excludes prompts, metadata, responses, reasoning and retries. Local o200k estimate, not billing."
+}

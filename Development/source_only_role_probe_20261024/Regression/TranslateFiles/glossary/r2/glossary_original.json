@@ -1,0 +1,93 @@
+{
+  "characters": [
+    {
+      "gender": "女性",
+      "recommended_translation": "孩童（女性）",
+      "source": "Child {Female}",
+      "evidence_rows": [
+        3
+      ],
+      "extraction_candidates": [
+        {
+          "table": "characters",
+          "row": {
+            "gender": "女性",
+            "recommended_translation": "孩童（女性）",
+            "source": "Child {Female}"
+          },
+          "extraction_count": 1,
+          "evidence_rows": [
+            3
+          ],
+          "extraction_tasks": [
+            "extract-r2-00001-0bddf94b"
+          ]
+        }
+      ],
+      "provisional_selection": "most_extraction_proposals_then_first_seen"
+    }
+  ],
+  "terms": [
+    {
+      "category_path": "身份",
+      "recommended_translation": "用户",
+      "source": "user",
+      "evidence_rows": [
+        2
+      ],
+      "extraction_candidates": [
+        {
+          "table": "terms",
+          "row": {
+            "category_path": "身份",
+            "recommended_translation": "用户",
+            "source": "user"
+          },
+          "extraction_count": 1,
+          "evidence_rows": [
+            2
+          ],
+          "extraction_tasks": [
+            "extract-r2-00001-0bddf94b"
+          ]
+        }
+      ],
+      "provisional_selection": "most_extraction_proposals_then_first_seen"
+    },
+    {
+      "category_path": "其他",
+      "recommended_translation": "硬化",
+      "source": "Hardened",
+      "evidence_rows": [
+        1
+      ],
+      "extraction_candidates": [
+        {
+          "table": "terms",
+          "row": {
+            "category_path": "其他",
+            "recommended_translation": "硬化",
+            "source": "Hardened"
+          },
+          "extraction_count": 1,
+          "evidence_rows": [
+            1
+          ],
+          "extraction_tasks": [
+            "extract-r2-00001-0bddf94b"
+          ]
+        }
+      ],
+      "provisional_selection": "most_extraction_proposals_then_first_seen",
+      "corpus_evidence_rows": [
+        6,
+        7
+      ],
+      "corpus_evidence_note": "Literal source match in definition/role cue records; may include one definition of the literal role following this term. Candidate evidence, not confirmed semantic equivalence; distinguish homonyms."
+    }
+  ],
+  "non_translate": [],
+  "applicability_policy": 1,
+  "terminology_policy": 1,
+  "corpus_evidence_policy": 1
+}

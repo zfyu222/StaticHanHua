@@ -1,0 +1,22 @@
+{
+  "characters": [
+    {
+      "source": "Shade",
+      "recommended_translation": "谢德",
+      "gender": "男性",
+      "term_kind": "proper_name",
+      "enforcement": "required",
+      "term_reason": "Shade is the name of Qira's brother."
+    },
+    {
+      "source": "Rose",
+      "recommended_translation": "萝丝",
+      "gender": "女性",
+      "term_kind": "proper_name",
+      "enforcement": "required",
+      "term_reason": "Rose is the name of a gardener."
+    }
+  ],
+  "terms": [],
+  "non_translate": []
+}

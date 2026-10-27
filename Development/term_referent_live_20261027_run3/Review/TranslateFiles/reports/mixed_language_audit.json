@@ -1,0 +1,15 @@
+{
+  "status": "candidates_only",
+  "semantic_approval": false,
+  "source_sha256": "1e5cd64ee61daceeb01f4cb999c9b1acef0c49733e835bc777ef6d9c8b29181a",
+  "glossary": {
+    "hash": "dcf2824f069e0e0a9c60ec20e23952a35bf3358cd304d29f5f0a72ccaee8b8f7",
+    "path": "fixture_glossary.json",
+    "revision": 2
+  },
+  "candidate_data_hash": "13e7665f867269010112039cfd87d4b6e1cf2ee76f8b59a583958252b7af44a0",
+  "records_checked": 7,
+  "candidates": [],
+  "note": "Latin text can be a key, brand, code, name or a missed translation. Matching a non-translate rule is not semantic approval.",
+  "candidate_records": 0
+}

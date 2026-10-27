@@ -1,0 +1,6 @@
+{
+  "report_hash": "23a173d1768feee2c27a4b40b5cb1ae8a3695d095195680f82174d42ae99cf36",
+  "reviewer": "main",
+  "decision": "accept",
+  "summary": "Development regression fixtures only: copied historical errors are not approved translations; test the real reviewer."
+}

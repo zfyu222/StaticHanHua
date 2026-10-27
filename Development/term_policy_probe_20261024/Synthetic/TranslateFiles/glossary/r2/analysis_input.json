@@ -1,0 +1,182 @@
+{
+  "extra": {
+    "analysis_v1": {
+      "characters": [
+        {
+          "applicability": {
+            "case_sensitive": true,
+            "mode": "literal_context",
+            "prefix": "",
+            "reason": "后接 opens the gate，此处为人物名而非情态动词。",
+            "suffix": " opens the gate."
+          },
+          "enforcement": "required",
+          "gender": "女性",
+          "recommended_translation": "梅",
+          "source": "May",
+          "term_kind": "proper_name",
+          "term_reason": "句首人物名，后接 opens the gate；非情态动词 may。",
+          "evidence_rows": [
+            3
+          ],
+          "extraction_candidates": [
+            {
+              "table": "characters",
+              "row": {
+                "applicability": {
+                  "case_sensitive": true,
+                  "mode": "literal_context",
+                  "prefix": "",
+                  "reason": "后接 opens the gate，此处为人物名而非情态动词。",
+                  "suffix": " opens the gate."
+                },
+                "enforcement": "required",
+                "gender": "女性",
+                "recommended_translation": "梅",
+                "source": "May",
+                "term_kind": "proper_name",
+                "term_reason": "句首人物名，后接 opens the gate；非情态动词 may。"
+              },
+              "extraction_count": 1,
+              "evidence_rows": [
+                3
+              ],
+              "extraction_tasks": [
+                "extract-r2-00001-d5e9420e"
+              ]
+            }
+          ],
+          "provisional_selection": "most_extraction_proposals_then_first_seen"
+        },
+        {
+          "enforcement": "required",
+          "gender": "女性",
+          "recommended_translation": "爱丽丝",
+          "source": "Alice",
+          "term_kind": "proper_name",
+          "term_reason": "人物名，作为 has gold 的主语。",
+          "evidence_rows": [
+            5
+          ],
+          "extraction_candidates": [
+            {
+              "table": "characters",
+              "row": {
+                "enforcement": "required",
+                "gender": "女性",
+                "recommended_translation": "爱丽丝",
+                "source": "Alice",
+                "term_kind": "proper_name",
+                "term_reason": "人物名，作为 has gold 的主语。"
+              },
+              "extraction_count": 1,
+              "evidence_rows": [
+                5
+              ],
+              "extraction_tasks": [
+                "extract-r2-00001-d5e9420e"
+              ]
+            }
+          ],
+          "provisional_selection": "most_extraction_proposals_then_first_seen"
+        }
+      ],
+      "terms": [
+        {
+          "applicability": {
+            "case_sensitive": true,
+            "mode": "whole_record",
+            "reason": "独立 UI 属性标签，指力量属性。"
+          },
+          "category_path": "其他",
+          "enforcement": "required",
+          "recommended_translation": "力量",
+          "source": "Might",
+          "term_kind": "game_term",
+          "term_reason": "独立 UI 属性标签，指力量属性。",
+          "evidence_rows": [
+            1
+          ],
+          "extraction_candidates": [
+            {
+              "table": "terms",
+              "row": {
+                "applicability": {
+                  "case_sensitive": true,
+                  "mode": "whole_record",
+                  "reason": "独立 UI 属性标签，指力量属性。"
+                },
+                "category_path": "其他",
+                "enforcement": "required",
+                "recommended_translation": "力量",
+                "source": "Might",
+                "term_kind": "game_term",
+                "term_reason": "独立 UI 属性标签，指力量属性。"
+              },
+              "extraction_count": 1,
+              "evidence_rows": [
+                1
+              ],
+              "extraction_tasks": [
+                "extract-r2-00001-d5e9420e"
+              ]
+            }
+          ],
+          "provisional_selection": "most_extraction_proposals_then_first_seen"
+        }
+      ],
+      "non_translate": [
+        {
+          "source": "{0}",
+          "term_reason": "运行时变量占位符，需原样保留。",
+          "evidence_rows": [
+            5
+          ],
+          "extraction_candidates": [
+            {
+              "table": "non_translate",
+              "row": {
+                "source": "{0}",
+                "term_reason": "运行时变量占位符，需原样保留。"
+              },
+              "extraction_count": 1,
+              "evidence_rows": [
+                5
+              ],
+              "extraction_tasks": [
+                "extract-r2-00001-d5e9420e"
+              ]
+            }
+          ],
+          "provisional_selection": "most_extraction_proposals_then_first_seen"
+        },
+        {
+          "source": "{Female}",
+          "term_reason": "非打印性别元数据标记，需原样保留。",
+          "evidence_rows": [
+            8
+          ],
+          "extraction_candidates": [
+            {
+              "table": "non_translate",
+              "row": {
+                "source": "{Female}",
+                "term_reason": "非打印性别元数据标记，需原样保留。"
+              },
+              "extraction_count": 1,
+              "evidence_rows": [
+                8
+              ],
+              "extraction_tasks": [
+                "extract-r2-00001-d5e9420e"
+              ]
+            }
+          ],
+          "provisional_selection": "most_extraction_proposals_then_first_seen"
+        }
+      ],
+      "applicability_policy": 1,
+      "terminology_policy": 1
+    }
+  }
+}

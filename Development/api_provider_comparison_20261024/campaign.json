@@ -1,0 +1,72 @@
+{
+  "request_limit": 8,
+  "order": [
+    "yjapi",
+    "deepseek",
+    "deepseek",
+    "yjapi"
+  ],
+  "arms": [
+    {
+      "index": 1,
+      "api": "yjapi",
+      "report": "Development\\api_provider_comparison_20261024\\1_yjapi\\report.json",
+      "wire_requests": 1,
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "setup_error": null
+    },
+    {
+      "index": 2,
+      "api": "deepseek",
+      "report": "Development\\api_provider_comparison_20261024\\2_deepseek\\report.json",
+      "wire_requests": 1,
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "setup_error": null
+    },
+    {
+      "index": 3,
+      "api": "deepseek",
+      "report": "Development\\api_provider_comparison_20261024\\3_deepseek\\report.json",
+      "wire_requests": 1,
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "setup_error": null
+    },
+    {
+      "index": 4,
+      "api": "yjapi",
+      "report": "Development\\api_provider_comparison_20261024\\4_yjapi\\report.json",
+      "wire_requests": 1,
+      "runner": {
+        "accepted": 1,
+        "failed": 0,
+        "stage_clean": true,
+        "needs_attention": [],
+        "pending_handoffs": []
+      },
+      "setup_error": null
+    }
+  ],
+  "started": 1792850698.3200884,
+  "stopped_apis": [],
+  "actual_wire_requests": 4,
+  "elapsed_seconds": 234.641,
+  "config_unchanged": true
+}

@@ -1,0 +1,13 @@
+{
+  "snapshot_sha256": "dd164659cdd8640290b24e494b4886a08b9ea2753b1bd7fe9d5dc394b66b1fae",
+  "source_sha256": "b4bc24a791a828dc924871612d18175e5dc6049212e9eaf8d4b22a4e4e5f4ed9",
+  "review_complete": true,
+  "review_summary": "Two development sentences have no specific named/game terms.",
+  "reviewed_refs": [],
+  "entry_reviews": [],
+  "acknowledged_findings": [],
+  "edits": [],
+  "quarantine": [],
+  "additions": [],
+  "allow_no_match": []
+}

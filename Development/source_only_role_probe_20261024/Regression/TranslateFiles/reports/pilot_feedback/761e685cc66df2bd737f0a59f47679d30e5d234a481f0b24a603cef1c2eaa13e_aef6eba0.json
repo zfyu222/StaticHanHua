@@ -1,0 +1,6 @@
+{
+  "report_hash": "761e685cc66df2bd737f0a59f47679d30e5d234a481f0b24a603cef1c2eaa13e",
+  "reviewer": "main",
+  "decision": "accept",
+  "summary": "Development regression only: deliberate unchanged historical errors, not approval of translation quality; formal checks must find them."
+}

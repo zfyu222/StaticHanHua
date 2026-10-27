@@ -46,3 +46,6 @@ Desktop.ini
 /Tools/localization/verification/
 /Tools/Ghidra/
 /Tools/Java/
+
+# Disposable translation-run history inside framework experiments
+/Development/**/TranslateFiles/history/

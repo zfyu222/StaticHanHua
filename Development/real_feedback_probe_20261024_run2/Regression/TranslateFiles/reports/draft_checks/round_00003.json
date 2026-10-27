@@ -1,0 +1,36 @@
+{
+  "phase": "final_full",
+  "scope": "full",
+  "checked_ids": [
+    "R0000001_c590bc54b8",
+    "R0000002_a0ea110547",
+    "R0000003_36da9ea8c7",
+    "R0000004_abbc502838",
+    "R0000005_58abdf6a8a"
+  ],
+  "checked_records": 5,
+  "passed_ids": [
+    "R0000001_c590bc54b8",
+    "R0000002_a0ea110547",
+    "R0000003_36da9ea8c7",
+    "R0000004_abbc502838",
+    "R0000005_58abdf6a8a"
+  ],
+  "failures": [],
+  "remaining_failed_ids": [],
+  "key": "ee2b2efc218634ef889e03cd1088b65cee6d7627d05f70466095fedf7bf29768",
+  "policy_key": "79118068eb0560efeebb9c7c45c4f4d137fbb94e9a4ad0a55d9ff489b0c1a80c",
+  "repair_status": [
+    {
+      "id": "draft-repair-af71d5d0ca524145b554",
+      "status": "done",
+      "attempt": 1,
+      "ids": [
+        "R0000003_36da9ea8c7"
+      ],
+      "round": 1
+    }
+  ],
+  "result": "passed",
+  "round": 3
+}
