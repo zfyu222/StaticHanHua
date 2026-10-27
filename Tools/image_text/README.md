@@ -4,6 +4,8 @@
 
 实现与实测范围见 [v0.5验收记录](reports/tiered_v05.md)。
 
+本地Qwen对个别候选输出失败或无明显收益时，可用 `agent-pack --out <work> --direct-image-id <image_id>`（可重复参数）将明确选定的候选直接交当前对话Agent看图。此入口保留原路由、失败记录和已有结果，不生成或伪装Qwen结论；仍须真实视觉裁决及原有导出验收。不能选择扫描失败或预测排除项。默认队列行为不变。
+
 ## 可选图片翻译与两个Skill
 
 项目开始由 `start-translate` 询问是否加入图片翻译，保存根目录 `localization_project.json` 的enabled/disabled/undecided。已有选择沿用，未答复不默认启用。初始化脚本支持 `--image-translation`。

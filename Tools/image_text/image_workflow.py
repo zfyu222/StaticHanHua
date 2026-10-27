@@ -12,7 +12,7 @@ def main(argv=None):
     for name in ('plan','pipeline'):
         q=subs.add_parser(name);q.add_argument('--out',required=True);q.add_argument('--policy');q.add_argument('--project',required=name=='pipeline')
     q=subs.add_parser('qwen');q.add_argument('--out',required=True);q.add_argument('--batch',type=int)
-    q=subs.add_parser('agent-pack');q.add_argument('--out',required=True);q.add_argument('--limit',type=int,default=20)
+    q=subs.add_parser('agent-pack');q.add_argument('--out',required=True);q.add_argument('--limit',type=int,default=20);q.add_argument('--direct-image-id',action='append',help='Explicit candidate to review visually even when Qwen has no usable result; repeat for multiple IDs')
     q=subs.add_parser('agent-import');q.add_argument('--out',required=True);q.add_argument('--package',required=True);q.add_argument('--reply',required=True);q.add_argument('--reviewer',choices=['conversation_agent','human'],required=True);q.add_argument('--model-label')
     q=subs.add_parser('export');q.add_argument('--out',required=True);q.add_argument('--csv',required=True);q.add_argument('--allow-partial',action='store_true')
     q=subs.add_parser('prepare-translation');q.add_argument('--project',required=True);q.add_argument('--source',required=True)
@@ -39,7 +39,7 @@ def main(argv=None):
         result=qwen_batches(a.out,a.batch);result=dict(completed=len(result['images']),invocation=result['invocation'])
     elif a.command=='agent-pack':
         from tiered import package
-        result=package(a.out,a.limit)
+        result=package(a.out,a.limit,a.direct_image_id)
     elif a.command=='agent-import':
         from tiered import import_decisions
         result=import_decisions(a.out,a.package,a.reply,a.reviewer,a.model_label)

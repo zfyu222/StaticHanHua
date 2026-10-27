@@ -128,12 +128,21 @@ def tasks(out):
         result.append(dict(image_id=key,purpose=purpose,reason=reason,paddle=r['regions'],qwen=vision))
     return result
 
-def package(out,limit=20):
+def package(out,limit=20,direct_image_ids=None):
     if not 1<=limit<=100:raise ValueError('Agent package limit must be 1..100')
     out,m,s,p=load_plan(out);decisions_path=out/'tiered/decisions.json'
     previous=read_json(decisions_path) if decisions_path.exists() else dict(plan_hash=p['plan_hash'],images={})
     if previous['plan_hash']!=p['plan_hash']:raise ValueError('Stale decisions')
-    pending=[x for x in tasks(out) if x['image_id'] not in previous['images'] or previous['images'][x['image_id']]['unreadable']]
+    candidates=tasks(out)
+    if direct_image_ids is not None:
+        selected=set(direct_image_ids)
+        routes={x['image_id']:x for x in p['routes']}
+        if not selected or any(k not in routes or routes[k]['route'] in ('excluded','blocked') for k in selected):
+            raise ValueError('Direct visual review requires explicit, non-blocked candidate image IDs')
+        raw={x['image_id']:x for x in s['images']}
+        existing={x['image_id']:x for x in candidates}
+        candidates=[existing[k] if k in existing else dict(image_id=k,purpose='dispute',reason='explicit_direct_visual_review_without_qwen_result',paddle=raw[k]['regions'],qwen=None) for k in sorted(selected)]
+    pending=[x for x in candidates if x['image_id'] not in previous['images'] or previous['images'][x['image_id']]['unreadable']]
     pending.sort(key=lambda x:(x['purpose']!='dispute',x['image_id']))
     jobs=[]
     for item in pending[:limit]:
