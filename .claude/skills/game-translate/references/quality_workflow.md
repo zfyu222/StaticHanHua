@@ -44,7 +44,7 @@ SubAgent 的 `claim --worker` 使用创建子代理时返回的实际 agent ID�
 4. 用 pilot-decide 记录 accept/retry/stop 和实际判断理由。accept 表示方案足以进入正式翻译，允许保留孤立错误；retry 用于验证明确的方案调整，可指定 retry_ids，省略或空列表表示重试相同整批样本；stop 暂停流程并记录原因。不能只为清零个别句子而循环返修。没有 API 独立试译审校，也没有额外标准档逐项验收或正式阶段的 6 轮逐句修复循环。
 5. 需要调整时先结束/核实恢复在途任务，再 pause/configure/resume 修改参数、文体等；术语变更走 revise-glossary。调用 pilot-retry 指定受影响 ID（不指定则同批全部），保留其他样本、旧结果、实际作者和每轮判断。完成验证后再次 pilot-report，由主 AI 判断继续、接受或停止。不得直接改 DB、代写批次译文或改写在途输入。
 
-主 AI 的判断保存在 TranslateFiles/reports/pilot_feedback/；各轮报告保存在 reports/pilot_rounds/。程序给出 pilot_assessment.template.json，仅需 report_hash、reviewer=main、decision 和 summary，retry_ids 可选。不要求每句决定、强制错误率阈值或逐轮修改参数。API 执行代理只负责运行和等待，不做校准判断，不自动跨轮。
+主 AI 的判断保存在 TranslateFiles/reports/pilot_feedback/；各轮报告保存在 reports/pilot_rounds/。程序给出 pilot_assessment.template.json，仅需 report_hash、reviewer=main、decision 和 summary，retry_ids 可选。不要求每句决定、强制错误率阈值或逐轮修改参数。API 执行者只负责运行和等待，不做校准判断，不自动跨轮。
 
 ```powershell
 & $python $flow --project $project prepare --stage pilot_translate

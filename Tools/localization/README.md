@@ -146,7 +146,7 @@ init 默认从项目 README 的游戏信息、简介、背景设定、世界观�
 
 阶段顺序及质量门槛统一维护在 [自定义流程的固定阶段](../../.agents/skills/game-translate/references/custom_workflow.md#固定阶段及质量门槛)，本文件仅列程序入口和配置，不复制 API 或 SubAgent 流程。
 
-子代理由主代理通过平台工具调用，普通 Python 不负责调用聊天内的 spawn_agent。API 执行复用 AINiee 的客户端工厂、平台思考参数和 SSE 解析；本版支持 OpenAI 兼容接口。未接入的其他原生接口不属于当前翻译路线。
+子代理由主代理通过平台工具调用，普通 Python 不负责创建聊天内的子代理。API 执行复用 AINiee 的客户端工厂、平台思考参数和 SSE 解析；本版支持 OpenAI 兼容接口。未接入的其他原生接口不属于当前翻译路线。
 
 API 地址、密钥和模型统一填写本地文件 `Tools/localization/api.local.jsonc`（已排除 Git）。首次可复制 `api.example.jsonc`；所有自定义 API 项目共用，下一次 run-api 启动读取，不改写在途请求。项目仍需选择 backend=api，不再逐项目重复填写连接信息。
 
@@ -269,15 +269,15 @@ run-api 在拆批前同步 batching，通过现有 configure 修订机制只更�
 
 ## API 阶段执行与等待
 
-API 自动执行统一通过 `run_api_round.py`，由新的便宜档执行代理管理一个阶段的常规多轮；主代理用原生 `wait_agent` 等待终结事件，不轮询进程或运行日志。具体派发模板及边界见 [API 阶段执行与等待](../../.agents/skills/game-translate/references/api_execution_wait.md)。
+API 自动执行统一通过 `run_api_round.py`，按当前 Agent 工具的规则文件（`AgentRules/<工具>.md`）在后台运行一个阶段的常规多轮，结束后再唤醒主代理，不轮询进程或运行日志。具体派发模板及边界见 [API 阶段执行与等待](../../.agents/skills/game-translate/references/api_execution_wait.md)。
 
 ```powershell
 & $python D:/StaticHanHua/Tools/localization/run_api_round.py --project $project --stage translate
 ```
 
-包装器只启动一次 run-api，阻塞等待本阶段普通循环结束，日志留在 TranslateFiles/logs/api_runs，回执留在 TranslateFiles/reports/api_runs；工具只收到一次 JSON。translate 只保存正式草稿并交回主 AI，单独启动 draft_check 后才开始程序审校；draft_check/review/final_review 的整轮检查和常规修复由程序自动推进，阶段切换和升级由主流程决定。completed 代表程序正常交回，stage_clean 表示这些阶段相应检查通过，不代表项目可以发布。执行代理只返回状态、计数、停止原因和回执路径，不把全文日志加入主对话。
+包装器只启动一次 run-api，阻塞等待本阶段普通循环结束，日志留在 TranslateFiles/logs/api_runs，回执留在 TranslateFiles/reports/api_runs；工具只收到一次 JSON。translate 只保存正式草稿并交回主 AI，单独启动 draft_check 后才开始程序审校；draft_check/review/final_review 的整轮检查和常规修复由程序自动推进，阶段切换和升级由主流程决定。completed 代表程序正常交回，stage_clean 表示这些阶段相应检查通过，不代表项目可以发布。执行者只返回状态、计数、停止原因和回执路径，不把全文日志加入主对话。
 
-state/api_round.lock 防止重复启动；异常遗留锁及未知在途交接必须先核实旧进程停止，不自动回收或重放。等待超时只续用原生等待，不追加状态查询；收到用户新指令时按其要求处理。原生完成通知来自执行代理，回执文件本身不会唤醒主代理；不承诺绝对零唤醒或零 Token。
+state/api_round.lock 防止重复启动；异常遗留锁及未知在途交接必须先核实旧进程停止，不自动回收或重放。等待期间不追加状态查询；收到用户新指令时按其要求处理。完成通知来自所用工具的后台机制，回执文件本身不会唤醒主代理；不承诺绝对零唤醒或零 Token。
 
 ## 标准档只处理遗留争议和升级难题
 

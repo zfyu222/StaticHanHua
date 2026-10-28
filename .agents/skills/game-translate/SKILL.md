@@ -20,10 +20,10 @@ description: |
 
 子代理只按两档派发，程序不记录具体模型名：
 
-- 便宜档（`cheap`）：术语提取、正文翻译、独立审校、常规修复及 API 阶段执行代理。
+- 便宜档（`cheap`）：术语提取、正文翻译、独立审校、常规修复；工具用子代理等待 API 阶段时也用此档。
 - 标准档（`standard`）：最终验收裁决和超过常规轮次的升级修复。
 
-各 Agent 工具的档位模型见仓库根目录 `agent_models.json`。创建子代理时按当前工具和任务档位选模型；该工具或档位未指定时直接沿用主对话模型，不询问用户。两档可以是同一模型。修复回执的 `required_tier` 标明档位，`batch-open --worker-tier cheap|standard` 只领取对应档位任务。
+各档具体模型、子代理创建方式和长耗时任务的等待方式见当前 Agent 工具的规则文件（`AgentRules/<工具>.md`）。创建子代理时按当前工具和任务档位选模型；该工具或档位未指定时直接沿用主对话模型，不询问用户。两档可以是同一模型。修复回执的 `required_tier` 标明档位，`batch-open --worker-tier cheap|standard` 只领取对应档位任务。
 
 ## 共同边界
 
@@ -59,7 +59,7 @@ API 正文输入省略 ordinal 及空 protection/metadata/locked；同批冻结�
 
 API 正文术语例外复用本批 shared_terms 的短编号：新增例外返回 exceptions=[{term_ref:"t1",reason:"具体原句依据"}]，撤销用 exception_changes=[{exception_ref:"x1",action:"remove",reason:"具体反证"}]，x编号绑定本条 existing_exceptions，可撤销当前未命中的旧例外；新增例外的 term_ref 仅可引用本条 term_refs，不抄写术语原文。API 的 terminology_findings 同样使用 term_ref。程序在对应 session 的 api_id_transport.v2.json 中绑定逐记录的 record_terms，校验未知、跨记录、重复编号与非空字符串理由后，恢复为原有 source/reason 协议再收集。恢复和格式重试沿用这份映射，不根据回复顺序或当前全表猜测。持久化例外、语义验收及 子代理完整 source 协议不变，不新增通过缓存表或模型阶段。
 
-API 阶段执行默认交给新的便宜档执行代理（按[模型档位](#模型档位)，不继承主对话上下文），由其调用 run_api_round.py 并等待进程；主代理只用原生 wait_agent 等待终结事件，不轮询程序、读运行日志或定时询问子代理。一次调用完成本阶段的普通多轮，不在内部每轮创建执行代理或重启进程；Workflow、冻结术语对象、内存命中缓存和 API 客户端持续复用。translate 仅收齐草稿后返回 drafts_complete=true、next_action=draft_check，主 AI 可检查产出或提交 Git；之后单独调用 draft_check 自动完成草稿扫描及常规修复，review/final_review 自动完成整轮扫描及失败项修复，通过项不重派；各轮沿用原共同验收和累计次数限制，不新增持久化缓存表。提取、术语审校、润色完成各自任务后交回主流程；pilot_translate 生成试译报告后等待主 AI pilot-decide，不自动接受或重试。阶段间不自动串联、不自动导出；预算暂停、异常交接、停止条件及标准档/其他执行器任务均返回主流程。只返回一次紧凑回执，每个阶段调用用新执行代理；`--single-round` 仅供调试。执行前读取 [API 阶段执行与等待](references/api_execution_wait.md) 和 [自动循环边界](references/api_cycles.md)。不要把等待期间的周期唤醒搬到另一个标准档，也不要承诺绝对零唤醒或零 Token。
+API 阶段按当前 Agent 工具的规则文件（`AgentRules/<工具>.md`）在后台运行一次 run_api_round.py，进程结束后再唤醒主代理；等待期间不轮询程序、读运行日志或定时询问执行者。一次调用完成本阶段的普通多轮，不在内部每轮重启执行者或进程；Workflow、冻结术语对象、内存命中缓存和 API 客户端持续复用。translate 仅收齐草稿后返回 drafts_complete=true、next_action=draft_check，主 AI 可检查产出或提交 Git；之后单独调用 draft_check 自动完成草稿扫描及常规修复，review/final_review 自动完成整轮扫描及失败项修复，通过项不重派；各轮沿用原共同验收和累计次数限制，不新增持久化缓存表。提取、术语审校、润色完成各自任务后交回主流程；pilot_translate 生成试译报告后等待主 AI pilot-decide，不自动接受或重试。阶段间不自动串联、不自动导出；预算暂停、异常交接、停止条件及标准档/其他执行器任务均返回主流程。只返回一次紧凑回执，每个阶段单独调用一次；`--single-round` 仅供调试。执行前读取 [API 阶段执行与等待](references/api_execution_wait.md) 和 [自动循环边界](references/api_cycles.md)。不要把等待期间的周期唤醒搬到另一个标准档，也不要承诺绝对零唤醒或零 Token。
 
 - 正式输入：Projects/{GameName}/{gamename}_text.csv；正式输出：同目录 {gamename}_text_translated.csv。无表头、单列，按 CSV 逻辑记录逐条对应，逗号/换行合规转义；不能用物理行或模型输出顺序对齐。
 - 所有任务统一由程序在分配前完成输入准备、结构/来源检查、预算拆批并提供输出模板；子代理只完成本阶段工作，不运行任务或结果校验脚本、不修包或重分批。产出后的收集、合并、机械验收仍由程序执行；语义审校不能由程序替代。详见自定义流程的“程序准备任务，子代理专注本职”。
