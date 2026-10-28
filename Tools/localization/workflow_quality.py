@@ -1002,6 +1002,36 @@ class QualityMixin:
             self.event(db, 'record_game_check', {'translation_sha256': report['translation_sha256']})
             return {'status': 'passed', 'report_file': str(self.root / 'reports/in_game_check.json')}
 
+    def record_release_acceptance(self, report):
+        """Record explicit human permission to release with runtime testing pending.
+
+        This does not create or alter an in-game test result.
+        """
+        from translation_workflow import digest, write_json
+        with self.db() as db:
+            self.require_final_approval(db, self.config(db))
+            export = self.meta(db, 'last_export')
+            if (not export or report.get('translation_sha256') != export['translation_sha256']
+                    or digest(export['path']) != export['translation_sha256']):
+                raise ValueError('Release acceptance must bind the current exported translation')
+            if (report.get('authorization') != 'explicit_user_release'
+                    or report.get('in_game_validation') != 'pending'
+                    or report.get('accept_pending_runtime') is not True
+                    or not nonempty(report.get('user_statement'))
+                    or not nonempty(report.get('game_version')) or not nonempty(report.get('platform'))):
+                raise ValueError('Explicit user release authorization acknowledging pending runtime validation required')
+            saved = {**report, 'status': 'authorized',
+                'quality_report_hash': export['quality_review']['report_hash'],
+                'payload_files': self.checked_files(report.get('payload_files')),
+                'evidence_files': self.checked_files(report.get('evidence_files'))}
+            destinations = [e.get('game_path') for e in saved['payload_files']]
+            if any(not nonempty(p) for p in destinations) or len(set(destinations)) != len(destinations):
+                raise ValueError('Every authorized payload requires a unique game_path')
+            write_json(self.root / 'reports/release_acceptance.json', saved)
+            self.put(db, 'release_acceptance', saved)
+            self.event(db, 'record_release_acceptance', {'translation_sha256': saved['translation_sha256']})
+            return {'status': 'authorized', 'in_game_validation': 'pending'}
+
     def release_check(self):
         from translation_workflow import digest
         with self.db() as db:
@@ -1012,7 +1042,19 @@ class QualityMixin:
                     or check['translation_sha256'] != export['translation_sha256']
                     or check['quality_report_hash'] != export['quality_review']['report_hash']
                     or digest(export['path']) != check['translation_sha256']):
-                raise ValueError('Current in-game validation required before release')
+                acceptance = self.meta(db, 'release_acceptance')
+                if (not export or not acceptance or acceptance.get('status') != 'authorized'
+                        or acceptance.get('authorization') != 'explicit_user_release'
+                        or acceptance.get('accept_pending_runtime') is not True
+                        or acceptance.get('in_game_validation') != 'pending'
+                        or acceptance['translation_sha256'] != export['translation_sha256']
+                        or acceptance['quality_report_hash'] != export['quality_review']['report_hash']
+                        or digest(export['path']) != acceptance['translation_sha256']):
+                    raise ValueError('Current in-game validation required before release; or explicit user release acceptance')
+                self.checked_files(acceptance['payload_files']); self.checked_files(acceptance['evidence_files'])
+                return {'status': 'passed', 'authorization': 'explicit_user_release', 'in_game_validation': 'pending',
+                    'game_version': acceptance['game_version'], 'platform': acceptance['platform'],
+                    'payload_files': acceptance['payload_files']}
             self.checked_files(check['payload_files']); self.checked_files(check['evidence_files'])
             return {'status': 'passed', 'game_version': check['game_version'], 'platform': check['platform'],
                     'payload_files': check['payload_files']}

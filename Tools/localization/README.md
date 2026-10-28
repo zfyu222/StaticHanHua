@@ -135,6 +135,8 @@ init 默认从项目 README 的游戏信息、简介、背景设定、世界观�
 | draft-scan / review-scan | 整轮草稿或审校完成后统一验收，失败 ID 跨批合并修复 |
 | standard-round-record / standard-round-finish | 固定范围裁决，全部结论齐备后统一派修或批准 |
 | record-game-check / release-check | 保存回填实测及核对发布载荷 |
+
+用户明确要求实机待测时直接发布，可通过`Workflow.record_release_acceptance(report)`记录独立发布授权，再运行`release-check`。报告需`authorization=explicit_user_release`、`accept_pending_runtime=true`、`in_game_validation=pending`、真实`user_statement`、当前`translation_sha256`、版本/平台、完整`payload_files`及授权`evidence_files`。该入口不写入或改动实机检查记录；旧授权不能用于不同译文、质量报告或载荷。未明确授权仍要求当前实机检查，不得伪造实测pass。
 | freeze-glossary | 合并所有审校决定，复用 glossary_tool 构建后冻结 |
 | reopen-review --task ... --reason ... | 冻结前修正已提交术语审校；保留轮次限制与历史 |
 | fail / recover / heartbeat | 失败记账、核查旧 worker 后恢复、延长租约 |

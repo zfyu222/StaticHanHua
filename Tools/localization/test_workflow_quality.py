@@ -291,6 +291,45 @@ class QualityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'in-game'):
             package.check_custom_quality(self.flow.project, [], 'v1', 'Windows')
 
+    def release_acceptance(self):
+        report = self.runtime_report()
+        report.pop('checks')
+        report.update(authorization='explicit_user_release', in_game_validation='pending',
+            accept_pending_runtime=True, user_statement='Synthetic human authorization to release before runtime testing.')
+        return report
+
+    def test_explicit_release_acceptance_does_not_fabricate_game_check(self):
+        self.complete(); self.flow.export()
+        self.flow.record_release_acceptance(self.release_acceptance())
+        result = self.flow.release_check()
+        self.assertEqual(result['in_game_validation'], 'pending')
+        with self.flow.db() as db:
+            self.assertIsNone(self.flow.meta(db, 'in_game_check'))
+        package = self.packager()
+        entries = [package.parse_include('patch.dll=plugins/patch.dll', self.flow.project)]
+        package.check_custom_quality(self.flow.project, entries, 'synthetic-test-v1', 'local-unit-test')
+        wrong = [package.parse_include('patch.dll=wrong/patch.dll', self.flow.project)]
+        with self.assertRaisesRegex(ValueError, '载荷或安装路径'):
+            package.check_custom_quality(self.flow.project, wrong, 'synthetic-test-v1', 'local-unit-test')
+
+    def test_release_acceptance_requires_explicit_authorization_and_current_export(self):
+        self.complete(); self.flow.export()
+        report = self.release_acceptance()
+        for key in ('user_statement', 'accept_pending_runtime', 'authorization'):
+            invalid = dict(report); invalid.pop(key)
+            with self.assertRaisesRegex(ValueError, 'Explicit user'):
+                self.flow.record_release_acceptance(invalid)
+        report['translation_sha256'] = 'stale'
+        with self.assertRaisesRegex(ValueError, 'current exported'):
+            self.flow.record_release_acceptance(report)
+
+    def test_release_acceptance_preserves_hash_and_quality_gates(self):
+        self.complete(); self.flow.export()
+        self.flow.record_release_acceptance(self.release_acceptance())
+        (self.flow.project / 'patch.dll').write_bytes(b'tampered')
+        with self.assertRaisesRegex(ValueError, 'hash mismatch'):
+            self.flow.release_check()
+
     def test_packager_binds_destinations_hashes_version_and_platform(self):
         self.complete(); self.flow.export(); self.flow.record_game_check(self.runtime_report())
         package = self.packager()
