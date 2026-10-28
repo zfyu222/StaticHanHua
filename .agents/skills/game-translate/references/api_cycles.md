@@ -12,10 +12,10 @@
 | glossary_review | 完成本阶段语义审校任务，原有格式重试保持 | 冻结、冲突或需要裁决的问题 |
 | pilot_translate | 本轮试译并生成 pilot-report | 主 AI pilot-decide，不自动接受或试译重试 |
 | translate | 全部正式草稿落盘，仅做交接结构校验及格式/传输重试 | drafts_complete=true、next_action=draft_check；主 AI 可检查或提交版本库 |
-| draft_check | 首次 draft-scan → 必要的 API 修复 → 整轮复查，直到 clean | 主 AI 决定启动独立审校，或处理暂停/异常/Sol 升级 |
-| review | 全轮候选和证据 → review-scan → 失败项新轮，直到 clean | 下一阶段，或暂停/异常/Sol 升级 |
+| draft_check | 首次 draft-scan → 必要的 API 修复 → 整轮复查，直到 clean | 主 AI 决定启动独立审校，或处理暂停/异常/标准档升级 |
+| review | 全轮候选和证据 → review-scan → 失败项新轮，直到 clean | 下一阶段，或暂停/异常/标准档升级 |
 | polish | 按原配置完成润色任务，不扩大范围 | 下一阶段，不自动启动最终审校 |
-| final_review | 与 review 相同的整轮检查及失败项循环 | 主流程最终闭环，或异常/Sol 裁决 |
+| final_review | 与 review 相同的整轮检查及失败项循环 | 主流程最终闭环，或异常/标准档裁决 |
 
 ## 共用实现与停止
 
@@ -29,15 +29,15 @@
 
 同一阶段内只创建一个Workflow，API客户端按配置的接口分别复用，普通多轮共享同一优先级管理器，持续复用未变化的冻结术语对象及内存命中缓存。阶段轮次边界发现API配置变化会明确停止，不改写在途请求。没有新增数据库缓存表。单独启动另一个阶段或异常重启仍需重建内存缓存，首轮未缓存文本的匹配耗时并未因此消失。
 
-请求预算用尽、暂停、未知在途交接、失败任务、质量停止条件均返回 needs_attention。Sol/其他非 API 执行器任务不由普通 API 代执行；混合轮可先保存普通 API 批次，剩余外部任务交回主流程，整轮未结束前不检查或批准。恢复仍通过 --resume，保留已完成任务和累计次数。
+请求预算用尽、暂停、未知在途交接、失败任务、质量停止条件均返回 needs_attention。标准档/其他非 API 执行器任务不由普通 API 代执行；混合轮可先保存普通 API 批次，剩余外部任务交回主流程，整轮未结束前不检查或批准。恢复仍通过 --resume，保留已完成任务和累计次数。
 
-不会自动从 translate 进入 draft_check，也不会从 draft_check 进入 review；不会自动启动润色、导出、回填或发布。试译整体校准、术语冲突及遗留争议仍由既有主 AI / Sol 流程处理。
+不会自动从 translate 进入 draft_check，也不会从 draft_check 进入 review；不会自动启动润色、导出、回填或发布。试译整体校准、术语冲突及遗留争议仍由既有主 AI / 标准档流程处理。
 
 ## 日志
 
 每次阶段调用生成自己的 profile；translate 与 draft_check 分别记录日志、耗时及本次 Token，项目累计 Token 连续计算。cycle_started/cycle_checked/cycle_stopped 记录循环，stage_boundary 标记正式草稿交回主 AI；api_cycles 保存各轮派发计数、检查范围、失败数及报告路径。draft_check 初始扫描发生在第一次 API 修复前，纯扫描可没有 API 轮次。阶段耗时、总请求和 Token 跨轮汇总，重试费用不漏记；嵌套计时不可相加当墙钟总用时。扫描中的进度文字写 stderr，stdout 保留单个最终 JSON。completed 只代表程序正常交回；translate 的 stage_clean=false 表示尚未程序审校，drafts_complete=true 仅表示草稿已收齐。stage_clean 仅在 draft_check/review/final_review 通过相应共同检查后为 true，不等同于项目整体可以发布。
 
-用户明确要求升级修复继续用API时，可通过公共configure设置 escalation_backend=api（默认codex）。保留 repair_tier=sol 作为原升级预算层、累计次数、回退统计和停止条件；required_model置空，不冒充Sol，也不放宽独立审校和最终导出。新升级任务按该后端分配，旧在途任务先结束；通过公共配置修订使未执行旧任务过期再按当前诊断分配。此例外必须来自用户明确选择，并在项目记录。
+用户明确要求升级修复继续用API时，可通过公共configure设置 escalation_backend=api（默认subagent）。保留 repair_tier=standard 作为原升级预算层、累计次数、回退统计和停止条件；required_tier置空，不冒充标准档，也不放宽独立审校和最终导出。新升级任务按该后端分配，旧在途任务先结束；通过公共配置修订使未执行旧任务过期再按当前诊断分配。此例外必须来自用户明确选择，并在项目记录。
 
 API服务故障与模型结果失败分开计数：连接/超时、HTTP错误、空响应及流中断保留原始api_calls和已知/未知Token，但不计入本地max_requests额度与批次max_attempts；已返回模型结果但协议不合格、输出截断或推理预算耗尽仍计数。新请求绑定task_attempt，分包同一次尝试只在全部请求均属服务故障时返还；旧初始交接按session追溯，旧修复分包按token+round保守追溯。连接失败、超时、流中断在同一交接重试链最多额外3次，依次等待2/4/8秒，复用公共batch-retry并保留原始故障、累计尝试和结果；等待可被暂停打断。耗尽后停止派发并收回在途结果；403、401、429、其他HTTP错误和空响应等仍首次故障暂停，不循环重试。SDK重试保持关闭，避免重试次数叠加。并发严格读取当前API配置，不由执行参数或临时覆盖控制。
 
@@ -47,4 +47,4 @@ API 启动时为任务领取、历史交接、执行身份和计数查询建立�
 
 仅提高 review_output_tokens 时，暂停且无 reserved 请求、无运行中的非 API 任务，可由公共 configure（impact=none）原位更新输出容量；保留修订号、已分配批次原大小/输入哈希、交接、结果与累计预算，并记录配置历史。该例外不允许降低容量或夹带其他规则；API max_completion_tokens 仍须满足新容量。sync_api_batching 复用此入口，避免旧交接阻止用户提高输出预算后接续。
 
-输入预算按实际执行器的完整发送包计数：API 使用 compact protocol 的实测 Token，Codex 使用其完整执行包；内部 canonical JSON 的审计计数保留，但不额外当作 API 的发送量。所有候选、出处、保护和语义证据仍完整保留。降低 task_input_tokens 时，暂停、无 runner 锁且无 reserved 请求，并确认全部未完成任务均为已测量且不超新上限的 API 包，公共 configure 可原位降低上限，保留任务哈希、修订号、租约、结果和尝试预算；任一包超限或未测量则拒绝，不以恢复为由放宽上限。
+输入预算按实际执行器的完整发送包计数：API 使用 compact protocol 的实测 Token，SubAgent 使用其完整执行包；内部 canonical JSON 的审计计数保留，但不额外当作 API 的发送量。所有候选、出处、保护和语义证据仍完整保留。降低 task_input_tokens 时，暂停、无 runner 锁且无 reserved 请求，并确认全部未完成任务均为已测量且不超新上限的 API 包，公共 configure 可原位降低上限，保留任务哈希、修订号、租约、结果和尝试预算；任一包超限或未测量则拒绝，不以恢复为由放宽上限。

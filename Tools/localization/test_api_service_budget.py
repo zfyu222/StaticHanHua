@@ -32,7 +32,7 @@ class BudgetTests(unittest.TestCase):
         raw = list(db.execute('select * from api_calls'))
         self.assertEqual(budget_requests(db),3)  # received, model rejection, reserved
         self.assertEqual(effective_attempts(db, {'id':'t','backend':'api','attempt':5}),3)
-        self.assertEqual(effective_attempts(db, {'id':'t','backend':'codex','attempt':5}),5)
+        self.assertEqual(effective_attempts(db, {'id':'t','backend':'subagent','attempt':5}),5)
         self.assertEqual(raw,list(db.execute('select * from api_calls')))
 
     def test_service_error_stops_once_and_does_not_exhaust_task_or_project_budget(self):

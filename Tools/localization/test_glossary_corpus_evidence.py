@@ -117,7 +117,7 @@ class CorpusEvidenceTests(unittest.TestCase):
             root=Path(temp);src=root/'cases_text.csv'
             with src.open('w',encoding='utf-8',newline='') as f:
                 csv.writer(f).writerows([['Hardened'],['A physically hardened object.'],[self.definition]])
-            flow=w.Workflow(root);flow.init(src,{'backend':'codex'})
+            flow=w.Workflow(root);flow.init(src,{'backend':'subagent'})
             flow.prepare('extract');claim=flow.claim('extract','fixture-extractor')
             flow.submit(claim['task_id'],claim['lease_token'],dict(task_id=claim['task_id'],
                 input_hash=claim['payload']['input_hash'],analysis=self.analysis()))

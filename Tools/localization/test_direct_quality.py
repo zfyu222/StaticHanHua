@@ -31,7 +31,7 @@ class DirectQualityTests(unittest.TestCase):
     def test_direct_round_records_real_identity_and_closes_normally(self):
         saved = self.flow.record_direct_quality_round(self.decisions)
         self.assertEqual(saved['remaining_checks'], 0)
-        self.assertEqual(self.flow.finish_sol_round()['status'], 'approved')
+        self.assertEqual(self.flow.finish_standard_round()['status'], 'approved')
         with self.flow.db() as db:
             approved = self.flow.require_final_approval(db, self.flow.config(db))
             self.assertEqual(approved['reviewer'], 'main:user-authorized')
@@ -40,8 +40,8 @@ class DirectQualityTests(unittest.TestCase):
         missing = dict(self.decisions); missing.pop('user_authorization')
         with self.assertRaisesRegex(ValueError, 'authorization'):
             self.flow.record_direct_quality_round(missing)
-        with self.assertRaisesRegex(ValueError, 'Sol checks'):
-            self.flow.record_sol_round(self.decisions)
+        with self.assertRaisesRegex(ValueError, 'Standard-tier checks'):
+            self.flow.record_standard_round(self.decisions)
 
     def test_stale_report_rejected(self):
         stale = dict(self.decisions, report_hash='stale')

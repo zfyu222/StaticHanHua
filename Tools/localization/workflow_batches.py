@@ -82,8 +82,8 @@ class BatchMixin:
                 raise ValueError('Task already has a batch handoff')
             failed = {row['record_id'] for row in db.execute(
                 'SELECT record_id FROM review_candidates WHERE stage=? AND status="failed"', (task['stage'],))}
-            from_sol_round = str(payload.get('review_repair_origin', '')).startswith('sol-round-')
-            if payload.get('review_repair_origin') and not from_sol_round and not set(ids).issubset(failed):
+            from_standard_round = str(payload.get('review_repair_origin', '')).startswith('standard-round-')
+            if payload.get('review_repair_origin') and not from_standard_round and not set(ids).issubset(failed):
                 raise ValueError('Every split ID must still be a failed candidate in this review stage')
 
             planned = self.plan_task_allocation(db, payload, task['backend'])
@@ -102,14 +102,14 @@ class BatchMixin:
                     'input_limit_tokens': config.get('task_input_tokens', 16384), 'children': children,
                     'summary': self.batch_summary(db)}
 
-    def batch_many(self, action, values, stage=None, next_worker=None, worker_model=None):
+    def batch_many(self, action, values, stage=None, next_worker=None, worker_tier=None):
         """Return each durable receipt even when another independent handoff fails."""
         if action not in ('open', 'finish'):
             raise ValueError('Unsupported batch action')
         results = []
         for value in values:
             try:
-                results.append(self.batch_open(stage, value, worker_model=worker_model) if action == 'open' else self.batch_finish(value, next_worker))
+                results.append(self.batch_open(stage, value, worker_tier=worker_tier) if action == 'open' else self.batch_finish(value, next_worker))
             except (ValueError, OSError, sqlite3.Error) as exc:
                 results.append({'status': 'needs_attention', 'worker' if action == 'open' else 'session_id': value, 'error': str(exc)})
         return results
@@ -130,7 +130,7 @@ class BatchMixin:
         config = self.config(db)
         glossary = self.glossary(db)
         rules = self.rules(db, config) if glossary else ()
-        header_fields = ('language', 'style', 'game_background', 'revision_request', 'repair_tier', 'required_model', 'repair_counts') if diagnostics or payload.get('strict_translation') or payload.get('review_repair_origin') else (
+        header_fields = ('language', 'style', 'game_background', 'revision_request', 'repair_tier', 'required_tier', 'repair_counts') if diagnostics or payload.get('strict_translation') or payload.get('review_repair_origin') else (
             'language', 'style', 'game_background', 'approved_pilot_examples', 'pilot_style_notes', 'revision_request')
         header_payload = payload
         if not payload.get('game_background') and (diagnostics or payload.get('strict_translation') or payload.get('review_repair_origin')):
@@ -353,10 +353,10 @@ class BatchMixin:
                 'input_file': str(input_file), 'input_tokens': count_tokens(pack), 'result_file': str(result_file),
                 'result_template_file': str(template_file),
                 'task_ready': prepared_payload is not None or bool(allocation and allocation['contract_version'] >= 1),
-                **{k: payload[k] for k in ('repair_tier', 'required_model', 'repair_counts', 'automatic_escalation') if k in payload}}
+                **{k: payload[k] for k in ('repair_tier', 'required_tier', 'repair_counts', 'automatic_escalation') if k in payload}}
 
     @profiled('batch_open')
-    def batch_open(self, stage, worker, worker_model=None, backend='codex', *, prepared=False):
+    def batch_open(self, stage, worker, worker_tier=None, backend='subagent', *, prepared=False):
         if not prepared:
             self.prepare(stage)
         with self.db() as db:
@@ -374,10 +374,10 @@ class BatchMixin:
             limit = self.config(db)['max_attempts']
             parent = next((r for r in parent if (r['pending_parts'] or r['attempt'] < limit
                 or self.effective_attempts(db, dict(r, id=r['task_id'])) < limit)
-                and (not worker_model or (json.loads(r['payload']).get('required_model') or 'gpt-6-luna') == worker_model)), None)
+                and (not worker_tier or (json.loads(r['payload']).get('required_tier') or 'cheap') == worker_tier)), None)
         if parent:
             return self.batch_repair(parent['id'], worker)
-        claim = self.claim(stage, worker, backend=backend, compact_input=True, worker_model=worker_model)
+        claim = self.claim(stage, worker, backend=backend, compact_input=True, worker_tier=worker_tier)
         if claim is None:
             with self.db() as db:
                 summary = self.batch_summary(db)
@@ -633,7 +633,7 @@ class BatchMixin:
             manual = isinstance(reason, str) and bool(reason.strip())
             if not ((run['status'] == 'repair_required' and run['round'] == 0)
                     or (run['status'] == 'needs_attention' and manual)):
-                raise ValueError('One consolidated repair allowed; unresolved failures need Sol judgment')
+                raise ValueError('One consolidated repair allowed; unresolved failures need standard-tier judgment')
             round_number = run['round'] + 1
             scope = [r['record_id'] for r in db.execute('SELECT record_id FROM batch_items WHERE task_id=? AND token=? AND valid=0',
                                                        (task['id'], run['token']))]
@@ -699,5 +699,5 @@ class BatchMixin:
             result.update(repair_part=available['part'] + 1, repair_parts=len(plans),
                           pending_repair_parts=sum(p['status'] == 'pending' for p in plans) - 1,
                           repair_parent_session=session_id)
-            self.event(db, 'batch_repair', {'task': task['id'], 'worker': worker, 'record_ids': part_scope, 'sol_reason': reason})
+            self.event(db, 'batch_repair', {'task': task['id'], 'worker': worker, 'record_ids': part_scope, 'standard_reason': reason})
             return result

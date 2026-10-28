@@ -32,7 +32,7 @@ class AllocationMixin:
         """Reject broken producer input before any worker sees it; no semantic claims."""
         from translation_workflow import STAGES
         stage = value.get('stage')
-        if stage not in STAGES or backend not in ('codex', 'api'):
+        if stage not in STAGES or backend not in ('subagent', 'api'):
             raise ValueError('Task allocation: unsupported stage/backend')
         if value.get('revision') != self.meta(db, 'revision'):
             raise ValueError('Task allocation: stale revision')
@@ -100,9 +100,9 @@ class AllocationMixin:
         if 'repair_counts' in value and (not isinstance(value['repair_counts'], dict) or
                 set(value['repair_counts']) != seen or any(type(n) is not int or n < 1 for n in value['repair_counts'].values())):
             raise ValueError('Task allocation: repair counters must cover every assigned ID')
-        api_escalation = backend == 'api' and value.get('escalation_backend') == 'api' and not value.get('required_model')
-        if value.get('repair_tier') == 'sol' and not api_escalation and (backend != 'codex' or not value.get('required_model')):
-            raise ValueError('Task allocation: Sol repair requires its explicit Codex model')
+        api_escalation = backend == 'api' and value.get('escalation_backend') == 'api' and not value.get('required_tier')
+        if value.get('repair_tier') == 'standard' and not api_escalation and (backend != 'subagent' or value.get('required_tier') != 'standard'):
+            raise ValueError('Task allocation: standard-tier repair requires a subagent worker tier')
         if stage == 'glossary_review':
             entries = value.get('entries', [])
             refs = [e['ref'] for e in entries]

@@ -24,7 +24,7 @@ class QualityTests(unittest.TestCase):
                     'decision': 'accept', 'summary': 'Synthetic overall calibration is suitable.'}
         result = self.flow.quality_report(kind)
         report = workflow.read_json(result['report_file'])
-        return {'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': '已核对证据。',
+        return {'report_hash': report['report_hash'], 'reviewer': 'standard', 'summary': '已核对证据。',
                 'decisions': [{'id': key, 'disposition': 'pass', 'reason': '逐项核对。'} for key in report['required_decisions']]}
 
     def complete(self):
@@ -169,11 +169,11 @@ class QualityTests(unittest.TestCase):
 
     def test_pilot_acceptance_requires_main_judgment_and_summary(self):
         self.fixture.translate('pilot_translate')
-        for change in ({'decision': 'pending'}, {'reviewer': 'sol'}, {'summary': ''}):
+        for change in ({'decision': 'pending'}, {'reviewer': 'standard'}, {'summary': ''}):
             with self.assertRaisesRegex(ValueError, 'Main pilot assessment'):
                 self.flow.pilot_decide({**self.decisions('pilot'), **change})
 
-    def test_export_requires_closure_but_heuristics_do_not_trigger_sol_reading(self):
+    def test_export_requires_closure_but_heuristics_do_not_trigger_standard_reading(self):
         self.fixture.pilot(); self.fixture.translate(); self.raw_review('review')
         with self.assertRaisesRegex(ValueError, 'final quality closure'):
             self.flow.export()
@@ -266,7 +266,7 @@ class QualityTests(unittest.TestCase):
         self.assertEqual({r['metadata']['text_type'] for r in picked}, {'dialogue'})
         self.assertEqual(max(r['ordinal'] for r in picked), 20)
 
-    def test_duplicate_source_variants_do_not_automatically_trigger_sol(self):
+    def test_duplicate_source_variants_do_not_automatically_trigger_standard(self):
         self.complete()
         # Model submits one of two translations for repeated text in different batches.
         # Create a separate synthetic run through the public protocol.

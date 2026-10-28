@@ -40,7 +40,7 @@ def main():
     cp=base/'contexts.json';w.write_json(cp,contexts)
     f=w.Workflow(project)
     if not args.resume_rejected_glossary:f.init(src,{'backend':'api','pilot_records':len(ordinals),'batch_tokens':4096,'review_batch_tokens':4096,
-        'stage_backends':{'extract':'codex','pilot_translate':'codex','translate':'codex'},
+        'stage_backends':{'extract':'subagent','pilot_translate':'subagent','translate':'subagent'},
         'style':'忠实原意、自然简体中文，依据词语所修饰的实际对象和叙事语境选择词义；禁止添加翻译说明。',
         'game_background':'Torment: Tides of Numenera（折磨：扭蒙拉之潮），第九世界背景的科幻奇幻角色扮演游戏；测试副本，原文与历史译文用于问题回归。'})
     # Initialization takes contexts as an explicit fourth/optional argument in normal entry; use public revision here.
@@ -76,7 +76,7 @@ def main():
         if r.get('paused') or r.get('needs_attention') or r.get('pending_handoffs'):raise ValueError('Stop after unresolved API/contract/quality failure')
     def seed(stage):
         f.prepare(stage)
-        while claim:=f.claim(stage,'fixture-copy-'+uuid.uuid4().hex,backend='codex'):
+        while claim:=f.claim(stage,'fixture-copy-'+uuid.uuid4().hex,backend='subagent'):
             rows=[{'id':r['id'],'translation':translations[r['ordinal']-1]} for r in claim['payload']['records']]
             f.submit(claim['task_id'],claim['lease_token'],{'task_id':claim['task_id'],'input_hash':claim['payload']['input_hash'],'records':rows})
     try:
@@ -96,14 +96,14 @@ def main():
             sessions=[retry['session_id']]
         else:
             f.prepare('extract')
-            while claim:=f.claim('extract','fixture-legacy-'+uuid.uuid4().hex,backend='codex'):
+            while claim:=f.claim('extract','fixture-legacy-'+uuid.uuid4().hex,backend='subagent'):
                 f.submit(claim['task_id'],claim['lease_token'],{'task_id':claim['task_id'],'input_hash':claim['payload']['input_hash'],'analysis':legacy})
         run('glossary_review',sessions);f.freeze_glossary()
         with f.db() as db:report['new_glossary']=f.glossary(db)
         seed('pilot_translate');pr=f.pilot_report();f.pilot_decide({'report_hash':pr['report_hash'],'reviewer':'main','decision':'accept',
              'summary':'Development regression only: deliberate unchanged historical errors, not approval of translation quality; formal checks must find them.'})
         seed('translate')
-        f.pause(True);f.configure({'stage_backends':{'extract':'codex','pilot_translate':'codex','translate':'api'}},
+        f.pause(True);f.configure({'stage_backends':{'extract':'subagent','pilot_translate':'subagent','translate':'api'}},
             'Historical fixtures copied; actual draft repairs use configured API',impact='none');f.pause(False)
         run('draft_check');run('review')
         report['status']='completed'

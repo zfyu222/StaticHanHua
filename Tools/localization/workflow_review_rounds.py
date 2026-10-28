@@ -74,9 +74,9 @@ class ReviewRoundMixin:
         db.execute('INSERT OR IGNORE INTO repair_regressions VALUES (?,?,?,?)', (record_id, stage, task_id, encoded({'regressed_terms': lost})))
         count = db.execute('SELECT count(*) FROM repair_regressions WHERE record_id=? AND stage=?', (record_id, stage)).fetchone()[0]
         if count >= 2:
-            forced = self.meta(db, 'repair_sol_ids', {})
+            forced = self.meta(db, 'repair_standard_ids', {})
             forced[stage] = sorted(set(forced.get(stage, [])) | {record_id})
-            self.put(db, 'repair_sol_ids', forced)
+            self.put(db, 'repair_standard_ids', forced)
         return lost
 
     def repair_routes(self, db, config, stage, prior=None):
@@ -87,7 +87,7 @@ class ReviewRoundMixin:
         """
         prior = (db.execute('SELECT * FROM tasks ORDER BY rowid') if db is not None
                  and db.execute("SELECT 1 FROM sqlite_master WHERE name='tasks'").fetchone() else (prior or []))
-        counts, floors, global_floors, sol_counts = {}, {}, {}, {}
+        counts, floors, global_floors, standard_counts = {}, {}, {}, {}
         for task in prior:
             task = dict(task)
             if (db is not None and not stage.startswith('pilot_') and task.get('revision', 0) < self.meta(db, 'body_restart_revision', 0)):
@@ -109,8 +109,8 @@ class ReviewRoundMixin:
                 else:
                     legacy = max(0, task['attempt'] - (task_stage not in ('translate', 'pilot_translate')))
                     floors[key] = max(floors.get(key, 0), payload.get('repair_counts', {}).get(record_id, legacy))
-                if payload.get('repair_tier') == 'sol':
-                    sol_counts[record_id] = sol_counts.get(record_id, 0) + 1
+                if payload.get('repair_tier') == 'standard':
+                    standard_counts[record_id] = standard_counts.get(record_id, 0) + 1
         draft_stage = 'pilot_translate' if stage.startswith('pilot_') else 'translate'
         draft_key = 'pilot_draft_repair_attempts' if stage.startswith('pilot_') else 'draft_repair_attempts'
         for record_id, count in self.meta(db, draft_key, {}).items():
@@ -124,27 +124,27 @@ class ReviewRoundMixin:
             used[record_id] = used.get(record_id, 0) + max(counts.get(key, 0), floors.get(key, 0))
         for record_id, count in global_floors.items():
             used[record_id] = max(used.get(record_id, 0), count)
-        forced = {i for key, ids in self.meta(db, 'repair_sol_ids', {}).items()
+        forced = {i for key, ids in self.meta(db, 'repair_standard_ids', {}).items()
                   if key.startswith('pilot_') == stage.startswith('pilot_') for i in ids}
-        stopped = self.repair_stops(db, config, sol_counts, stage=stage) if db is not None else {}
+        stopped = self.repair_stops(db, config, standard_counts, stage=stage) if db is not None else {}
         return {i: (used.get(i, 0), 'stopped' if i in stopped else
-                    'sol' if i in forced or i in sol_counts or used.get(i, 0) >= config.get('body_repair_round_limit', 6) else 'standard')
+                    'standard' if i in forced or i in standard_counts or used.get(i, 0) >= config.get('body_repair_round_limit', 6) else 'cheap')
                 for i in set(used) | forced | set(stopped)}
 
     def record_repair_outcome(self, db, task, record_id, diagnostic):
-        """One immutable receipt per checked Sol repair, only at round boundaries."""
+        """One immutable receipt per checked standard-tier repair, only at round boundaries."""
         from translation_workflow import encoded
         payload = json.loads(task['payload'])
-        if payload.get('repair_tier') != 'sol':
+        if payload.get('repair_tier') != 'standard':
             return
         db.execute('CREATE TABLE IF NOT EXISTS repair_outcomes(task_id TEXT,record_id TEXT,diagnostic TEXT,PRIMARY KEY(task_id,record_id))')
         # A corrected contract field / removed missing term changes this key.
         db.execute('INSERT OR IGNORE INTO repair_outcomes VALUES (?,?,?)',
                    (task['id'], record_id, encoded(diagnostic)))
 
-    def repair_stops(self, db, config, sol_counts=None, stage='translate'):
-        if sol_counts is None:
-            sol_counts = {}
+    def repair_stops(self, db, config, standard_counts=None, stage='translate'):
+        if standard_counts is None:
+            standard_counts = {}
             if db.execute("SELECT 1 FROM sqlite_master WHERE name='tasks'").fetchone():
                 for task in db.execute('SELECT * FROM tasks'):
                     if not stage.startswith('pilot_') and task['revision'] < self.meta(db, 'body_restart_revision', 0):
@@ -154,11 +154,11 @@ class ReviewRoundMixin:
                     if task['status'] != 'done' and not task['result']:
                         continue
                     payload = json.loads(task['payload'])
-                    if payload.get('repair_tier') == 'sol':
+                    if payload.get('repair_tier') == 'standard':
                         for record_id in json.loads(task['ids']):
-                            sol_counts[record_id] = sol_counts.get(record_id, 0) + 1
-        stops = {i: 'sol_round_limit' for i, n in (sol_counts or {}).items()
-                 if n >= config.get('sol_repair_round_limit', 3)}
+                            standard_counts[record_id] = standard_counts.get(record_id, 0) + 1
+        stops = {i: 'standard_round_limit' for i, n in (standard_counts or {}).items()
+                 if n >= config.get('standard_repair_round_limit', 3)}
         if not db.execute("SELECT 1 FROM sqlite_master WHERE name='repair_outcomes'").fetchone():
             return stops
         history = {}
@@ -168,11 +168,11 @@ class ReviewRoundMixin:
             if row['stage'].startswith('pilot_') != stage.startswith('pilot_'):
                 continue
             history.setdefault(row['record_id'], []).append(row['diagnostic'])
-        limit = config.get('sol_no_progress_limit', 2)
+        limit = config.get('standard_no_progress_limit', 2)
         for record_id, outcomes in history.items():
             recent = outcomes[-limit:]
             if len(recent) == limit and recent[0] != 'null' and len(set(recent)) == 1:
-                stops[record_id] = 'sol_no_progress'
+                stops[record_id] = 'standard_no_progress'
         return stops
 
     @staticmethod
@@ -182,17 +182,17 @@ class ReviewRoundMixin:
             task = db.execute('SELECT payload,backend FROM tasks WHERE id=?', (task_id,)).fetchone()
             payload = json.loads(task['payload'])
             dispatch.append({'task_id': task_id, 'backend': task['backend'],
-                             **{k: payload[k] for k in ('repair_tier', 'required_model', 'repair_counts', 'automatic_escalation') if k in payload}})
+                             **{k: payload[k] for k in ('repair_tier', 'required_tier', 'repair_counts', 'automatic_escalation') if k in payload}})
         return dispatch
 
     @staticmethod
     def repair_routing(config, tier):
-        backend = config.get('escalation_backend', 'codex')
+        backend = config.get('escalation_backend', 'subagent')
         return {'repair_tier': tier, 'escalation_backend': backend,
-                'required_model': config.get('sol_repair_model', 'gpt-6-sol') if tier == 'sol' and backend == 'codex' else None,
+                'required_tier': 'standard' if tier == 'standard' and backend == 'subagent' else None,
                 'repair_budget_scope': 'record',
                 'repair_round_limit': config.get('body_repair_round_limit', 6),
-                'automatic_escalation': tier == 'sol'}
+                'automatic_escalation': tier == 'standard'}
 
     @staticmethod
     def is_deferred_review(task):
@@ -244,7 +244,7 @@ class ReviewRoundMixin:
         route_interval = max(1, min(100, total_records // 20 or 1))
         for index, (record_id, diagnostic) in enumerate(problems.items(), 1):
             row = dict(db.execute('SELECT * FROM records WHERE id=?', (record_id,)).fetchone())
-            used, tier = routes.get(record_id, (0, 'standard'))
+            used, tier = routes.get(record_id, (0, 'cheap'))
             if row['locked'] or tier == 'stopped':
                 blocked.append(record_id); continue
             row.update(used=used, tier=tier, diagnostic=diagnostic, metadata=contexts.get(str(row['ordinal']), {}))
@@ -256,7 +256,7 @@ class ReviewRoundMixin:
         route_groups = sorted({(r['used'], r['tier']) for r in rows})
         for used, tier in route_groups:
             batch_groups.extend(self.review_batches([r for r in rows if (r['used'], r['tier']) == (used, tier)],
-                                                    config, stage, config.get('escalation_backend', 'codex') if tier == 'sol' else None))
+                                                    config, stage, config.get('escalation_backend', 'subagent') if tier == 'standard' else None))
         print(f'repair-plan progress: prepared {len(batch_groups)} task groups; building payloads', flush=True)
         for task_index, group in enumerate(batch_groups, 1):
             task_id = stage + '-round-' + uuid.uuid4().hex[:16]
@@ -292,7 +292,7 @@ class ReviewRoundMixin:
                     print(f'repair-plan progress: task {task_index}/{len(batch_groups)}; records {item_index}/{len(group)}', flush=True)
             value = fingerprint(payload); payload['input_hash'] = value
             tasks.extend(self.allocate_task(db, payload,
-                config.get('escalation_backend', 'codex') if group[0]['tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
+                config.get('escalation_backend', 'subagent') if group[0]['tier'] == 'standard' else config['stage_backends'].get(stage, config['backend'])))
         approvals = self.meta(db, 'quality_approvals', {}); approvals.pop('pilot' if stage == 'pilot_review' else 'final', None)
         self.put(db, 'quality_approvals', approvals)
         print(f'repair-plan progress: complete; tasks={len(tasks)}; ready={len(rows)}; locked={len(blocked)}', flush=True)

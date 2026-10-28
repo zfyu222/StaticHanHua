@@ -88,8 +88,8 @@ def main():
     with src.open('w',encoding='utf-8',newline='') as f:csv.writer(f).writerows([[c['source']] for c in cases])
     flow=w.Workflow(project)
     flow.init(src,dict(backend='api',pilot_records=len(cases),batch_tokens=4096,review_batch_tokens=4096,
-        stage_backends={'extract':'codex','glossary_review':'codex',
-                        'pilot_translate':'api' if args.arm=='source_only' else 'codex','translate':'codex'},
+        stage_backends={'extract':'subagent','glossary_review':'subagent',
+                        'pilot_translate':'api' if args.arm=='source_only' else 'subagent','translate':'subagent'},
         style='忠实原意，自然简体中文。保留原文明确的科幻奇幻设定；只修复明确错误，不为偏好改写。',
         game_background='科幻奇幻角色扮演游戏的叙事和对白。'))
     if args.arm=='source_reference':
@@ -134,7 +134,7 @@ def main():
                 wire_inputs.append({'system_sha256':hashlib.sha256(system.encode('utf-8')).hexdigest(),
                     'user_sha256':hashlib.sha256(user.encode('utf-8')).hexdigest()})
             return super().request(system,user)
-    def claim(stage):return flow.claim(stage,'developer-fixture-'+uuid.uuid4().hex,backend='codex')
+    def claim(stage):return flow.claim(stage,'developer-fixture-'+uuid.uuid4().hex,backend='subagent')
     def submit(c,**data):
         flow.submit(c['task_id'],c['lease_token'],dict(task_id=c['task_id'],input_hash=c['payload']['input_hash'],**data))
     def seed(stage):
@@ -160,7 +160,7 @@ def main():
             pr=flow.pilot_report();flow.pilot_decide(dict(report_hash=pr['report_hash'],reviewer='main',decision='accept',
                 summary='Development regression fixtures only: copied historical errors are not approved translations; test the real reviewer.'))
             seed('translate')
-            flow.pause(True);flow.configure({'stage_backends':{'extract':'codex','glossary_review':'codex','pilot_translate':'codex','translate':'api'}},
+            flow.pause(True);flow.configure({'stage_backends':{'extract':'subagent','glossary_review':'subagent','pilot_translate':'subagent','translate':'api'}},
                 'Fixture copying complete; all actual review and repairs use configured API',impact='none');flow.pause(False)
             result=w.run_api(flow,'review',requester_factory=BoundedAPI,continuous=True,api_name=args.api)
         report['runner']={k:result.get(k) for k in ('accepted','failed','stage_clean','needs_attention','pending_handoffs')}

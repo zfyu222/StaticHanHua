@@ -76,11 +76,13 @@ StaticHanHua/
 
 启用图片步骤时，先使用 `game-image-extract` 完成三级抽取、对话Agent视觉裁决和确认导出，得到 `{gamename}_images_text.csv` 及 `.mapping.json`。工具 `Tools/image_text/image_workflow.py` 提供路由、选择性本地Qwen和Agent包；默认不把双模型一致当人工确认。图片翻译用 `TranslateFiles/image-text/` 隔离子工程复用 `game-translate`，导出校验后收回 `{gamename}_images_text_translated.csv`，不得重置常规文本翻译状态。
 
-> 使用 `game-translate` Skill 完成翻译阶段。翻译仅提供 SubAgent（Codex 子代理）和 API（程序请求）两条路线，共用同一套流程与验收规则。内部规则与工具见该技能，不在基础文档展开。
+> 使用 `game-translate` Skill 完成翻译阶段。翻译仅提供 SubAgent（当前 Agent 工具的子代理）和 API（程序请求）两条路线，共用同一套流程与验收规则。内部规则与工具见该技能，不在基础文档展开。
 
 开发、诊断或优化翻译流程本身时，使用 `translation-workflow-dev` Skill，遵循减少 API 模型机械负担、优先简单有效方案及基于数据验证的原则；实际翻译继续使用 `game-translate`。
 
-自定义的 SubAgent 与 API 共用同一份流程规范、任务输入产出及批次程序，以现有 SubAgent 规范为准；API 只作单次请求，由程序解析回复并落盘。升级修复可强制使用 Sol SubAgent，共同规则统一在 `game-translate` 技能及共用程序中维护。
+自定义的 SubAgent 与 API 共用同一份流程规范、任务输入产出及批次程序，以现有 SubAgent 规范为准；API 只作单次请求，由程序解析回复并落盘。升级修复可强制使用标准档子代理，共同规则统一在 `game-translate` 技能及共用程序中维护。
+
+子代理模型分「便宜档」（日常批次）和「标准档」（验收与升级修复）两档，各 Agent 工具的对应模型见根目录 `agent_models.json`；未指定时沿用主对话模型，不询问用户。
 
 首次执行让用户选择 SubAgent 或 API 路线，已明确选择直接沿用。源文和正式译文在项目根目录；所有翻译中间产物统一放 `TranslateFiles/`，包括 `TranslateDoc.md`、配置、术语审校、任务、结果、报告、缓存与备份。
 
@@ -90,7 +92,7 @@ StaticHanHua/
 |------|------|
 | **输入** | `{gamename}_text.csv`（1 列，逐行原文） |
 | **输出** | `{gamename}_text_translated.csv`（逐行译文，与原文一一对应） |
-| **方式** | SubAgent（Codex 子代理） / API（程序请求） |
+| **方式** | SubAgent（当前 Agent 工具的子代理） / API（程序请求） |
 | **AI 接口** | DeepSeek（推荐）、OpenAI、Anthropic、Google 等 |
 
 **翻译流程**：

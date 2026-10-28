@@ -34,7 +34,7 @@ def main():
     w.write_json(context_path, contexts)
     flow = w.Workflow(project)
     flow.init(source, {'backend': 'api', 'batch_records': 9, 'pilot_records': 9,
-                      'stage_backends': {'pilot_translate': 'codex', 'translate': 'codex'},
+                      'stage_backends': {'pilot_translate': 'subagent', 'translate': 'subagent'},
                       'style': '自然简体中文，保留原意、否定、变量和段落。',
                       'game_background': '合成奇幻样本：Might为力量属性，May与Alice是人物。'}, context_path)
     w.API_CONFIG_FILE = Path(args.api_config).resolve()  # Read selected transport, never copy credentials.
@@ -75,7 +75,7 @@ def main():
 
         def seed(stage, deliberate_error=False):
             flow.prepare(stage)
-            while task := flow.claim(stage, 'fixture-' + uuid.uuid4().hex, backend='codex'):
+            while task := flow.claim(stage, 'fixture-' + uuid.uuid4().hex, backend='subagent'):
                 rows = []
                 for row in task['payload']['records']:
                     text = ({6:'门锁上了。',7:'他用手抚过布满胡茬的头皮。',9:'激活后，圆球会吸入用户，并将其传送到附近。'}.get(row['ordinal'], translations[row['ordinal']-1]) if deliberate_error else translations[row['ordinal']-1])

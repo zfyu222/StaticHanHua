@@ -1,6 +1,6 @@
-"""Evidence-backed pilot, independent review, Sol acceptance and runtime checks.
+"""Evidence-backed pilot, independent review, standard-tier acceptance and runtime checks.
 
-Reports propose checks; only the orchestrating Sol writes acceptance decisions.
+Reports propose checks; only the orchestrating standard-tier reviewer writes acceptance decisions.
 Worker IDs are actual agent instance IDs supplied by the trusted orchestrator.
 """
 from collections import Counter, defaultdict
@@ -14,7 +14,7 @@ from workflow_tokens import count_tokens, record_limit, record_tokens, batch_lim
 
 REVIEW_CHECKS = ('accuracy', 'completeness', 'terminology', 'tone', 'logic', 'placeholders')
 GLOSSARY_CHECKS = ('source', 'translation', 'category', 'consistency')
-SOL_SCOPE_POLICY = 'disputes_only_v1'
+STANDARD_SCOPE_POLICY = 'disputes_only_v1'
 
 
 def glossary_match_meaning(matches):
@@ -613,7 +613,7 @@ class QualityMixin:
             final['pilot_key'] = self.pilot_key(db, config)
             folder = self.root / f'reports/accepted/final_{report["report_hash"][:16]}'
             write_json(folder / 'report.json', report)
-            write_json(folder / 'sol_decisions.json', {**final['decisions'], 'carried_from_report_hash': final['carried_from_report_hash']})
+            write_json(folder / 'standard_decisions.json', {**final['decisions'], 'carried_from_report_hash': final['carried_from_report_hash']})
         else:
             approvals.pop('final', None)
         self.put(db, 'quality_approvals', approvals)
@@ -681,7 +681,7 @@ class QualityMixin:
         if any(r['stage'] != required_stage for r in rows):
             raise ValueError('Complete the required semantic review before quality report: ' + required_stage)
         if db.execute('SELECT 1 FROM tasks WHERE revision=? AND status IN ("running","pending","failed")', (self.meta(db, 'revision'),)).fetchone():
-            raise ValueError('Finish all current tasks before Sol review')
+            raise ValueError('Finish all current tasks before standard-tier review')
         reviews = self.latest_reviews(db, kind)
         risks, ordinary = [], []
         for row in rows:
@@ -702,8 +702,8 @@ class QualityMixin:
                       'risk_reasons': reasons, 'review': {k: v for k, v in review.items() if k != 'batch_summary'}}
             (risks if reasons else ordinary).append(record)
         # Ordinary errors are handled by independent review. Only unresolved
-        # semantic issues enter the final Sol dispute report.
-        known = self.meta(db, 'sol_pending_findings', {})
+        # semantic issues enter the final standard-tier dispute report.
+        known = self.meta(db, 'standard_pending_findings', {})
         selected = [r for r in risks if r['review'].get('issues') and r['id'] not in known]
         consistency, glossary_checks = [], []
         items = selected
@@ -721,7 +721,7 @@ class QualityMixin:
                   'coverage': {'records': len(rows), 'text_types': dict(Counter(str(r['metadata'].get('text_type', 'unknown')) for r in rows)),
                                'missing_context': sum(not r['metadata'] for r in rows),
                                'risk_records': len(risks), 'ordinary_sample': 0,
-                               'sol_records': len(selected)},
+                               'standard_records': len(selected)},
                   'risk_detection': 'Heuristic candidates plus reviewer findings; absence of flags is not proof of correctness.',
                   'records_to_check': [r for r in selected if r['id'] not in reused],
                   'consistency': [r for r in consistency if r['id'] not in reused],
@@ -730,33 +730,33 @@ class QualityMixin:
                   'check_signatures': signatures, 'reused_decisions': reused,
                   'required_decisions': required}
         if kind == 'final':
-            report['sol_scope_policy'] = SOL_SCOPE_POLICY
-            report['carried_findings'] = self.meta(db, 'sol_pending_findings', {})
-            report['selection_explanation'] = ('Only explicit unresolved reviewer issues need Sol adjudication. '
-                'Risk flags, corrections, ordinary samples, duplicate-source groups and speaker groups do not trigger Sol. '
-                'Known Sol repair findings are carried to standard repair without re-reading; exhausted or regressing '
-                'repairs use the existing targeted Sol escalation route.')
+            report['standard_scope_policy'] = STANDARD_SCOPE_POLICY
+            report['carried_findings'] = self.meta(db, 'standard_pending_findings', {})
+            report['selection_explanation'] = ('Only explicit unresolved reviewer issues need standard-tier adjudication. '
+                'Risk flags, corrections, ordinary samples, duplicate-source groups and speaker groups do not trigger standard-tier review. '
+                'Known standard-tier repair findings are carried to cheap-tier repair without re-reading; exhausted or regressing '
+                'repairs use the existing targeted standard-tier escalation route.')
         report['report_hash'] = signature(report)
         return report
 
     def checkpoint_quality(self, kind, decisions):
-        """Record Sol's passed checks before repair without approving the whole stage."""
+        """Record the standard tier's passed checks before repair without approving the whole stage."""
         if kind == 'pilot':
             raise ValueError('Pilot uses an overall main assessment; use pilot-decide')
         with self.db() as db:
             if kind == 'final':
-                self.sol_tables(db)
-                if db.execute('SELECT 1 FROM sol_review_rounds WHERE status="open"').fetchone():
-                    return self.record_sol_checks(db, decisions)
+                self.standard_tables(db)
+                if db.execute('SELECT 1 FROM standard_review_rounds WHERE status="open"').fetchone():
+                    return self.record_standard_checks(db, decisions)
             report = self.build_quality_report(db, kind, self.config(db))
             entries = decisions.get('decisions', [])
-            if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'sol'
+            if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'standard'
                     or not nonempty(decisions.get('summary')) or not isinstance(entries, list) or not entries
                     or any(not isinstance(e, dict) for e in entries)
                     or len({e.get('id') for e in entries}) != len(entries)
                     or any(e.get('id') not in report['required_decisions']
                            or e.get('disposition') not in ('pass', 'contextual') or not nonempty(e.get('reason')) for e in entries)):
-                raise ValueError('Checkpoint requires explicit Sol passed decisions bound to the current report')
+                raise ValueError('Checkpoint requires explicit standard-tier passed decisions bound to the current report')
             checkpoints = self.meta(db, 'quality_checkpoints', {})
             saved = checkpoints.setdefault(kind, {})
             for entry in entries:
@@ -773,21 +773,21 @@ class QualityMixin:
         with self.db() as db:
             config = self.config(db)
             if kind == 'final':
-                report, round_id = self.open_sol_round(db, config)
+                report, round_id = self.open_standard_round(db, config)
             else:
                 report, round_id = self.build_quality_report(db, kind, config), None
             saved = {}
             next_input = None
             inspection_manifest = None
             if round_id is not None:
-                saved = json.loads(db.execute('SELECT decisions FROM sol_review_rounds WHERE id=?', (round_id,)).fetchone()[0])
+                saved = json.loads(db.execute('SELECT decisions FROM standard_review_rounds WHERE id=?', (round_id,)).fetchone()[0])
                 # A compact view of the fixed round scope; its canonical complete
                 # report and hash remain archived until the whole round closes.
                 report = {**report, 'round_scope': report['required_decisions'],
                           'required_decisions': [i for i in report['required_decisions'] if i not in saved]}
                 for key in ('records_to_check', 'consistency', 'glossary_checks'):
                     report[key] = [i for i in report[key] if i['id'] not in saved]
-                inspection_manifest = self.root / f'reports/sol_rounds/round_{round_id:05d}.inputs.json'
+                inspection_manifest = self.root / f'reports/standard_rounds/round_{round_id:05d}.inputs.json'
                 manifest = read_json(inspection_manifest)
                 for batch in manifest:
                     todo = set(batch['check_ids']) - set(saved)
@@ -796,19 +796,19 @@ class QualityMixin:
                         packet['checks'] = [i for i in packet['checks'] if i['id'] in todo]
                         if packet.get('output_template'):
                             packet['output_template']['decisions'] = [i for i in packet['output_template']['decisions'] if i['id'] in todo]
-                        next_input = self.root / f'reports/sol_rounds/round_{round_id:05d}.next.json'
+                        next_input = self.root / f'reports/standard_rounds/round_{round_id:05d}.next.json'
                         write_json(next_input, packet)
                         break
             path = self.root / f'reports/{kind}_quality_review.json'
             write_json(path, report)
-            write_json(self.root / f'reports/{kind}_sol_decisions.template.json', {
-                'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': '',
+            write_json(self.root / f'reports/{kind}_standard_decisions.template.json', {
+                'report_hash': report['report_hash'], 'reviewer': 'standard', 'summary': '',
                 'decisions': [{'id': record_id, 'disposition': 'pending', 'reason': ''} for record_id in report['required_decisions']]})
-            return {'report_file': str(path), 'report_hash': report['report_hash'], 'coverage': report['coverage'], 'sol_round': round_id,
+            return {'report_file': str(path), 'report_hash': report['report_hash'], 'coverage': report['coverage'], 'standard_round': round_id,
                     'status': 'already_approved' if kind == 'final' and round_id is None else 'inspection_open',
                     'remaining_checks': 0 if kind == 'final' and round_id is None else len(report['required_decisions']),
                     'carried_finding_records': len(report.get('carried_findings', {})),
-                    'next_action': 'sol-round-finish' if kind == 'final' and round_id is not None and not report['required_decisions'] else None,
+                    'next_action': 'standard-round-finish' if kind == 'final' and round_id is not None and not report['required_decisions'] else None,
                     'next_input_file': str(next_input) if next_input else None,
                     'inspection_manifest': str(inspection_manifest) if inspection_manifest else None}
 
@@ -820,11 +820,11 @@ class QualityMixin:
             config = self.config(db)
             report = self.build_quality_report(db, kind, config)
             if kind == 'final':
-                self.sol_tables(db)
-                active = db.execute('SELECT watch,report,decisions FROM sol_review_rounds WHERE status="open" ORDER BY id DESC LIMIT 1').fetchone()
+                self.standard_tables(db)
+                active = db.execute('SELECT watch,report,decisions FROM standard_review_rounds WHERE status="open" ORDER BY id DESC LIMIT 1').fetchone()
                 if active:
-                    if active['watch'] != self.sol_watch(db) or json.loads(active['report'])['report_hash'] != report['report_hash']:
-                        raise ValueError('Stale Sol round; request the current quality-report before approval')
+                    if active['watch'] != self.standard_watch(db) or json.loads(active['report'])['report_hash'] != report['report_hash']:
+                        raise ValueError('Stale standard-tier round; request the current quality-report before approval')
                     combined = json.loads(active['decisions'])
                     supplied = decisions.get('decisions', [])
                     if isinstance(supplied, list) and all(isinstance(e, dict) and isinstance(e.get('id'), str) for e in supplied):
@@ -832,35 +832,35 @@ class QualityMixin:
                         if len({e['id'] for e in supplied}) == len(supplied):
                             decisions = {**decisions, 'decisions': list(combined.values())}
             entries = decisions.get('decisions', [])
-            if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'sol'
+            if (decisions.get('report_hash') != report['report_hash'] or decisions.get('reviewer') != 'standard'
                     or not nonempty(decisions.get('summary')) or not isinstance(entries, list)
                     or any(not isinstance(e, dict) for e in entries)
                     or len(entries) != len(report['required_decisions'])
                     or {e.get('id') for e in entries} != set(report['required_decisions'])):
-                raise ValueError('Sol decisions must bind the current report and cover every requested check exactly once')
+                raise ValueError('Standard-tier decisions must bind the current report and cover every requested check exactly once')
             if any(e.get('disposition') not in ('pass', 'contextual') or not nonempty(e.get('reason')) for e in entries):
-                raise ValueError('Unresolved Sol checks; return defective tasks for revision before approval')
+                raise ValueError('Unresolved standard-tier checks; return defective tasks for revision before approval')
             if kind == 'final':
-                self.sol_tables(db)
-                for active in db.execute('SELECT decisions FROM sol_review_rounds WHERE status="open"'):
+                self.standard_tables(db)
+                for active in db.execute('SELECT decisions FROM standard_review_rounds WHERE status="open"'):
                     if any(e['disposition'] == 'repair' for e in json.loads(active['decisions']).values()):
-                        raise ValueError('Unresolved Sol round findings; complete sol-round-finish before approval')
+                        raise ValueError('Unresolved standard-tier round findings; complete standard-round-finish before approval')
             result = self.accept_quality_in_transaction(db, kind, report, decisions)
             if kind == 'final':
-                db.execute('UPDATE sol_review_rounds SET status="finished",result=? WHERE status="open"', (json.dumps(result),))
+                db.execute('UPDATE standard_review_rounds SET status="finished",result=? WHERE status="open"', (json.dumps(result),))
             return result
 
     def accept_quality_in_transaction(self, db, kind, report, decisions):
         from translation_workflow import write_json
         if kind == 'final' and report.get('carried_findings'):
-            raise ValueError('Unresolved carried Sol findings; use sol-round-finish to dispatch targeted repairs')
+            raise ValueError('Unresolved carried standard-tier findings; use standard-round-finish to dispatch targeted repairs')
         receipt = {'report_hash': report['report_hash'], 'snapshot_hash': report['snapshot_hash'],
-                   'pilot_key': report['pilot_key'], 'reviewer': decisions.get('reviewer', 'sol'), 'decisions': decisions}
+                   'pilot_key': report['pilot_key'], 'reviewer': decisions.get('reviewer', 'standard'), 'decisions': decisions}
         approvals = self.meta(db, 'quality_approvals', {}); approvals[kind] = receipt
         self.put(db, 'quality_approvals', approvals)
         folder = self.root / f'reports/accepted/{kind}_{report["report_hash"][:16]}'
         write_json(folder / 'report.json', report)
-        write_json(folder / ('main_assessment.json' if kind == 'pilot' else 'sol_decisions.json'), decisions)
+        write_json(folder / ('main_assessment.json' if kind == 'pilot' else 'standard_decisions.json'), decisions)
         if kind == 'pilot':
             self.restore_pilot_baseline(db)
         self.event(db, 'approve_quality', {'kind': kind, 'report_hash': report['report_hash']})
@@ -873,7 +873,7 @@ class QualityMixin:
         receipt = self.meta(db, 'quality_approvals', {}).get('final', {})
         if receipt.get('report_hash') != report['report_hash']:
             raise ValueError('Current final quality closure required before export; unresolved disputes/findings cannot be skipped')
-        return {'report_hash': receipt['report_hash'], 'reviewer': receipt.get('reviewer', 'sol')}
+        return {'report_hash': receipt['report_hash'], 'reviewer': receipt.get('reviewer', 'standard')}
 
     def reopen_body(self, task_id, reason, record_ids=None):
         """Return a rejected batch to a subagent, preserving attempt budgets and locks."""
@@ -886,7 +886,7 @@ class QualityMixin:
                 raise ValueError('Only completed current body review tasks can be reopened with reason')
             self.require_review_round_complete(db, task['stage'])
             if task['stage'] != 'pilot_review':
-                self.guard_sol_dispatch(db)
+                self.guard_standard_dispatch(db)
             if db.execute('SELECT 1 FROM tasks WHERE status="running"').fetchone():
                 raise ValueError('Finish/recover in-flight tasks before reopening a review')
             if task['stage'] == 'pilot_review' and self.pilot_approved(db, config):
@@ -931,7 +931,7 @@ class QualityMixin:
                 raise ValueError('Finish/recover in-flight tasks before reopening a review')
             self.require_review_round_complete(db, stage)
             if stage != 'pilot_review':
-                self.guard_sol_dispatch(db)
+                self.guard_standard_dispatch(db)
             tasks, blocked = self.plan_review_repairs(
                 db, config, stage, {record_id: reason for record_id in ids}, 'reopen-body')
             self.event(db, 'reopen_body_ids', {'repair_tasks': tasks, 'record_ids': sorted(ids), 'reason': reason})

@@ -34,7 +34,7 @@ from workflow_batches import BatchMixin
 from workflow_review_readings import ReviewReadingsMixin
 from workflow_drafts import DraftMixin
 from workflow_review_rounds import ReviewRoundMixin
-from workflow_sol_rounds import SolRoundMixin
+from workflow_standard_rounds import StandardRoundMixin
 from workflow_pilot import PilotMixin
 from workflow_restart import RestartMixin
 from workflow_quality import QualityMixin, validate_review, validate_glossary_reviews, nonempty
@@ -67,8 +67,8 @@ REVIEW_MEANING_INSTRUCTION = (
     '短UI标签结合已有描述/资源信息判断人物特质还是物理状态；语境不足时明确报告疑点，不把猜测写成已证实。'
     '正确且自然的译文保持不变，不为展示严格而改写；沿用现有六维证据，不增加输出字段、另写全文释义或新增一轮审校。')
 DEFAULT = {
-    'workflow': 'custom', 'backend': 'codex', 'model': 'gpt-6-luna',
-    'record_constraints': {}, 'escalation_backend': 'codex',
+    'workflow': 'custom', 'backend': 'subagent',
+    'record_constraints': {}, 'escalation_backend': 'subagent',
     'source_language': 'auto', 'target_language': '简体中文',
     'style': '忠实原文、自然简洁；保留人物口吻，不补充原文没有的信息。',
     'game_background': None,
@@ -79,14 +79,14 @@ DEFAULT = {
     'review_batch_records': 80, 'extract_batch_records': None, 'glossary_review_batch_records': 60,
     'batch_tokens': 1024, 'extract_batch_tokens': 10000, 'glossary_review_batch_tokens': 10000,
     'review_batch_tokens': 1024, 'task_input_tokens': 16384,
-    'review_output_tokens': 16384, 'sol_repair_round_limit': 3, 'sol_no_progress_limit': 2,
+    'review_output_tokens': 16384, 'standard_repair_round_limit': 3, 'standard_no_progress_limit': 2,
     'review_output_reserve_percent': 20,
     'review_estimate': {'full_base_tokens': 420, 'pilot_base_tokens': 120,
                         'ascii_chars_per_token': 3, 'non_ascii_tokens_per_char': 2,
                         'translation_multiplier': 3},
     'draft_scan_workers': 1, 'layout_normalization': 'exact_v1',
     'case_sensitive': False, 'whole_word': True, 'protect_named_curly': None,
-    'polish': False, 'max_attempts': 3, 'body_repair_round_limit': 6, 'sol_repair_model': 'gpt-6-sol', 'lease_seconds': 3600,
+    'polish': False, 'max_attempts': 3, 'body_repair_round_limit': 6, 'lease_seconds': 3600,
     'exclusions': [], 'stage_backends': {}, 'placeholder_family_overrides': {},
     'api': {'api_format': 'OpenAI', 'target_platform': 'custom_platform_shh',
             'api_url': '', 'model_name': '', 'api_key_env': 'SHH_TRANSLATION_API_KEY',
@@ -207,7 +207,7 @@ def merge_config(base, patch, nested=False):
 def validate_config(config):
     if config.get('layout_normalization', 'off') not in ('off', 'exact_v1'):
         raise ValueError('layout_normalization must be off or exact_v1')
-    if config.get('escalation_backend', 'codex') not in ('codex', 'api'):
+    if config.get('escalation_backend', 'subagent') not in ('subagent', 'api'):
         raise ValueError('Unsupported escalation backend')
     constraints = config.get('record_constraints', {})
     if not isinstance(constraints, dict):
@@ -225,8 +225,8 @@ def validate_config(config):
             raise ValueError('Explicit newline sequence required')
         if 'literal_suffix' in rule and (not isinstance(rule['literal_suffix'], str) or not rule['literal_suffix']):
             raise ValueError('Literal suffix must be nonempty text')
-    if config['workflow'] != 'custom' or config['backend'] not in ('codex', 'api'):
-        raise ValueError('Unsupported workflow/backend; use workflow=custom with backend=codex (SubAgent) or api')
+    if config['workflow'] != 'custom' or config['backend'] not in ('subagent', 'api'):
+        raise ValueError('Unsupported workflow/backend; use workflow=custom with backend=subagent or api')
     reserve = config.get('review_output_reserve_percent', 20)
     if type(reserve) is not int or not 0 <= reserve < 100:
         raise ValueError('review_output_reserve_percent must be an integer from 0 to 99')
@@ -246,13 +246,11 @@ def validate_config(config):
             continue
         if type(config[key]) is not int or config[key] < 1:
             raise ValueError('Positive integer required: ' + key)
-    for key, default in (('review_output_tokens', 16384), ('sol_repair_round_limit', 3), ('sol_no_progress_limit', 2)):
+    for key, default in (('review_output_tokens', 16384), ('standard_repair_round_limit', 3), ('standard_no_progress_limit', 2)):
         if type(config.get(key, default)) is not int or config.get(key, default) < 1:
             raise ValueError('Positive integer required: ' + key)
     if type(config.get('body_repair_round_limit', 6)) is not int or not 1 <= config.get('body_repair_round_limit', 6) <= 6:
         raise ValueError('body_repair_round_limit must be between 1 and 6')
-    if config.get('sol_repair_model', 'gpt-6-sol') not in ('gpt-6-sol', 'gpt-6.1-sol'):
-        raise ValueError('sol_repair_model must select a Sol model')
     if type(config.get('draft_scan_workers', 1)) is not int or not 1 <= config.get('draft_scan_workers', 1) <= 32:
         raise ValueError('draft_scan_workers must be between 1 and 32')
     if type(config['context_records']) is not int or config['context_records'] < 0:
@@ -268,7 +266,7 @@ def validate_config(config):
         raise ValueError('Unsupported quality_version')
     if not isinstance(config['pilot_ordinals'], list) or any(type(n) is not int or n < 1 for n in config['pilot_ordinals']) or len(set(config['pilot_ordinals'])) != len(config['pilot_ordinals']):
         raise ValueError('pilot_ordinals must contain unique positive record numbers')
-    if any(k not in STAGES or v not in ('api', 'codex') for k, v in config['stage_backends'].items()):
+    if any(k not in STAGES or v not in ('api', 'subagent') for k, v in config['stage_backends'].items()):
         raise ValueError('Invalid stage_backends')
     api = config['api']
     if type(api.get('stream', False)) is not bool:
@@ -297,7 +295,7 @@ def validate_config(config):
             raise ValueError('Exclusion must not match empty text')
 
 
-class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin, ReviewReadingsMixin):
+class Workflow(RestartMixin, PilotMixin, AllocationMixin, StandardRoundMixin, ReviewRoundMixin, DraftMixin, BatchMixin, QualityMixin, ReviewReadingsMixin):
     effective_attempts = staticmethod(effective_attempts)
     def __init__(self, project):
         requested = Path(project).absolute()
@@ -429,10 +427,10 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
         return self.status()
 
     def write_guide(self, config, source_name):
-        text = (f'# 翻译操作记录\n\n- 工作流：{config["workflow"]}\n- 执行路线（codex=SubAgent，api=API）：{config["backend"]}\n'
+        text = (f'# 翻译操作记录\n\n- 工作流：{config["workflow"]}\n- 执行路线（subagent=SubAgent，api=API）：{config["backend"]}\n'
                 f'- 原文：项目根目录 `{source_name}`\n- 正式译文：项目根目录 `{source_name[:-4]}_translated.csv`\n'
                 '- 中间产物：`TranslateFiles/`\n\n')
-        text += ('由 game-translate 技能调用共用流程程序；路线为 SubAgent（codex）或 API（api）。'
+        text += ('由 game-translate 技能调用共用流程程序；路线为 SubAgent（subagent）或 API（api）。'
                  '正文前完成全文术语整理及冻结。\n'
                  '试译：固定随机样本 → pilot_translate → pilot-report → 主 AI pilot-decide；按需 pilot-retry。\n'
                  '试译用于校准流程和风格，不要求逐句零错误；正式译文仍须完整独立审校和导出验收。\n')
@@ -719,7 +717,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
             db.execute('UPDATE tasks SET status="pending",lease_token=NULL,lease_until=NULL,ready_at=0 WHERE id=?', (task_id,))
             self.event(db, 'reopen_review', {'task': task_id, 'reason': reason})
 
-    def claim(self, stage, worker, backend='codex', compact_input=False, worker_model=None):
+    def claim(self, stage, worker, backend='subagent', compact_input=False, worker_tier=None):
         if stage == 'pilot_review':
             raise ValueError('Pilot independent review retired; use pilot-report and main pilot-decide')
         if not worker.strip():
@@ -739,7 +737,7 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                     if (candidate['attempt'] >= config['max_attempts']
                             and self.effective_attempts(db, candidate) >= config['max_attempts']):
                         continue
-                    if worker_model and (json.loads(candidate['payload']).get('required_model') or 'gpt-6-luna') != worker_model:
+                    if worker_tier and (json.loads(candidate['payload']).get('required_tier') or 'cheap') != worker_tier:
                         continue
                     eligible = True
                     if self.independent_worker(db, candidate, worker):
@@ -753,15 +751,15 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, SolRoundMixin, ReviewR
                 return None
             if json.loads(task['payload']).get('context'):
                 raise ValueError('Legacy task contains adjacent text; pause/configure context_records=0 and prepare a new revision before claiming')
-            if backend == 'codex':
+            if backend == 'subagent':
                 previous = db.execute('SELECT task_id, count(*) n FROM quality_attempts WHERE instance=? GROUP BY task_id', (worker,)).fetchall()
                 used_tasks = {r['task_id'] for r in previous}
                 if (task['id'] not in used_tasks and len(used_tasks) >= config.get('agent_task_limit', 1)) or sum(r['n'] for r in previous) >= config.get('agent_attempt_limit', 2):
-                    raise ValueError('Fresh agent context required: instance workload limit reached; spawn a new agent with fork_turns=none')
+                    raise ValueError('Fresh agent context required: instance workload limit reached; spawn a new agent without the parent conversation context')
             task_payload = json.loads(task['payload'])
             if task_payload.get('draft_scan_key') or task_payload.get('review_repair_origin'):
                 routes = self.repair_routes(db, config, stage)
-                stopped = [i for i in json.loads(task['ids']) if routes.get(i, (0, 'standard'))[1] == 'stopped']
+                stopped = [i for i in json.loads(task['ids']) if routes.get(i, (0, 'cheap'))[1] == 'stopped']
                 if stopped:
                     raise ValueError('Repair stopped; investigate root cause before dispatch: ' + ', '.join(stopped))
             self.allocation_tables(db)
@@ -1641,7 +1639,7 @@ def prompt(payload, *, api=False):
                 '逐项证据不能用程序检查或全表 summary 替代，不在 reason 中重复四维全文。')
         common += glossary_contract
     if stage in ('pilot_translate', 'translate') and (not api or payload.get('approved_pilot_examples') or payload.get('pilot_style_notes')):
-        common += ' approved_pilot_examples 和 pilot_style_notes 是 Sol 已验收的文体参考，遵守其风格，但原文与冻结术语优先。'
+        common += ' approved_pilot_examples 和 pilot_style_notes 是标准档已验收的文体参考，遵守其风格，但原文与冻结术语优先。'
         if not api:
             common += (' 本批是整轮定向修复中的一个批次，只修复 diagnostic 指出的语句；提交后保存修复稿，等本轮所有批次完成再统一复查，不当批验收或返修。'
                    if payload.get('draft_scan_key') else
@@ -2044,7 +2042,7 @@ def _run_api(flow, stage, requester_factory, session_ids, resume, profile, api_n
         connection_retries = 0
         while not stopped:
             # Transport owns request accounting only. Input, collection and repair
-            # go through precisely the same handoffs as a Codex SubAgent.
+            # go through precisely the same handoffs as a SubAgent.
             dispatch_start = time.perf_counter()
             with dispatch_lock:
                 profile.duration('dispatch_lock_wait', time.perf_counter() - dispatch_start)
@@ -2258,7 +2256,7 @@ def main():
         sub.add_parser(command)
     p = sub.add_parser('prepare'); p.add_argument('--stage', choices=STAGES, required=True)
     p = sub.add_parser('prompt'); p.add_argument('--task-file', required=True)
-    p = sub.add_parser('batch-open'); p.add_argument('--worker-model'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--workers', nargs='+', required=True)
+    p = sub.add_parser('batch-open'); p.add_argument('--worker-tier', choices=('cheap', 'standard')); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--workers', nargs='+', required=True)
     p = sub.add_parser('batch-finish'); p.add_argument('--sessions', nargs='+', required=True); p.add_argument('--next-worker')
     p = sub.add_parser('batch-split'); p.add_argument('--task', required=True)
     p = sub.add_parser('batch-repair'); p.add_argument('--session', required=True); p.add_argument('--worker', required=True); p.add_argument('--reason')
@@ -2270,10 +2268,10 @@ def main():
     p = sub.add_parser('review-scan'); p.add_argument('--stage', choices=('pilot_review', 'review', 'final_review'), default='review'); p.add_argument('--prepare-repairs', action='store_true')
     p = sub.add_parser('restore-review-layout'); p.add_argument('--file', required=True)
     p = sub.add_parser('quality-round-record-direct'); p.add_argument('--decisions', required=True)
-    p = sub.add_parser('sol-round-record'); p.add_argument('--decisions', required=True)
-    sub.add_parser('sol-round-finish')
+    p = sub.add_parser('standard-round-record'); p.add_argument('--decisions', required=True)
+    sub.add_parser('standard-round-finish')
     p = sub.add_parser('claim'); p.add_argument('--stage', choices=STAGES, required=True); p.add_argument('--worker', required=True)
-    p.add_argument('--backend', choices=('codex', 'api'), default='codex')
+    p.add_argument('--backend', choices=('subagent', 'api'), default='subagent')
     p.add_argument('--compact', action='store_true', help='Return task paths/lease only; keep full payload in the task file')
     p = sub.add_parser('submit'); p.add_argument('--task', required=True); p.add_argument('--token', required=True); p.add_argument('--result', required=True)
     p = sub.add_parser('fail'); p.add_argument('--task', required=True); p.add_argument('--token', required=True); p.add_argument('--code', required=True)
@@ -2317,7 +2315,7 @@ def main():
         elif args.command in ('pause', 'resume'): result = flow.pause(args.command == 'pause')
         elif args.command == 'prepare': result = flow.prepare(args.stage)
         elif args.command == 'prompt': result = flow.task_prompt(args.task_file)
-        elif args.command == 'batch-open': result = flow.batch_many('open', args.workers, stage=args.stage, worker_model=args.worker_model)
+        elif args.command == 'batch-open': result = flow.batch_many('open', args.workers, stage=args.stage, worker_tier=args.worker_tier)
         elif args.command == 'batch-retry': result = flow.batch_retry(args.session, args.worker, args.reason, format_error=args.format_error)
         elif args.command == 'batch-finish':
             if args.next_worker and len(args.sessions) != 1:
@@ -2332,8 +2330,8 @@ def main():
             from workflow_layout_restore import restore_review_layout
             result = restore_review_layout(flow, read_json(args.file))
         elif args.command == 'quality-round-record-direct': result = flow.record_direct_quality_round(read_json(args.decisions))
-        elif args.command == 'sol-round-record': result = flow.record_sol_round(read_json(args.decisions))
-        elif args.command == 'sol-round-finish': result = flow.finish_sol_round()
+        elif args.command == 'standard-round-record': result = flow.record_standard_round(read_json(args.decisions))
+        elif args.command == 'standard-round-finish': result = flow.finish_standard_round()
         elif args.command == 'claim':
             result = flow.claim(args.stage, args.worker, args.backend)
             if args.compact and result:

@@ -1,4 +1,4 @@
-"""Whole-round semantic review and Sol acceptance using synthetic local data."""
+"""Whole-round semantic review and standard-tier acceptance using synthetic local data."""
 import json
 import unittest
 from unittest.mock import patch
@@ -61,7 +61,7 @@ class ReviewRoundTests(unittest.TestCase):
         self.assertEqual(scan['checked_records'], 4)
         self.assertTrue(scan['clean'])
 
-    def test_six_review_repair_rounds_then_automatic_sol(self):
+    def test_six_review_repair_rounds_then_automatic_standard(self):
         first = self.flow.batch_open('review', 'initial-a')
         result = self.result(first); target = result['records'][0]['id']
         self.save(first, self.result(first, [target]))
@@ -69,16 +69,16 @@ class ReviewRoundTests(unittest.TestCase):
         self.flow.review_scan(prepare_repairs=True)
         for n in range(6):
             repair = self.flow.batch_open('review', f'repair-{n}')
-            self.assertEqual(repair['repair_tier'], 'standard')
+            self.assertEqual(repair['repair_tier'], 'cheap')
             self.assertEqual(repair['repair_counts'], {target: n + 1})
             self.save(repair, self.result(repair, [target]))
             report = self.flow.review_scan(prepare_repairs=True)
             self.assertEqual(report['checked_records'], 1)
             self.assertEqual(report['needs_attention_ids'], [])
-        sol = self.flow.batch_open('review', 'sol-review-fix', worker_model='gpt-6-sol')
-        self.assertEqual(sol['required_model'], 'gpt-6-sol')
-        self.assertTrue(sol['automatic_escalation'])
-        self.save(sol, self.result(sol))
+        std = self.flow.batch_open('review', 'std-review-fix', worker_tier='standard')
+        self.assertEqual(std['required_tier'], 'standard')
+        self.assertTrue(std['automatic_escalation'])
+        self.save(std, self.result(std))
         self.assertTrue(self.flow.review_scan()['clean'])
 
     def test_no_partial_acceptance_or_early_repairs_and_cross_batch_regrouping(self):
@@ -126,9 +126,9 @@ class ReviewRoundTests(unittest.TestCase):
         self.assertEqual(reviews[bad_a]['instance'], 'review-fix')
         self.assertEqual(reviews[bad_b]['instance'], 'review-fix')
 
-    def test_sol_no_progress_stops_dispatch_and_blocks_quality_approval(self):
+    def test_standard_no_progress_stops_dispatch_and_blocks_quality_approval(self):
         self.flow.pause(True)
-        self.flow.configure({'body_repair_round_limit': 1}, 'Exercise bounded Sol repair')
+        self.flow.configure({'body_repair_round_limit': 1}, 'Exercise bounded standard-tier repair')
         self.flow.pause(False)
         first = self.flow.batch_open('review', 'stop-initial-a')
         result = self.result(first); target = result['records'][0]['id']
@@ -140,11 +140,11 @@ class ReviewRoundTests(unittest.TestCase):
         self.save(normal, self.result(normal, [target]))
         self.flow.review_scan(prepare_repairs=True)
         for n in range(2):
-            sol = self.flow.batch_open('review', f'stop-sol-{n}', worker_model='gpt-6-sol')
-            self.save(sol, self.result(sol, [target]))
+            std = self.flow.batch_open('review', f'stop-std-{n}', worker_tier='standard')
+            self.save(std, self.result(std, [target]))
             report = self.flow.review_scan(prepare_repairs=True)
         self.assertEqual(report['needs_attention_ids'], [target])
-        self.assertEqual(report['repair_stop_reasons'], {target: 'sol_no_progress'})
+        self.assertEqual(report['repair_stop_reasons'], {target: 'standard_no_progress'})
         self.assertEqual(report['repair_tasks'], [])
         self.assertFalse(report['clean'])
         with self.assertRaises(ValueError):
@@ -154,61 +154,61 @@ class ReviewRoundTests(unittest.TestCase):
         self.assertEqual(cached['repair_tasks'], [])
         self.assertEqual(cached['needs_attention_ids'], [target])
 
-    def test_sol_collects_entire_scope_before_dispatch_and_reuses_passed_checks(self):
+    def test_standard_collects_entire_scope_before_dispatch_and_reuses_passed_checks(self):
         self.complete_review()
         opened = self.flow.quality_report('final'); report = workflow.read_json(opened['report_file'])
         ids = report['required_decisions']; self.assertGreater(len(ids), 1)
         target = report['records_to_check'][0]['id']
         problem = {'id': target, 'disposition': 'repair', 'reason': 'Synthetic source-based issue for this exact record.'}
-        envelope = {'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': 'Synthetic inspected evidence'}
+        envelope = {'report_hash': report['report_hash'], 'reviewer': 'standard', 'summary': 'Synthetic inspected evidence'}
         before_tasks = self.flow.status()['tasks']
-        self.flow.record_sol_round({**envelope, 'decisions': [problem]})
+        self.flow.record_standard_round({**envelope, 'decisions': [problem]})
         self.assertEqual(self.flow.status()['tasks'], before_tasks)
-        with self.assertRaisesRegex(ValueError, 'entire Sol'):
-            self.flow.finish_sol_round()
+        with self.assertRaisesRegex(ValueError, 'entire standard-tier'):
+            self.flow.finish_standard_round()
         with self.flow.db() as db:
             task_id = self.flow.latest_reviews(db, 'final')[target]['task_id']
-        with self.assertRaisesRegex(ValueError, 'entire Sol'):
+        with self.assertRaisesRegex(ValueError, 'entire standard-tier'):
             self.flow.reopen_body(task_id, 'Do not dispatch during collection', [target])
         with patch.object(self.flow, 'build_quality_report', side_effect=AssertionError('Unnecessary report rebuild')):
             same = self.flow.quality_report('final')
         self.assertEqual(same['report_hash'], report['report_hash'])
         self.assertNotIn(target, workflow.read_json(same['report_file'])['required_decisions'])
         rest = [{'id': i, 'disposition': 'pass', 'reason': 'Explicitly inspected unchanged check'} for i in ids if i != target]
-        self.flow.record_sol_round({**envelope, 'decisions': rest})
-        finished = self.flow.finish_sol_round()
+        self.flow.record_standard_round({**envelope, 'decisions': rest})
+        finished = self.flow.finish_standard_round()
         self.assertEqual(finished['repair_records'], 1)
         self.assertEqual(len(finished['repair_tasks']), 1)
         with self.assertRaises(ValueError):
             self.flow.quality_report('final')
-        repair = self.flow.batch_open('review', 'sol-repair-reviewer')
+        repair = self.flow.batch_open('review', 'std-repair-reviewer')
         self.assertEqual(repair['records'], 1)
         self.save(repair, self.result(repair)); self.assertTrue(self.flow.review_scan()['clean'])
         next_round = self.flow.quality_report('final'); new_report = workflow.read_json(next_round['report_file'])
-        self.assertNotIn(target, new_report['required_decisions'])  # Repaired and independently passed: no repeat Sol reading.
+        self.assertNotIn(target, new_report['required_decisions'])  # Repaired and independently passed: no repeat standard-tier reading.
         self.assertTrue(new_report['reused_decisions'])
         self.assertTrue(set(i['id'] for i in rest) - set(new_report['required_decisions']))
         if new_report['required_decisions']:
-            self.flow.record_sol_round({'report_hash': new_report['report_hash'], 'reviewer': 'sol', 'summary': 'Inspected remaining disputes',
+            self.flow.record_standard_round({'report_hash': new_report['report_hash'], 'reviewer': 'standard', 'summary': 'Inspected remaining disputes',
                 'decisions': [{'id': i, 'disposition': 'pass', 'reason': 'Explicitly verified unresolved dispute'} for i in new_report['required_decisions']]})
-        self.assertEqual(self.flow.finish_sol_round()['status'], 'approved')
+        self.assertEqual(self.flow.finish_standard_round()['status'], 'approved')
         self.assertEqual(self.flow.export()['records'], 4)
 
-    def test_stale_unknown_and_uninspected_sol_checks_cannot_create_jobs(self):
+    def test_stale_unknown_and_uninspected_standard_checks_cannot_create_jobs(self):
         self.complete_review()
         opened = self.flow.quality_report('final'); report = workflow.read_json(opened['report_file'])
         for key, record_id in [('stale', report['required_decisions'][0]), (report['report_hash'], 'unknown')]:
             with self.assertRaises(ValueError):
-                self.flow.record_sol_round({'report_hash': key, 'reviewer': 'sol', 'summary': 'Synthetic',
+                self.flow.record_standard_round({'report_hash': key, 'reviewer': 'standard', 'summary': 'Synthetic',
                     'decisions': [{'id': record_id, 'disposition': 'repair', 'reason': 'Synthetic error'}]})
         with self.assertRaises(ValueError):
-            self.flow.finish_sol_round()
+            self.flow.finish_standard_round()
         with self.flow.db() as db:
             self.assertEqual(db.execute('SELECT count(*) FROM tasks WHERE status="pending"').fetchone()[0], 0)
 
-    def test_sol_input_batches_have_complete_fixed_scope(self):
+    def test_standard_input_batches_have_complete_fixed_scope(self):
         self.complete_review()
-        self.flow.pause(True); self.flow.configure({'review_batch_records': 1}, 'Small synthetic Sol inspection packets'); self.flow.pause(False)
+        self.flow.pause(True); self.flow.configure({'review_batch_records': 1}, 'Small synthetic standard-tier inspection packets'); self.flow.pause(False)
         opened = self.flow.quality_report('final'); report = workflow.read_json(opened['report_file'])
         manifest = workflow.read_json(opened['inspection_manifest'])
         self.assertEqual([i for b in manifest for i in b['check_ids']], report['required_decisions'])
@@ -218,43 +218,43 @@ class ReviewRoundTests(unittest.TestCase):
             self.assertEqual(packet['report_hash'], report['report_hash'])
             self.assertEqual([i['id'] for i in packet['checks']], batch['check_ids'])
 
-    def test_sol_partial_passes_do_not_bypass_stale_round_or_implicit_approval(self):
+    def test_standard_partial_passes_do_not_bypass_stale_round_or_implicit_approval(self):
         self.complete_review()
         opened = self.flow.quality_report('final'); report = workflow.read_json(opened['report_file'])
         entry = {'id': report['required_decisions'][0], 'disposition': 'pass', 'reason': 'Actually inspected synthetic evidence'}
-        self.flow.checkpoint_quality('final', {'report_hash': report['report_hash'], 'reviewer': 'sol',
+        self.flow.checkpoint_quality('final', {'report_hash': report['report_hash'], 'reviewer': 'standard',
                                              'summary': 'Only first check inspected', 'decisions': [entry]})
         with self.assertRaises(ValueError):
             self.flow.export()
         with self.assertRaises(ValueError):
-            self.flow.finish_sol_round()
+            self.flow.finish_standard_round()
         self.flow.pause(True); self.flow.configure({'review_batch_records': 1}, 'Changed scheduling while preserving text'); self.flow.pause(False)
-        with self.assertRaisesRegex(ValueError, 'Stale Sol'):
-            self.flow.record_sol_round({'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': 'Stale', 'decisions': [entry]})
+        with self.assertRaisesRegex(ValueError, 'Stale standard-tier'):
+            self.flow.record_standard_round({'report_hash': report['report_hash'], 'reviewer': 'standard', 'summary': 'Stale', 'decisions': [entry]})
         current = self.flow.quality_report('final'); view = workflow.read_json(current['report_file'])
         self.assertNotIn(entry['id'], view['required_decisions'])
         self.assertIn(entry['id'], view['reused_decisions'])
 
-    def test_sol_report_reuses_unchanged_validated_review_evidence(self):
+    def test_standard_report_reuses_unchanged_validated_review_evidence(self):
         self.complete_review()
         with patch('workflow_quality.validate_review', side_effect=AssertionError('Repeated proof validation')):
-            self.assertIsNotNone(self.flow.quality_report('final')['sol_round'])
+            self.assertIsNotNone(self.flow.quality_report('final')['standard_round'])
 
     def test_scope_migration_preserves_known_defects_without_rereading_or_approving_them(self):
         self.complete_review()
         # Simulate an open round created under the old scope/watch policy.
-        with patch('workflow_sol_rounds.SOL_SCOPE_POLICY', 'legacy_broad_scope'):
+        with patch('workflow_standard_rounds.STANDARD_SCOPE_POLICY', 'legacy_broad_scope'):
             opened = self.flow.quality_report('final')
             report = workflow.read_json(opened['report_file'])
             ids = report['required_decisions']; target, passed = ids[:2]
-            self.flow.record_sol_round({'report_hash': report['report_hash'], 'reviewer': 'sol', 'summary': 'Actual synthetic findings',
+            self.flow.record_standard_round({'report_hash': report['report_hash'], 'reviewer': 'standard', 'summary': 'Actual synthetic findings',
                 'decisions': [{'id': target, 'disposition': 'repair', 'reason': 'Specific unresolved source error'},
                               {'id': passed, 'disposition': 'pass', 'reason': 'Actually inspected'}]})
-        with self.assertRaisesRegex(ValueError, 'Stale Sol'):
-            self.flow.record_sol_round({'report_hash': report['report_hash']})
+        with self.assertRaisesRegex(ValueError, 'Stale standard-tier'):
+            self.flow.record_standard_round({'report_hash': report['report_hash']})
         migrated = self.flow.quality_report('final')
         new = workflow.read_json(migrated['report_file'])
-        self.assertNotEqual(migrated['sol_round'], opened['sol_round'])
+        self.assertNotEqual(migrated['standard_round'], opened['standard_round'])
         self.assertNotIn(target, new['required_decisions'])
         self.assertNotIn(passed, new['required_decisions'])
         self.assertIn(target, new['carried_findings'])
@@ -263,13 +263,13 @@ class ReviewRoundTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Unresolved carried'):
                 self.flow.accept_quality_in_transaction(db, 'final', new, {})
         if new['required_decisions']:
-            self.flow.record_sol_round({'report_hash': new['report_hash'], 'reviewer': 'sol', 'summary': 'Only remaining real dispute',
+            self.flow.record_standard_round({'report_hash': new['report_hash'], 'reviewer': 'standard', 'summary': 'Only remaining real dispute',
                 'decisions': [{'id': i, 'disposition': 'pass', 'reason': 'Actually adjudicated'} for i in new['required_decisions']]})
-        finished = self.flow.finish_sol_round()
+        finished = self.flow.finish_standard_round()
         self.assertEqual(finished['repair_records'], 1)
         with self.flow.db() as db:
-            self.assertEqual(self.flow.meta(db, 'sol_pending_findings'), {})
-            self.assertEqual(db.execute('SELECT status FROM sol_review_rounds WHERE id=?', (opened['sol_round'],)).fetchone()[0], 'superseded')
+            self.assertEqual(self.flow.meta(db, 'standard_pending_findings'), {})
+            self.assertEqual(db.execute('SELECT status FROM standard_review_rounds WHERE id=?', (opened['standard_round'],)).fetchone()[0], 'superseded')
         with self.assertRaises(ValueError):
             self.flow.export()
 
@@ -280,8 +280,8 @@ class ReviewRoundTests(unittest.TestCase):
         self.assertTrue(self.flow.review_scan()['clean'])
         opened = self.flow.quality_report('final')
         self.assertEqual(opened['remaining_checks'], 0)
-        self.assertEqual(opened['next_action'], 'sol-round-finish')
-        self.assertEqual(self.flow.finish_sol_round()['status'], 'approved')
+        self.assertEqual(opened['next_action'], 'standard-round-finish')
+        self.assertEqual(self.flow.finish_standard_round()['status'], 'approved')
         self.assertEqual(self.flow.export()['records'], 4)
 
 

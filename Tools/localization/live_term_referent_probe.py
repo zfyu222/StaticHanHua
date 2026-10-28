@@ -51,7 +51,7 @@ def main():
         csv.writer(f).writerows([[c['source']] for c in cases])
     flow = w.Workflow(project)
     flow.init(src, dict(backend='api', pilot_records=len(cases),
-        stage_backends={'pilot_translate':'codex', 'translate':'codex'},
+        stage_backends={'pilot_translate':'subagent', 'translate':'subagent'},
         game_background='科幻奇幻角色扮演游戏。',
         style='忠实原文，自然简体中文；只修复明确错误，正确译文保持不变。'))
     contexts = {str(i+1): {'source_context': c['context']} if c.get('context') else {}
@@ -83,7 +83,7 @@ def main():
             return super().request(system, user)
     def seed(stage):
         flow.prepare(stage)
-        while claim := flow.claim(stage, 'fixture-input-'+uuid.uuid4().hex, backend='codex'):
+        while claim := flow.claim(stage, 'fixture-input-'+uuid.uuid4().hex, backend='subagent'):
             p = claim['payload']
             flow.submit(claim['task_id'], claim['lease_token'], dict(task_id=claim['task_id'], input_hash=p['input_hash'],
                 records=[dict(id=r['id'], translation=cases[r['ordinal']-1]['before'],
@@ -95,7 +95,7 @@ def main():
             summary='Isolated seeded regression inputs contain deliberate errors, not approved production translations.'))
         seed('translate')
         flow.pause(True)
-        flow.configure({'stage_backends': {'pilot_translate':'codex','translate':'api'}},
+        flow.configure({'stage_backends': {'pilot_translate':'subagent','translate':'api'}},
             'Test input seeding finished; all actual review/repair requests use configured priority', impact='none')
         flow.pause(False)
         result = w.run_api(flow, 'review', requester_factory=BoundedAPI, continuous=True)

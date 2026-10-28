@@ -58,9 +58,9 @@ class AllocationTests(unittest.TestCase):
         with self.flow.db() as db:
             payload = self.glossary_payload(db)
             config = self.flow.config(db)
-            full = self.flow.plan_task_allocation(db, payload, 'codex')[0][1]
+            full = self.flow.plan_task_allocation(db, payload, 'subagent')[0][1]
             with patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': full - 100}):
-                planned = self.flow.plan_task_allocation(db, payload, 'codex')
+                planned = self.flow.plan_task_allocation(db, payload, 'subagent')
             self.assertGreater(len(planned), 1)
             self.assertEqual([e['ref'] for p, _, _ in planned for e in p['entries']], [e['ref'] for e in payload['entries']])
             for value, raw_chars, _ in planned:
@@ -85,7 +85,7 @@ class AllocationTests(unittest.TestCase):
                 self.assertEqual(compact[0][0]['records'], full[0]['records'])
                 self.assertLessEqual(compact[0][2], limit)
                 with self.assertRaisesRegex(ValueError, 'single item'):
-                    self.flow.plan_task_allocation(db, payload, 'codex')
+                    self.flow.plan_task_allocation(db, payload, 'subagent')
 
     def test_lower_api_input_limit_preserves_inflight_payload_and_attempts(self):
         self.flow.pause(True)
@@ -167,7 +167,7 @@ class AllocationTests(unittest.TestCase):
             glossary = {'characters': [], 'terms': [], 'non_translate': []}
             with (patch.object(self.flow, 'glossary', return_value=glossary),
                   patch.object(self.flow, 'config', return_value={**config, 'task_input_tokens': 22000})):
-                tasks = self.flow.allocate_task(db, payload, 'codex', attempt=2)
+                tasks = self.flow.allocate_task(db, payload, 'subagent', attempt=2)
             self.assertGreater(len(tasks), 1)
             covered = []
             for task_id in tasks:
@@ -187,7 +187,7 @@ class AllocationTests(unittest.TestCase):
             payload = json.loads(task['payload'])
             payload['records'][0]['source'] = 'Wrong source injected by a broken producer'
             with self.assertRaisesRegex(ValueError, 'source/protection'):
-                self.flow.plan_task_allocation(db, payload, 'codex')
+                self.flow.plan_task_allocation(db, payload, 'subagent')
             self.assertEqual(db.execute('SELECT count(*) FROM quality_attempts').fetchone()[0], 0)
 
     def test_glossary_and_review_templates_never_fabricate_semantic_approval(self):
@@ -215,13 +215,13 @@ class AllocationTests(unittest.TestCase):
         self.assertIn('不运行任务校验', text)
         self.assertEqual(workflow.read_json(paths['result_template_file'])['input_hash'], claim['payload']['input_hash'])
 
-    def test_sol_packets_are_ready_and_never_marked_over_budget(self):
+    def test_standard_packets_are_ready_and_never_marked_over_budget(self):
         with self.flow.db() as db:
             config = {**self.flow.config(db), 'task_input_tokens': 3000}
         report = {'report_hash': 'real-report', 'records_to_check': [{'id': str(i), 'source': 'word ' * 1700} for i in range(2)],
                   'consistency': [], 'glossary_checks': []}
-        self.flow.write_sol_inputs(report, 1, config)
-        manifest = workflow.read_json(self.flow.root / 'reports/sol_rounds/round_00001.inputs.json')
+        self.flow.write_standard_inputs(report, 1, config)
+        manifest = workflow.read_json(self.flow.root / 'reports/standard_rounds/round_00001.inputs.json')
         self.assertEqual(len(manifest), 2)
         for part in manifest:
             self.assertFalse(part['over_budget'])
@@ -231,8 +231,8 @@ class AllocationTests(unittest.TestCase):
             self.assertTrue(all(i['disposition'] == 'pending' for i in packet['output_template']['decisions']))
         report['records_to_check'][0]['source'] = 'word ' * 10000
         with self.assertRaisesRegex(ValueError, 'single check'):
-            self.flow.write_sol_inputs(report, 2, config)
-        self.assertFalse((self.flow.root / 'reports/sol_rounds/round_00002.inputs.json').exists())
+            self.flow.write_standard_inputs(report, 2, config)
+        self.assertFalse((self.flow.root / 'reports/standard_rounds/round_00002.inputs.json').exists())
 
     def test_old_contract_is_refreshed_only_for_unclaimed_tasks(self):
         tasks = self.flow.prepare('extract')['tasks']

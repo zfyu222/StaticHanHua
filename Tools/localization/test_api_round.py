@@ -29,8 +29,8 @@ class APIRoundTests(unittest.TestCase):
         self.assertEqual(json.loads(Path(receipt['receipt_file']).read_text(encoding='utf-8')), receipt)
         self.assertFalse((self.project / 'TranslateFiles/state/api_round.lock').exists())
 
-    def test_cycle_handoff_and_external_model_are_visible_in_receipt(self):
-        task = {'task_id': 'repair', 'backend': 'codex', 'required_model': 'gpt-6-sol'}
+    def test_cycle_handoff_and_external_tier_are_visible_in_receipt(self):
+        task = {'task_id': 'repair', 'backend': 'subagent', 'required_tier': 'standard'}
         receipt = self.run_child(continuous=True, stage_clean=False, next_action='external_executor_required',
             api_rounds=[{'cycle': 1, 'accepted': 3}],
             needs_attention=[{'reason': 'external_executor_required', 'repair_dispatch': [task]}])

@@ -115,7 +115,7 @@ class PilotCalibrationTests(unittest.TestCase):
             self.flow.pilot_decide(decision)
         self.flow.pilot_decide(self.decision())
 
-    def test_no_per_record_proof_or_sol_identity_is_required_for_main_assessment(self):
+    def test_no_per_record_proof_or_standard_identity_is_required_for_main_assessment(self):
         self.f.translate('pilot_translate')
         decision = self.decision()
         self.assertNotIn('decisions', decision)
@@ -124,7 +124,7 @@ class PilotCalibrationTests(unittest.TestCase):
             approval = self.flow.meta(db, 'quality_approvals')['pilot']
         archive = self.flow.root / f'reports/accepted/pilot_{approval["report_hash"][:16]}'
         self.assertTrue((archive / 'main_assessment.json').exists())
-        self.assertFalse((archive / 'sol_decisions.json').exists())
+        self.assertFalse((archive / 'standard_decisions.json').exists())
 
     def test_retry_requires_explicit_valid_scope_and_stop_pauses(self):
         self.f.translate('pilot_translate')
@@ -175,7 +175,7 @@ class PilotCalibrationTests(unittest.TestCase):
                       'records_to_check': rows, 'snapshot_hash': workflow.fingerprint(rows)}
             legacy['report_hash'] = workflow.fingerprint(legacy)
             receipt = {'report_hash': legacy['report_hash'], 'pilot_key': legacy['pilot_key'],
-                       'reviewer': 'sol', 'decisions': {'summary': 'Synthetic historical style guidance'}}
+                       'reviewer': 'standard', 'decisions': {'summary': 'Synthetic historical style guidance'}}
             workflow.write_json(self.flow.root / f'reports/accepted/pilot_{legacy["report_hash"][:16]}/report.json', legacy)
             self.flow.put(db, 'quality_approvals', {'pilot': receipt})
             self.flow.restore_pilot_baseline(db)

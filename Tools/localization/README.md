@@ -6,7 +6,7 @@
 
 ## 已停止 API 运行器的执行次数恢复
 
-旧 API 任务达到 `max_attempts` 时，`--resume` 会按原上限拒绝重派。确认旧执行器已退出并调查具体错误后，可在暂停状态通过 `configure --file <仅含max_attempts的补丁> --reason <具体原因> --impact none` 显式提高执行上限。仅当全部在途任务均为 API、没有 reserved 请求、没有 `api_round.lock` 时允许此路径；不改变 revision、任务ID、原尝试次数或成功结果。它是有记录的定向恢复，不是自动循环追加预算；服务连通恢复也不能豁免来源证据、格式或语义校验。存在运行器锁、请求在途、Codex任务或降低上限时拒绝此路径。
+旧 API 任务达到 `max_attempts` 时，`--resume` 会按原上限拒绝重派。确认旧执行器已退出并调查具体错误后，可在暂停状态通过 `configure --file <仅含max_attempts的补丁> --reason <具体原因> --impact none` 显式提高执行上限。仅当全部在途任务均为 API、没有 reserved 请求、没有 `api_round.lock` 时允许此路径；不改变 revision、任务ID、原尝试次数或成功结果。它是有记录的定向恢复，不是自动循环追加预算；服务连通恢复也不能豁免来源证据、格式或语义校验。存在运行器锁、请求在途、SubAgent 任务或降低上限时拒绝此路径。
 
 ## 术语疑问与有理由的通过结论
 
@@ -22,7 +22,7 @@
 
 `run_api_round.py --project <项目> --stage <阶段>` 与 Python `run_api()` 默认自动处理本阶段的普通循环：translate 收齐正式草稿后返回主 AI；单独调用 draft_check 执行草稿扫描及失败项修复，review/final_review 执行整轮验收及失败项下一轮。所有批次收齐后才统一检查，已通过项不重派；同一 Workflow、术语对象、内存匹配缓存和 API 客户端持续复用。无需在每轮之间返回主 AI 再启动程序，也没有新增持久化缓存表。
 
-extract/glossary_review 完成本阶段任务及原有格式重试后交回；pilot_translate 自动生成试译报告，仍由主 AI pilot-decide；polish 仍按配置执行，结束后交回主流程。不会自动串联阶段或导出。遇到暂停、预算用尽、异常交接、无进展及 Sol/其他执行器任务时停止并返回 next_action；原次数限制和质量要求不变。API 配置中途变化也会明确停止。
+extract/glossary_review 完成本阶段任务及原有格式重试后交回；pilot_translate 自动生成试译报告，仍由主 AI pilot-decide；polish 仍按配置执行，结束后交回主流程。不会自动串联阶段或导出。遇到暂停、预算用尽、异常交接、无进展及标准档/其他执行器任务时停止并返回 next_action；原次数限制和质量要求不变。API 配置中途变化也会明确停止。
 
 正式执行顺序为 `run_api_round.py --project <项目> --stage translate` → 主 AI 检查/按需提交 Git → `run_api_round.py --project <项目> --stage draft_check` → 主 AI 决定启动 `review`。`draft_check` 复用原有草稿扫描及 translate 修复任务，不新增数据库任务类型；无问题时不调用 API，必要修复仍在一次调用内复用缓存和客户端。两次调用分别记录日志、耗时及本次 Token，项目累计用量保留；分开启动时内存缓存会重建。`draft-scan --prepare-repairs` 仍可用于仅检查和手工控制；draft_check 不使用调试用的 `--single-round`。
 
@@ -68,7 +68,7 @@ extract/glossary_review 完成本阶段任务及原有格式重试后交回；pi
 
 翻译仅提供 SubAgent 和 API 两条路线，程序入口是 `translation_workflow.py`；路线选择及子代理派发由 `game-translate` 技能管理。所有翻译中间产物放在游戏汉化项目 `TranslateFiles/`，正式原文/译文保持项目根目录的单列 CSV 格式。
 
-API 和 SubAgent 共用一套流程与程序，以既有 SubAgent 规范为准。唯一流程见 [自定义流程](../../.agents/skills/game-translate/references/custom_workflow.md)，统一输入产出和修复见 [批次交接](../../.agents/skills/game-translate/references/batch_execution.md)。两种方式均由 batch-open 生成 input.md 和模板、由 batch-finish 接收 result.json；API 只将相同输入包发送为单次请求，程序解析回复并落盘，不启用 agent 工具循环。升级修复保留 Sol SubAgent。修改共同模块即同时作用于两种方式，无需维护第二份实现。
+API 和 SubAgent 共用一套流程与程序，以既有 SubAgent 规范为准。唯一流程见 [自定义流程](../../.agents/skills/game-translate/references/custom_workflow.md)，统一输入产出和修复见 [批次交接](../../.agents/skills/game-translate/references/batch_execution.md)。两种方式均由 batch-open 生成 input.md 和模板、由 batch-finish 接收 result.json；API 只将相同输入包发送为单次请求，程序解析回复并落盘，不启用 agent 工具循环。升级修复保留标准档 SubAgent。修改共同模块即同时作用于两种方式，无需维护第二份实现。
 
 API 正文展示使用 `shared_terms` + 每条 `term_refs`，术语内容同批只传一次；省略无用途的 `ordinal` 及空保护/元数据/锁定字段。各阶段仅附输出结构示例，完整范围由输入记录 ID 或 `entries.ref` 定义，回复仍须全部覆盖。审校模板不再逐条重复原译文和空证据，试译不设置独立审校；正式审校回复须提供逐条六维证据，术语审校提供逐项四维证据。`reason` 简述结论、`checks.evidence` 分维举证、`changes.reason` 解释改动，避免重复整段说明。术语阶段过滤调度及无用空字段，保留原文序号、候选、出处及关联冲突信息。原文/保护映射、锁定和修复约束保持完整。任务存储、完整结果模板、哈希、结果协议、验收和既有在途文件不变；预算仍沿用共用的保守输入估算。
 
@@ -93,8 +93,7 @@ selection.json 为配置补丁。例如：
 ```json
 {
   "workflow": "custom",
-  "backend": "codex",
-  "model": "gpt-6-luna",
+  "backend": "subagent",
   "source_language": "英语",
   "target_language": "简体中文",
   "batch_records": null,
@@ -116,9 +115,9 @@ selection.json 为配置补丁。例如：
 
 草稿扫描支持 `draft-scan --workers 4`，本次调用临时使用 4 个校验线程；也可在配置补丁中设置 `"draft_scan_workers": 4`，通过现有 configure 流程持久保存。线程数范围为 1～32，默认 1；短文本正则匹配实测可能因线程调度变慢，应按项目测试后选择。扫描复用已读取的记录快照，每条记录只匹配一次术语。工作线程不访问 SQLite、不写文件，主线程按原文顺序汇总并保存结果；排队任务最多为实际线程数的两倍，线程异常会中止扫描并回滚数据库事务。
 
-init 默认从项目 README 的游戏信息、简介、背景设定、世界观和文体等章节自动读取游戏背景，保存到 TranslateFiles/config/game_background.json。Luna 与 API 的每阶段任务都会携带这份快照、文体及相关上下文。可用 game_background 字符串替换为已核实的背景摘要；设为 null 则自动读取，设为空字符串则不载入背景。运行中更新 README 后需暂停并 configure 重新读取，不会自动改变在途任务。背景缺失时不推测剧情。
+init 默认从项目 README 的游戏信息、简介、背景设定、世界观和文体等章节自动读取游戏背景，保存到 TranslateFiles/config/game_background.json。便宜档与 API 的每阶段任务都会携带这份快照、文体及相关上下文。可用 game_background 字符串替换为已核实的背景摘要；设为 null 则自动读取，设为空字符串则不载入背景。运行中更新 README 后需暂停并 configure 重新读取，不会自动改变在途任务。背景缺失时不推测剧情。
 
-配置保留 `workflow=custom` 作为共用流程的历史字段，路线仅通过 `backend=codex`（SubAgent）或 `backend=api` 选择。`workflow=ainiee` 已停止支持，初始化和配置修订会拒绝该值。旧 GUI 项目的缓存和译文不自动迁移或覆盖，需先选择现行路线并核对产物。AINiee 目录仅作为现有复用模块、运行环境与 StevExtraction 的依赖保留。
+配置保留 `workflow=custom` 作为共用流程的历史字段，路线仅通过 `backend=subagent`（SubAgent）或 `backend=api` 选择。`workflow=ainiee` 已停止支持，初始化和配置修订会拒绝该值。旧 GUI 项目的缓存和译文不自动迁移或覆盖，需先选择现行路线并核对产物。AINiee 目录仅作为现有复用模块、运行环境与 StevExtraction 的依赖保留。
 
 ## 程序接口
 
@@ -134,7 +133,7 @@ init 默认从项目 README 的游戏信息、简介、背景设定、世界观�
 | pilot-plan / pilot-report / pilot-decide / pilot-retry | 随机试译、诊断报告、主 AI 整体判断与指定范围重试 |
 | quality-report / approve-quality | 正式译文质量报告和最终验收；kind=pilot 兼容转入校准协议 |
 | draft-scan / review-scan | 整轮草稿或审校完成后统一验收，失败 ID 跨批合并修复 |
-| sol-round-record / sol-round-finish | 固定范围裁决，全部结论齐备后统一派修或批准 |
+| standard-round-record / standard-round-finish | 固定范围裁决，全部结论齐备后统一派修或批准 |
 | record-game-check / release-check | 保存回填实测及核对发布载荷 |
 | freeze-glossary | 合并所有审校决定，复用 glossary_tool 构建后冻结 |
 | reopen-review --task ... --reason ... | 冻结前修正已提交术语审校；保留轮次限制与历史 |
@@ -147,7 +146,7 @@ init 默认从项目 README 的游戏信息、简介、背景设定、世界观�
 
 阶段顺序及质量门槛统一维护在 [自定义流程的固定阶段](../../.agents/skills/game-translate/references/custom_workflow.md#固定阶段及质量门槛)，本文件仅列程序入口和配置，不复制 API 或 SubAgent 流程。
 
-Codex 子代理由主代理通过平台工具调用，普通 Python 不负责调用聊天内的 spawn_agent。API 执行复用 AINiee 的客户端工厂、平台思考参数和 SSE 解析；本版支持 OpenAI 兼容接口。未接入的其他原生接口不属于当前翻译路线。
+子代理由主代理通过平台工具调用，普通 Python 不负责调用聊天内的 spawn_agent。API 执行复用 AINiee 的客户端工厂、平台思考参数和 SSE 解析；本版支持 OpenAI 兼容接口。未接入的其他原生接口不属于当前翻译路线。
 
 API 地址、密钥和模型统一填写本地文件 `Tools/localization/api.local.jsonc`（已排除 Git）。首次可复制 `api.example.jsonc`；所有自定义 API 项目共用，下一次 run-api 启动读取，不改写在途请求。项目仍需选择 backend=api，不再逐项目重复填写连接信息。
 
@@ -270,7 +269,7 @@ run-api 在拆批前同步 batching，通过现有 configure 修订机制只更�
 
 ## API 阶段执行与等待
 
-API 自动执行统一通过 `run_api_round.py`，由新的 Luna 执行代理管理一个阶段的常规多轮；主代理用原生 `wait_agent` 等待终结事件，不轮询进程或运行日志。具体派发模板及边界见 [API 阶段执行与等待](../../.agents/skills/game-translate/references/api_execution_wait.md)。
+API 自动执行统一通过 `run_api_round.py`，由新的便宜档执行代理管理一个阶段的常规多轮；主代理用原生 `wait_agent` 等待终结事件，不轮询进程或运行日志。具体派发模板及边界见 [API 阶段执行与等待](../../.agents/skills/game-translate/references/api_execution_wait.md)。
 
 ```powershell
 & $python D:/StaticHanHua/Tools/localization/run_api_round.py --project $project --stage translate
@@ -278,13 +277,13 @@ API 自动执行统一通过 `run_api_round.py`，由新的 Luna 执行代理管
 
 包装器只启动一次 run-api，阻塞等待本阶段普通循环结束，日志留在 TranslateFiles/logs/api_runs，回执留在 TranslateFiles/reports/api_runs；工具只收到一次 JSON。translate 只保存正式草稿并交回主 AI，单独启动 draft_check 后才开始程序审校；draft_check/review/final_review 的整轮检查和常规修复由程序自动推进，阶段切换和升级由主流程决定。completed 代表程序正常交回，stage_clean 表示这些阶段相应检查通过，不代表项目可以发布。执行代理只返回状态、计数、停止原因和回执路径，不把全文日志加入主对话。
 
-state/api_round.lock 防止重复启动；异常遗留锁及未知在途交接必须先核实旧进程停止，不自动回收或重放。等待超时只续用原生等待，不追加状态查询；收到用户新指令时按其要求处理。原生完成通知来自执行代理，回执文件本身不会唤醒 Codex；不承诺绝对零唤醒或零 Token。
+state/api_round.lock 防止重复启动；异常遗留锁及未知在途交接必须先核实旧进程停止，不自动回收或重放。等待超时只续用原生等待，不追加状态查询；收到用户新指令时按其要求处理。原生完成通知来自执行代理，回执文件本身不会唤醒主代理；不承诺绝对零唤醒或零 Token。
 
-## Sol 只处理遗留争议和升级难题
+## 标准档只处理遗留争议和升级难题
 
-正文最终 `quality-report --kind final` 使用 `disputes_only_v1`：只把独立审校明确遗留的 issues 交 Sol 裁决。风险标签、普通抽样、历史改动、同源多译及角色口吻组不自动升级；试译验收保持。已修正并独立复查通过的内容不重复交 Sol，多轮仍失败或反复回退的记录才按既有模型路由升级为新 Sol 子代理任务。
+正文最终 `quality-report --kind final` 使用 `disputes_only_v1`：只把独立审校明确遗留的 issues 交标准档裁决。风险标签、普通抽样、历史改动、同源多译及角色口吻组不自动升级；试译验收保持。已修正并独立复查通过的内容不重复交标准档，多轮仍失败或反复回退的记录才按既有模型路由升级为新标准档子代理任务。
 
-旧大范围轮下一次 quality-report 自动归档并收窄，实际通过结论按内容签名复用，已有 repair 结论保留为 carried_findings 后集中交修，不重读、不静默放行。remaining_checks=0 时执行 sol-round-finish：有已确认问题则派修，无争议无问题则完成程序质量闭环，不编造模型逐项通过。coverage.risk_records 是统计，coverage.sol_records 才是争议选择量；导出仍要求全部独立审校及当前质量闭环通过。
+旧大范围轮下一次 quality-report 自动归档并收窄，实际通过结论按内容签名复用，已有 repair 结论保留为 carried_findings 后集中交修，不重读、不静默放行。remaining_checks=0 时执行 standard-round-finish：有已确认问题则派修，无争议无问题则完成程序质量闭环，不编造模型逐项通过。coverage.risk_records 是统计，coverage.standard_records 才是争议选择量；导出仍要求全部独立审校及当前质量闭环通过。
 
 ## 复用与验证
 
@@ -296,16 +295,16 @@ AINiee 基线、模块 hash 和来源记录在各运行的 source/manifest.json�
 & $python -m unittest discover -s Tools/localization -p 'test_*.py' -v
 ```
 
-测试覆盖并发领取、来源与版本变化、旧结果拒绝、完整术语前置门槛、审校门槛、单列 CSV 对齐、锁定译文、增量复查、保护标记及模拟 API 预算。真实 Luna 并行验证报告见 verification/luna_smoke_report.json；样本为合成文本，不代表已验证所有游戏语境。真实 API 请求尚未测试。
+测试覆盖并发领取、来源与版本变化、旧结果拒绝、完整术语前置门槛、审校门槛、单列 CSV 对齐、锁定译文、增量复查、保护标记及模拟 API 预算。真实便宜档并行验证报告见 verification/luna_smoke_report.json；样本为合成文本，不代表已验证所有游戏语境。真实 API 请求尚未测试。
 
 运行队列和大缓存默认忽略；项目配置、术语审校材料、必要变更记录和交付报告可以入库。技能参考 `references/custom_workflow.md` 承载具体 AI 调度规则，基础文档无需列出内部子阶段。
 
 
 ## 修复计数与停止条件
 
-普通修复按语句 ID 跨 translate、review、final_review 和所有 revision 累计，最多 6 轮后升级 Sol；同一任务的格式/传输重试不增加修复轮数。修复任务标记 repair_budget_scope=record。历史任务和旧阶段计数作为下限保留，已完成任务即使被标记 obsolete 也计入，不因 configure、拆批或换阶段刷新。
+普通修复按语句 ID 跨 translate、review、final_review 和所有 revision 累计，最多 6 轮后升级标准档；同一任务的格式/传输重试不增加修复轮数。修复任务标记 repair_budget_scope=record。历史任务和旧阶段计数作为下限保留，已完成任务即使被标记 obsolete 也计入，不因 configure、拆批或换阶段刷新。
 
-Sol 修复默认累计最多 3 轮（sol_repair_round_limit），同一条目连续 2 轮 Sol 检查得到相同的未解决诊断（sol_no_progress_limit）也停止该条自动派发。停止按条目生效，其他条目继续；通过项不返工。报告返回 needs_attention_ids、repair_stop_reasons（sol_round_limit / sol_no_progress），保留候选、证据及计数，不能批准或导出未解决问题。主流程应核对原文、术语语境和校验规则根因，不通过改任务 ID 或调整配置重置预算。配置修改不清除停止历史；确有规则缺陷应修正规则并复核保存的候选，通过后再继续，不能机械追加模型轮次。
+标准档修复默认累计最多 3 轮（standard_repair_round_limit），同一条目连续 2 轮标准档检查得到相同的未解决诊断（standard_no_progress_limit）也停止该条自动派发。停止按条目生效，其他条目继续；通过项不返工。报告返回 needs_attention_ids、repair_stop_reasons（standard_round_limit / standard_no_progress），保留候选、证据及计数，不能批准或导出未解决问题。主流程应核对原文、术语语境和校验规则根因，不通过改任务 ID 或调整配置重置预算。配置修改不清除停止历史；确有规则缺陷应修正规则并复核保存的候选，通过后再继续，不能机械追加模型轮次。
 
 ## 共用批次预算与执行职责
 
@@ -313,7 +312,7 @@ Sol 修复默认累计最多 3 轮（sol_repair_round_limit），同一条目连
 
 `workflow_allocation.py` 是统一任务分配入口，`workflow_batches.py` 负责两种执行器共用的交接、收集和可靠性修复。输入准备、输出模板、真实语义工作及程序验收的分工统一见 [准备与验收职责](../../.agents/skills/game-translate/references/custom_workflow.md#程序准备任务子代理专注本职)，不在工具说明中复制规范。
 
-试译执行顺序：`prepare --stage pilot_translate` → 执行本轮全部翻译 → `pilot-report` → 主 AI `pilot-decide --file <JSON>`。决定只需 report_hash、reviewer=main、decision=accept/retry/stop 和 summary，retry_ids 可选。评估流程是否稳定、风格是否合适及是否存在共性错误，不要求逐句六维证据或错误清零。没有 API 独立试译审校、额外 Sol 验收或自动 6 轮逐句返修。
+试译执行顺序：`prepare --stage pilot_translate` → 执行本轮全部翻译 → `pilot-report` → 主 AI `pilot-decide --file <JSON>`。决定只需 report_hash、reviewer=main、decision=accept/retry/stop 和 summary，retry_ids 可选。评估流程是否稳定、风格是否合适及是否存在共性错误，不要求逐句六维证据或错误清零。没有 API 独立试译审校、额外标准档验收或自动 6 轮逐句返修。
 
 需要改进时通过配置入口调整，再用 `pilot-retry --ids <ID...> --reason <原因>` 验证受影响样本；省略 --ids 表示同批全部。旧译文、作者与报告保留，不重抽样。每轮报告位于 reports/pilot_rounds/，主 AI 判断位于 reports/pilot_feedback/，当前报告为 reports/pilot_calibration.json。
 
@@ -346,12 +345,12 @@ Sol 修复默认累计最多 3 轮（sol_repair_round_limit），同一条目连
 
 - review/final_review 统一执行收集前协议检查，分配契约为 4；本次不增加旧任务兼容分支。收集时逐条检查 ID、译文字段、六维状态/非空证据、连续摘录及修改字段关系；它只是协议验收，术语、保护结构、blocking 与语义问题仍在整轮边界验收。通过协议的候选不算语义通过。
 - API 六维/四维 checks 可以使用每维 [status,evidence]，两项均由模型真实填写；程序仅恢复字段名，共同持久协议仍为 status/evidence 对象。非空原文的 accuracy/completeness/logic 只允许 pass/corrected，不能自动把 not_applicable 改成通过。模板明确保留 keep:true 与完整 translation 两条路径，issues 只列当前未解决问题，已修正项记 changes/checks。
-- 明确引用完整原文时可用 source_ref:"whole"（顶层和 changes 中均可），程序从本 session 绑定的完整原文恢复 source_excerpt。API 模板直接示范此路径，不再同时示范空摘录；模型明确选择 whole 时附带的空字符串摘录可忽略。非空摘录与 whole 冲突、未知引用仍拒收；局部引用仍须模型给连续原文。Codex 收集器也支持同一便利引用。
+- 明确引用完整原文时可用 source_ref:"whole"（顶层和 changes 中均可），程序从本 session 绑定的完整原文恢复 source_excerpt。API 模板直接示范此路径，不再同时示范空摘录；模型明确选择 whole 时附带的空字符串摘录可忽略。非空摘录与 whole 冲突、未知引用仍拒收；局部引用仍须模型给连续原文。SubAgent 收集器也支持同一便利引用。
 - 新增语境例外仍用本条 t编号；撤销已有例外改用本条 existing_exceptions 的 x编号，即使该术语当前不命中也可具证撤销。x编号绑定独立的 record_exceptions，不允许跨记录、不允许拿撤销引用新增例外。历史 t编号撤销与完整 source 协议继续恢复，不改冻结表。
 - API 对可解析的正文回复先严格校验整包任务/范围/未知或重复 ID，再逐条转换；字段转换失败保留原条目和程序诊断，有效条目通过共用 batch_items 保存，缺失/失败条目进入共用 batch-repair。保留实际作者、付费历史和尝试次数，不自动补 keep、译文或证据。
 - 单个整体格式重试耗尽后，API 槽位继续处理本轮其他独立待办，轮末统一交回异常；不在异常未处理时启动下一语义修复轮。不可重试的认证/服务故障仍暂停。局部可靠性修复在已重试或明确输出截断时缩小失败范围的分包上限；分包仍算同一次修复、不刷新累计预算，其他情况按正常预算分包。
 - API 与批次结果解析均拒绝重复 JSON 字段和非标准 NaN/Infinity；允许移除已知代码围栏及字符串外的尾逗号，尾逗号编辑只在严格解析成功后写哈希/偏移审计。缺括号、引号、缺值等不猜修，不丢弃未知或重复 ID。原回复保持。
-- 分配时同时检查完整 Codex 输入和实际 API 展示输入预算；短编号、例外视图及提示增加均计入，不截断原文或证据。
+- 分配时同时检查完整 SubAgent 输入和实际 API 展示输入预算；短编号、例外视图及提示增加均计入，不截断原文或证据。
 - 术语匹配沿用原有冻结表、最长匹配、词边界和保护区间规则；进程内按冻结对象及大小写/词边界选项准备一次正常/保留原文条目的匹配计划，减少逐句重复分类；不增加持久通过表。
 
 ## 2026-10-21：保留思考的无损输入压缩与耗尽停止
@@ -359,7 +358,7 @@ Sol 修复默认累计最多 3 轮（sol_repair_round_limit），同一条目连
 - 后续恢复验证：可选api.stream=true使用SDK流式接收，stream_options.include_usage=true；只拼接content，推理不混入正文，usage取最后累计值而非逐chunk相加，缺失用量仍未知。必须收到终止chunk，断流或缺终止时拒收，即使现有片段恰为合法JSON。默认保持非流式。旧项目API配置可使用新增可选字段，无需改写已绑定任务。HTTP200 HTML页面按不可自动重试的unexpected_html_response报告，不再当空回复重复调用。
 - 公共Python入口Workflow.split_extract_recovery(task_id,record_limit=12,worker_stopped=True)：仅用于已暂停、明确旧worker停止且无活跃runner/reserved调用的未完成API提取。按完整记录分包，原文/元数据/出处不截断；继承父任务已用attempt、保存extract_split_lineage和父批次旧交接，成功批次不可拆。须有明确剩余预算；不重置历史。glossary_review准备只合并非obsolete的完成提取，并严格检查全部源ID恰覆盖一次，父批次过期不绕过覆盖门槛。短批真实生产验证66/66接收、0次失败；不代表术语已完成语义审校。
 
-- 新生成的 API 展示包将重复的长 metadata 字段集中在 shared_metadata，以每条 metadata_refs 明确关联；资源地址重复的文件前缀放 shared_metadata_text，resource.prefix_ref 与 suffix 原样拼接还原。未出现字段不继承，独有值保留，既有命名空间不覆盖。原文、ordinal、保护映射、语义证据和未知上下文字段不删，canonical 任务及已有交接不改写；Codex 输入仍用完整数据。完整输入与输出预算检查不变。
+- 新生成的 API 展示包将重复的长 metadata 字段集中在 shared_metadata，以每条 metadata_refs 明确关联；资源地址重复的文件前缀放 shared_metadata_text，resource.prefix_ref 与 suffix 原样拼接还原。未出现字段不继承，独有值保留，既有命名空间不覆盖。原文、ordinal、保护映射、语义证据和未知上下文字段不删，canonical 任务及已有交接不改写；SubAgent 输入仍用完整数据。完整输入与输出预算检查不变。
 - 这项改动不关闭思考、不改变模型和接口，也不把思考 Token 全部视为无效消耗。提取提示明确 source 为所引原文的连续片段并保留标点，不限制必要出处数量，不因节省而省略歧义。
 - 无正文且 length 结束并报告 reasoning 时，返回不可自动重试的 reasoning_budget_exhausted；有正文但结果拒收且 length 结束时，保留回复/usage/拒收原因，暂停为 rejected_length_terminated_response。完整有效结果仍正常接收。恢复须检查批量和输出预算，不能关闭质量检查、接受截断、重置次数或原样盲重试；其他错误仍沿用有限重试。
 - 本次游戏100批本地对照输入807,835→625,187 Token（减少22.61%），逐字段还原一致；这是本地估算，不能据此宣称全部服务端Token同幅降低。小样本真实链路验证遇401认证失败后停止，无生产状态改动；真实语义效果尚待接口恢复验证。

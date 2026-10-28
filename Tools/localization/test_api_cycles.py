@@ -182,7 +182,7 @@ class APICycleTests(unittest.TestCase):
     def test_final_review_runs_same_cycle_with_final_stage_gate(self):
         self.check_review('final_review')
 
-    def test_stops_at_sol_escalation_without_sending_sol_to_api(self):
+    def test_stops_at_standard_escalation_without_sending_standard_to_api(self):
         self.api(body_repair_round_limit=1)
         def reply(payload, number):
             result = self.translations(payload)
@@ -195,7 +195,7 @@ class APICycleTests(unittest.TestCase):
         self.assertFalse(summary['stage_clean'])
         self.assertEqual(summary['next_action'], 'external_executor_required')
         self.assertEqual(len(state['calls']), 1)
-        self.assertTrue(all(task['backend'] == 'codex' for task in summary['needs_attention'][0]['repair_dispatch']))
+        self.assertTrue(all(task['backend'] == 'subagent' for task in summary['needs_attention'][0]['repair_dispatch']))
         self.assertEqual(state['closes'], 1)
 
     def test_pilot_stops_for_main_calibration(self):

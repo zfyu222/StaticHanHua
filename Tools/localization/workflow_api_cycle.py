@@ -124,7 +124,7 @@ def run_cycles(flow, stage, run_round, profile, requester_factory=None, session_
                     'AND status IN ("pending","running","failed")', (task_stage, revision))]
                 for row in unfinished:
                     payload = json.loads(row.pop('payload'))
-                    row.update({key: payload[key] for key in ('required_model', 'repair_tier', 'automatic_escalation') if key in payload})
+                    row.update({key: payload[key] for key in ('required_tier', 'repair_tier', 'automatic_escalation') if key in payload})
             external = [row for row in unfinished if row['backend'] != 'api']
             if external:
                 return stop('external_executor_required', tasks=external)

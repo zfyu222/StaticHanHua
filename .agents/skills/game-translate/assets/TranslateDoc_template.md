@@ -3,7 +3,7 @@
 ## 路线与输入输出
 
 - 执行路线：{SubAgent 或 API}
-- 配置：`workflow=custom`，`backend={codex 或 api}`
+- 配置：`workflow=custom`，`backend={subagent 或 api}`
 - 模型/接口：{实际选择，不含凭据}
 - 原文：项目根目录 `{gamename}_text.csv`
 - 正式译文：项目根目录 `{gamename}_text_translated.csv`

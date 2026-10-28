@@ -54,7 +54,7 @@ class ReviewReadingsTests(unittest.TestCase):
             self.assertEqual(set(self.flow.meta(db,'review_readings')),{rid})
         self.assertEqual(self.flow.import_review_readings(self.reader,[rid],'Repeat')['status'],'unchanged')
 
-    def test_api_and_codex_inputs_include_only_selected_fallible_reading(self):
+    def test_api_and_subagent_inputs_include_only_selected_fallible_reading(self):
         rid=self.rows[0]['id'];self.flow.pause(True)
         self.flow.import_review_readings(self.reader,[rid],'Compare meaning');self.flow.pause(False)
         self.flow.prepare('review');c=self.flow.claim('review','fresh-review-context')
@@ -100,7 +100,7 @@ class ReviewReadingsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'Unlock'):self.flow.import_review_readings(self.reader,[rid],'reason')
 
     def test_rejects_old_translation_and_non_api_or_unissued_source_proof(self):
-        for name,kwargs in [('Old',dict(old_translation=True)),('Codex',dict(backend='codex')),('NoCall',dict(received=False))]:
+        for name,kwargs in [('Old',dict(old_translation=True)),('SubAgent',dict(backend='subagent')),('NoCall',dict(received=False))]:
             with self.subTest(name=name),self.assertRaises(ValueError):load_source_readings(self.make_reader(name,**kwargs))
 
     def test_rejects_source_file_and_saved_reading_tampering(self):

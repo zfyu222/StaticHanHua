@@ -1,6 +1,6 @@
 """Run one API stage; translate saves drafts, draft_check checks and repairs them.
 
-The Codex Luna executor owns this process. The parent agent waits for that
+The cheap-tier executor subagent owns this process. The parent agent waits for that
 executor's native completion notification, not for a polled status file.
 """
 import argparse

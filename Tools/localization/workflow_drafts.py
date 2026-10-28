@@ -460,7 +460,7 @@ class DraftMixin:
         tasks = [r['id'] for r in existing]
         blocked_ids = []
         history_routes = self.repair_routes(db, config, stage)
-        routes = {r['id']: history_routes.get(r['id'], (0, 'standard')) for r in failures}
+        routes = {r['id']: history_routes.get(r['id'], (0, 'cheap')) for r in failures}
         blocked_ids = [i for i, (_, tier) in routes.items() if tier == 'stopped']
         if prepare_repairs and failures and not existing:
             failed_by_id = {r['id']: r for r in failures}
@@ -504,7 +504,7 @@ class DraftMixin:
                         'candidate': {'id': row['id'], 'translation': row['translation']}})
                 signature = fingerprint(payload); payload['input_hash'] = signature
                 tasks.extend(self.allocate_task(db, payload,
-                    config.get('escalation_backend', 'codex') if payload['repair_tier'] == 'sol' else config['stage_backends'].get(stage, config['backend'])))
+                    config.get('escalation_backend', 'subagent') if payload['repair_tier'] == 'standard' else config['stage_backends'].get(stage, config['backend'])))
         clean = not failures and not tasks
         report_file = self.root / f'reports/{prefix}full_draft_scan.json'
         task_states = [dict(r) for r in db.execute('SELECT id,status,attempt,ids,payload FROM tasks WHERE stage=? AND revision=?',

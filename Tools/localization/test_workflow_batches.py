@@ -132,7 +132,7 @@ class BatchTests(unittest.TestCase):
                     'candidate': {'translation': '候选译文'}})
             payload = {'task_id': task_id, 'stage': 'review', 'revision': self.flow.meta(db, 'revision'),
                 'source_hash': self.flow.meta(db, 'source_hash'), 'review_round': 1,
-                'review_repair_origin': 'review-scan', 'repair_tier': 'standard', 'required_model': None,
+                'review_repair_origin': 'review-scan', 'repair_tier': 'cheap', 'required_tier': None,
                 'repair_counts': {row['id']: 1 for row in records}, 'language': {'source': '英语', 'target': '简体中文'},
                 'style': '忠实准确', 'context': [], 'game_background': '', 'glossary_version': self.flow.meta(db, 'glossary'),
                 'records': records, 'terms': [], 'revision_request': '只修本条诊断问题。'}
@@ -140,7 +140,7 @@ class BatchTests(unittest.TestCase):
             db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) '
                        'VALUES (?,?,?,?,?,?,?,"pending",0)',
                        (task_id, 'review', payload['revision'], workflow.encoded([row['id'] for row in records]),
-                        workflow.encoded(payload), payload['input_hash'], 'codex'))
+                        workflow.encoded(payload), payload['input_hash'], 'subagent'))
             for original, candidate in zip(source_rows, records):
                 item = {'id': candidate['id'], 'translation': '候选译文'}
                 db.execute('INSERT INTO review_candidates VALUES (?,?,?,?,?,? ,"failed",?)',
@@ -167,28 +167,28 @@ class BatchTests(unittest.TestCase):
             self.assertEqual(child['status'], 'pending')
             self.assertEqual(child['attempt'], 0)
 
-    def test_oversized_sol_carried_finding_can_split_after_review_candidate_passed(self):
+    def test_oversized_standard_carried_finding_can_split_after_review_candidate_passed(self):
         with self.flow.db() as db:
             self.flow.review_tables(db)
             source_rows = [dict(r) for r in db.execute('SELECT * FROM records ORDER BY ordinal LIMIT 2')]
-            task_id = 'review-round-sol-oversized'
+            task_id = 'review-round-std-oversized'
             records = []
             for row in source_rows:
                 records.append({'id': row['id'], 'ordinal': row['ordinal'], 'source': row['source'],
                     'translation': '候选译文', 'locked': False, 'metadata': {}, 'protection': [],
-                    'repair_constraints': {}, 'diagnostic': 'Sol遗留问题' * 2500,
+                    'repair_constraints': {}, 'diagnostic': '标准档遗留问题' * 2500,
                     'candidate': None})
             payload = {'task_id': task_id, 'stage': 'review', 'revision': self.flow.meta(db, 'revision'),
                 'source_hash': self.flow.meta(db, 'source_hash'), 'review_round': 2,
-                'review_repair_origin': 'sol-round-2', 'repair_tier': 'standard', 'required_model': None,
+                'review_repair_origin': 'standard-round-2', 'repair_tier': 'cheap', 'required_tier': None,
                 'repair_counts': {row['id']: 1 for row in records}, 'language': {'source': '英语', 'target': '简体中文'},
                 'style': '忠实准确', 'context': [], 'game_background': '', 'glossary_version': self.flow.meta(db, 'glossary'),
-                'records': records, 'terms': [], 'revision_request': '只修本条Sol裁定的问题。'}
+                'records': records, 'terms': [], 'revision_request': '只修本条标准档裁定的问题。'}
             payload['input_hash'] = workflow.fingerprint(payload)
             db.execute('INSERT INTO tasks(id,stage,revision,ids,payload,input_hash,backend,status,attempt) '
                        'VALUES (?,?,?,?,?,?,?,"pending",0)',
                        (task_id, 'review', payload['revision'], workflow.encoded([row['id'] for row in records]),
-                        workflow.encoded(payload), payload['input_hash'], 'codex'))
+                        workflow.encoded(payload), payload['input_hash'], 'subagent'))
             for original, candidate in zip(source_rows, records):
                 item = {'id': candidate['id'], 'translation': '候选译文'}
                 db.execute('INSERT INTO review_candidates VALUES (?,?,?,?,?,? ,"passed",NULL)',
@@ -232,7 +232,7 @@ class BatchTests(unittest.TestCase):
         self.assertEqual(self.flow.batch_finish(repair['session_id'])['status'], 'needs_attention')
         with self.assertRaisesRegex(ValueError, 'One consolidated'):
             self.flow.batch_repair(repair['session_id'], 'extra-fixer')
-        directed = self.flow.batch_repair(repair['session_id'], 'sol-directed-fixer', reason='Sol identified a specific missing placeholder; repair only this ID.')
+        directed = self.flow.batch_repair(repair['session_id'], 'std-directed-fixer', reason='The standard tier identified a specific missing placeholder; repair only this ID.')
         self.write_result(directed, self.result(directed))
         self.assertEqual(self.flow.batch_finish(directed['session_id'])['status'], 'submitted')
         with self.flow.db() as db:

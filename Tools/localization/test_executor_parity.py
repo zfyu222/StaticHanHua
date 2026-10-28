@@ -293,17 +293,17 @@ class ExecutorParityTests(unittest.TestCase):
         edit = next(row for row in stored if row['changes'])
         self.assertEqual((edit['changes'][0]['before'], edit['changes'][0]['after']), changed[0])
 
-    def test_allocation_is_backend_independent_and_sol_remains_codex_only(self):
+    def test_allocation_is_backend_independent_and_standard_remains_subagent_only(self):
         task_id = self.flow.prepare('extract')['tasks'][0]
         with self.flow.db() as db:
             payload = json.loads(db.execute('SELECT payload FROM tasks WHERE id=?', (task_id,)).fetchone()[0])
-            a = self.flow.plan_task_allocation(db, payload, 'codex')
+            a = self.flow.plan_task_allocation(db, payload, 'subagent')
             b = self.flow.plan_task_allocation(db, payload, 'api')
             self.assertEqual([v[:2] for v in a], [v[:2] for v in b])
             self.assertEqual(a[0][2],0)
             self.assertGreater(b[0][2],0)  # Complete API presentation gets its own token budget.
-            payload['repair_tier'] = 'sol'; payload['required_model'] = 'gpt-6-sol'
-            with self.assertRaisesRegex(ValueError, 'explicit Codex model'):
+            payload['repair_tier'] = 'standard'; payload['required_tier'] = 'standard'
+            with self.assertRaisesRegex(ValueError, 'requires a subagent worker tier'):
                 self.flow.plan_task_allocation(db, payload, 'api')
 
     def test_transport_retry_of_round_repair_preserves_good_items_and_scope(self):

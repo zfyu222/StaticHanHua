@@ -134,7 +134,7 @@ class WorkflowTests(unittest.TestCase):
                 'decision': 'accept', 'summary': 'Synthetic calibration: pipeline and style are suitable; isolated errors belong to production review.'})
         result = self.flow.quality_report(kind)
         report = workflow.read_json(result['report_file'])
-        self.flow.approve_quality(kind, {'report_hash': report['report_hash'], 'reviewer': 'sol',
+        self.flow.approve_quality(kind, {'report_hash': report['report_hash'], 'reviewer': 'standard',
             'summary': '测试验收：逐项核对风险、文体及跨批一致性。',
             'decisions': [{'id': key, 'disposition': 'pass', 'reason': '测试核对通过。'} for key in report['required_decisions']]})
 
@@ -412,7 +412,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(workflow.read_json(self.flow.root / 'config/workflow.json'), before)
 
     def test_only_subagent_and_api_routes_supported(self):
-        for backend in ('codex', 'api'):
+        for backend in ('subagent', 'api'):
             self.assertEqual(workflow.merge_config(workflow.DEFAULT, {'backend': backend})['backend'], backend)
         for selection in ({'workflow': 'ainiee'}, {'backend': 'ainiee'}):
             with self.assertRaisesRegex(ValueError, 'workflow=custom'):

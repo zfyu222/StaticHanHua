@@ -19,21 +19,21 @@ class RepairPolicyTests(unittest.TestCase):
         return {'attempt': attempt, 'ids': '["x"]', 'payload': json.dumps(payload), 'status': status}
 
     def test_legacy_attempts_preserved_and_sixth_round_escalates(self):
-        self.assertEqual(self.routes([self.task(3)]), {'x': (3, 'standard')})
-        self.assertEqual(self.routes([], counters={'x': 6}), {'x': (6, 'sol')})
+        self.assertEqual(self.routes([self.task(3)]), {'x': (3, 'cheap')})
+        self.assertEqual(self.routes([], counters={'x': 6}), {'x': (6, 'standard')})
 
     def test_request_retries_do_not_consume_extra_repair_rounds(self):
-        self.assertEqual(self.routes([self.task(3, 1)]), {'x': (1, 'standard')})
-        self.assertEqual(self.routes([self.task(3, 6)]), {'x': (6, 'sol')})
+        self.assertEqual(self.routes([self.task(3, 1)]), {'x': (1, 'cheap')})
+        self.assertEqual(self.routes([self.task(3, 6)]), {'x': (6, 'standard')})
 
     def test_initial_review_and_unfinished_tasks_are_not_repairs(self):
         initial = self.task(3); initial['payload'] = '{}'
         self.assertEqual(self.routes([initial, self.task(3, status='running')]), {})
-        self.assertEqual(self.routes([self.task(3, stage='review')], stage='review'), {'x': (2, 'standard')})
+        self.assertEqual(self.routes([self.task(3, stage='review')], stage='review'), {'x': (2, 'cheap')})
 
-    def test_sol_routing_uses_explicit_model(self):
-        route = ReviewRoundMixin.repair_routing({}, 'sol')
-        self.assertEqual(route['required_model'], 'gpt-6-sol')
+    def test_standard_routing_uses_explicit_model(self):
+        route = ReviewRoundMixin.repair_routing({}, 'standard')
+        self.assertEqual(route['required_tier'], 'standard')
         self.assertTrue(route['automatic_escalation'])
 
     def ledger(self):
@@ -44,7 +44,7 @@ class RepairPolicyTests(unittest.TestCase):
         flow.meta = lambda db, key, default=None: default
         return flow, db
 
-    def add_repair(self, db, name, stage, revision, count, scope=None, tier='standard', status='done'):
+    def add_repair(self, db, name, stage, revision, count, scope=None, tier='cheap', status='done'):
         payload = {'draft_scan_key': 'scan'} if stage == 'translate' else {'review_repair_origin': 'scan'}
         payload.update(repair_counts={'x': count}, repair_tier=tier)
         if scope:
@@ -57,29 +57,29 @@ class RepairPolicyTests(unittest.TestCase):
         self.add_repair(db, 'old-draft', 'translate', 1, 3, status='obsolete')
         self.add_repair(db, 'old-review', 'review', 2, 2)
         self.add_repair(db, 'new-review', 'final_review', 3, 6, scope='record')
-        self.assertEqual(flow.repair_routes(db, {}, 'review'), {'x': (6, 'sol')})
+        self.assertEqual(flow.repair_routes(db, {}, 'review'), {'x': (6, 'standard')})
         flow.meta = lambda db, key, default=None: {'x': 6} if key == 'draft_repair_attempts' else default
-        self.assertEqual(flow.repair_routes(db, {}, 'translate'), {'x': (6, 'sol')})
+        self.assertEqual(flow.repair_routes(db, {}, 'translate'), {'x': (6, 'standard')})
 
-    def test_sol_limits_and_no_progress_receipts_are_idempotent(self):
+    def test_standard_limits_and_no_progress_receipts_are_idempotent(self):
         flow, db = self.ledger()
         for n in range(2):
-            self.add_repair(db, str(n), 'review', n + 1, n + 7, scope='record', tier='sol')
+            self.add_repair(db, str(n), 'review', n + 1, n + 7, scope='record', tier='standard')
             task = db.execute('SELECT * FROM tasks WHERE id=?', (str(n),)).fetchone()
             for _ in range(2):
                 flow.record_repair_outcome(db, task, 'x', {'code': 'same_problem'})
         self.assertEqual(db.execute('SELECT count(*) FROM repair_outcomes').fetchone()[0], 2)
         self.assertEqual(flow.repair_routes(db, {}, 'translate')['x'][1], 'stopped')
-        self.assertEqual(flow.repair_stops(db, {})['x'], 'sol_no_progress')
+        self.assertEqual(flow.repair_stops(db, {})['x'], 'standard_no_progress')
 
-    def test_changed_diagnostics_do_not_hide_the_total_sol_limit(self):
+    def test_changed_diagnostics_do_not_hide_the_total_standard_limit(self):
         flow, db = self.ledger()
         for n in range(3):
-            self.add_repair(db, str(n), 'review', n, n + 7, scope='record', tier='sol')
+            self.add_repair(db, str(n), 'review', n, n + 7, scope='record', tier='standard')
             task = db.execute('SELECT * FROM tasks WHERE id=?', (str(n),)).fetchone()
             flow.record_repair_outcome(db, task, 'x', {'code': str(n)})
         self.assertEqual(flow.repair_routes(db, {}, 'review')['x'][1], 'stopped')
-        self.assertEqual(flow.repair_stops(db, {})['x'], 'sol_round_limit')
+        self.assertEqual(flow.repair_stops(db, {})['x'], 'standard_round_limit')
 
     def test_empty_or_omitted_exceptions_inherit_but_explicit_removal_is_audited(self):
         original = {'exceptions': [{'source': 'pagan', 'reason': 'Adjective modifying gods'}]}
@@ -108,7 +108,7 @@ class RepairPolicyTests(unittest.TestCase):
             ReviewRoundMixin.inherit_exceptions({'exceptions': original['exceptions'], 'exception_changes': [
                 {'source': 'guard', 'action': 'remove', 'reason': 'Explicit recheck'}]}, original)
 
-    def test_regression_count_is_task_deduplicated_and_forces_sol(self):
+    def test_regression_count_is_task_deduplicated_and_forces_standard(self):
         flow = ReviewRoundMixin(); state = {}
         flow.meta = lambda db, key, default=None: state.get(key, default)
         flow.put = lambda db, key, value: state.update({key: value})
@@ -117,6 +117,6 @@ class RepairPolicyTests(unittest.TestCase):
             with patch.object(flow, 'repair_constraints', return_value={'missing_terms': ['gods']}):
                 for task in ('repair-a', 'repair-a'):
                     self.assertEqual(flow.repair_regression(db, {}, 'review', 'x', original, '异教徒之神', [], {}, task), ['gods'])
-                self.assertNotIn('repair_sol_ids', state)
+                self.assertNotIn('repair_standard_ids', state)
                 flow.repair_regression(db, {}, 'review', 'x', original, '异教徒之神', [], {}, 'repair-b')
-            self.assertEqual(flow.repair_routes(db, {}, 'review', []), {'x': (0, 'sol')})
+            self.assertEqual(flow.repair_routes(db, {}, 'review', []), {'x': (0, 'standard')})

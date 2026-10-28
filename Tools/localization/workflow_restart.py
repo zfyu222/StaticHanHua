@@ -74,11 +74,11 @@ class RestartMixin:
             checkpoints = self.meta(db, 'quality_checkpoints', {})
             self.put(db, 'quality_checkpoints', {k: v for k, v in checkpoints.items() if k == 'pilot'})
             reset_keys = [r[0] for r in db.execute('SELECT key FROM meta')
-                          if r[0].startswith('draft_') or r[0] in ('review_generation', 'sol_pending_findings', 'last_export', 'in_game_check')]
+                          if r[0].startswith('draft_') or r[0] in ('review_generation', 'standard_pending_findings', 'last_export', 'in_game_check')]
             for key in reset_keys:
                 db.execute('DELETE FROM meta WHERE key=?', (key,))
-            forced = self.meta(db, 'repair_sol_ids', {})
-            self.put(db, 'repair_sol_ids', {k: v for k, v in forced.items() if k.startswith('pilot_')})
+            forced = self.meta(db, 'repair_standard_ids', {})
+            self.put(db, 'repair_standard_ids', {k: v for k, v in forced.items() if k.startswith('pilot_')})
             obsolete = db.execute('UPDATE tasks SET status="obsolete",lease_token=NULL,lease_until=NULL WHERE stage IN (?,?,?,?)', body).rowcount
             db.execute('UPDATE api_calls SET status="interrupted_restart" WHERE status="reserved"')
             if 'batch_runs' in tables:

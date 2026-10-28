@@ -101,7 +101,7 @@ class ReviewReadingsMixin:
                 raise ValueError('Select records in one phase: completed drafts or completed review')
             stage=next(iter(stages));tasks=[]
             if stage=='review':
-                self.require_review_round_complete(db,'review');self.guard_sol_dispatch(db)
+                self.require_review_round_complete(db,'review');self.guard_standard_dispatch(db)
             self.put(db,'review_readings',{**current,**{i:selected[i] for i in changed}})
             if stage=='review':
                 tasks,blocked=self.plan_review_repairs(db,config,'review',

@@ -1,0 +1,4 @@
+interface:
+  display_name: "游戏发布补丁"
+  short_description: "生成可分发、可校验的汉化补丁 ZIP 文件。"
+  default_prompt: "Use $game-release-patch to generate a release-ready translation patch for this game project."

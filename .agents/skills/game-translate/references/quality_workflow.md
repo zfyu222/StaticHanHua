@@ -1,10 +1,10 @@
 # 自定义流程的质量门槛
 
-适用于 Codex 子代理及自定义 API 路线。主对话管理流程，子代理/API 产生术语、正文及语义审校结果。Sol 是验收和升级任务的模型角色，不表示主对话必然使用 Sol；主对话不是 Sol 时，由新的 Sol 子代理读取程序准备的验收包并给出判断，主对话负责收集及调用程序。程序检查只能证明字段、来源引用和状态满足协议，不能证明语义判断正确；Sol 必须实际阅读证据。
+适用于 子代理及自定义 API 路线。主对话管理流程，子代理/API 产生术语、正文及语义审校结果。标准档是验收和升级任务的模型角色，不表示主对话必然使用标准档；主对话不是标准档时，由新的标准档子代理读取程序准备的验收包并给出判断，主对话负责收集及调用程序。程序检查只能证明字段、来源引用和状态满足协议，不能证明语义判断正确；标准档必须实际阅读证据。
 
 ## 独立实例和审校证据
 
-Codex 的 `claim --worker` 使用 spawn_agent 返回的实际 agent ID。每批新建 fork_turns=none 的实例，先创建等待任务的实例，再领取、生成提示词并发送任务；默认验收后结束，下一批换新实例，不把全文划成三个长期对话。不使用 luna-1 等别名，不通过改名或新租约规避独立审校或工作量限制。程序在 `quality_attempts` 和 `quality_authors` 记录身份，拒绝对应产出实例领取或提交审校。提取者不得审自己的术语；翻译者不得审自己的正文；复审者也不得是对应润色者。不同实例可以使用同一个 Luna 模型；不需要把全文语义审校转给 Sol。工作量、局部修复和完整输入预算见 [自定义流程](custom_workflow.md) 的上下文生命周期节。API 每次请求使用新的身份与独立上下文，不携带翻译者的推理或聊天历史。
+SubAgent 的 `claim --worker` 使用创建子代理时返回的实际 agent ID。每批新建不继承主对话上下文的实例，先创建等待任务的实例，再领取、生成提示词并发送任务；默认验收后结束，下一批换新实例，不把全文划成三个长期对话。不使用 cheap-1 等别名，不通过改名或新租约规避独立审校或工作量限制。程序在 `quality_attempts` 和 `quality_authors` 记录身份，拒绝对应产出实例领取或提交审校。提取者不得审自己的术语；翻译者不得审自己的正文；复审者也不得是对应润色者。不同实例可以使用同一个便宜档模型；不需要把全文语义审校转给标准档。工作量、局部修复和完整输入预算见 [自定义流程](custom_workflow.md) 的上下文生命周期节。API 每次请求使用新的身份与独立上下文，不携带翻译者的推理或聊天历史。
 
 全文正文审校逐条返回六维 checks：accuracy（含义与主体）、completeness（漏译增译）、terminology、tone、logic（否定/条件/数字/关系）、placeholders。各项含 status=pass/corrected/not_applicable 和具体 evidence。这些逐条证据要求用于正式审校；试译采用下述整体校准评估。非空文本的含义、完整性、逻辑不能标为不适用。source_excerpt 必须是该条原文的连续摘录；reason 解释核对依据。空原文可使用空摘录，并说明检查空译文。
 
@@ -41,7 +41,7 @@ Codex 的 `claim --worker` 使用 spawn_agent 返回的实际 agent ID。每批�
 1. 全文术语审校并冻结后，从全文记录中不放回随机抽取默认 150 条，不足时全部；保存选中 ID 供前后对比。没有分类、风险配额或覆盖补齐步骤。既有样本和用户指定样本保留。
 2. 执行 pilot_translate，使用正式正文相同的拆批、提示词、保护、解析与草稿保存机制。全部批次结束后调用 pilot-report。程序保留原始结果并汇总占位符、术语、空译文等机械诊断，不自动派发修复，不把机械报错比例当作语义错误率。
 3. 主 AI 阅读 reports/pilot_calibration.json 的原文、译文、诊断和运行任务情况，判断流程、风格和总体错误表现。无需逐条六维证据或固定检查清单；评价语义错误比例时说明实际核对范围，不能编造全文正确率。未完成或执行失败的任务必须先处理，不能批准为链路已跑通。
-4. 用 pilot-decide 记录 accept/retry/stop 和实际判断理由。accept 表示方案足以进入正式翻译，允许保留孤立错误；retry 用于验证明确的方案调整，可指定 retry_ids，省略或空列表表示重试相同整批样本；stop 暂停流程并记录原因。不能只为清零个别句子而循环返修。没有 API 独立试译审校，也没有额外 Sol 逐项验收或正式阶段的 6 轮逐句修复循环。
+4. 用 pilot-decide 记录 accept/retry/stop 和实际判断理由。accept 表示方案足以进入正式翻译，允许保留孤立错误；retry 用于验证明确的方案调整，可指定 retry_ids，省略或空列表表示重试相同整批样本；stop 暂停流程并记录原因。不能只为清零个别句子而循环返修。没有 API 独立试译审校，也没有额外标准档逐项验收或正式阶段的 6 轮逐句修复循环。
 5. 需要调整时先结束/核实恢复在途任务，再 pause/configure/resume 修改参数、文体等；术语变更走 revise-glossary。调用 pilot-retry 指定受影响 ID（不指定则同批全部），保留其他样本、旧结果、实际作者和每轮判断。完成验证后再次 pilot-report，由主 AI 判断继续、接受或停止。不得直接改 DB、代写批次译文或改写在途输入。
 
 主 AI 的判断保存在 TranslateFiles/reports/pilot_feedback/；各轮报告保存在 reports/pilot_rounds/。程序给出 pilot_assessment.template.json，仅需 report_hash、reviewer=main、decision 和 summary，retry_ids 可选。不要求每句决定、强制错误率阈值或逐轮修改参数。API 执行代理只负责运行和等待，不做校准判断，不自动跨轮。
@@ -60,40 +60,40 @@ prepare/run-api 的 pilot_review 入口已停用，执行前直接拒绝，不�
 
 接受后保存报告和主 AI 判断，恢复试译前的生产状态；正式正文重新翻译，沿用确认后的文体配置，并携带最多五条没有已知机械错误的试译样例供参考；主 AI 的运行诊断总结不作为文体提示词，原文与冻结术语优先。试译接受不是正式译文验收，不能跳过正式全文检查、独立语义审校、最终争议处理或实机检查。小幅配置变动保留未受影响结论；显式影响样本时恢复已存译文供校准，再由主 AI 决定是否定向重试。
 
-## Sol 遗留争议与难题裁决
+## 标准档遗留争议与难题裁决
 
 全文审校以收敛明确错误为目标。首轮独立子代理完整对照每条原译文，保留六维证据；含义准确、自然可读且符合冻结术语和既定文体即可通过。同义替换、个人偏好和另一种正确译法不列为错误或 warning，不为此返工。polish 默认关闭，不因正文完成而自动启动全文润色。
 
 翻译实例只翻译，不兼任自审、不运行检查脚本。翻译默认按 1024 原文 Token 拆批、不限条数，独立审校最多 80 条并叠加内容、输入和输出预算；试译只复用正文翻译拆批，不执行正式审校。正文翻译先仅校验版本、ID、字段类型及锁定约束，完整保存草稿。全部草稿完成后，draft-scan --prepare-repairs 做首次全量验收并将失败 ID 跨批合并修复；修复批次仅保存候选，不逐批质量验收或插入返修；本轮所有批次完成后统一复查全部本轮修复条目，再将剩余失败项合批为下一轮，保留未变化的通过结果，不每轮重扫全文或重译通过项。问题清零后自动最终全量验收；无问题的首次全量结果可直接复用。逐轮明确区分 full 全量与 issues 局部复查，记录范围、问题、修复状态和验收结果，最终 clean 才允许准备独立审校。例外语义仍由独立审校复核，导出仍严格检查全库，不忽略遗漏。正文执行用 batch-open / batch-finish 事件交接，记录与来源见 [批次程序交接](batch_execution.md)。
 
-独立审校改为整轮保存和验收：review/final_review 各批仍逐条语义核对并输出六维证据，batch-finish 只保存候选，不当批质量返修。全部批次完成后，运行 review-scan --stage review --prepare-repairs（润色复审用 final_review），统一严格检查证据和译文；通过项落库，失败 ID 跨原批次合并为下一轮。已通过项保留，下一轮也必须全部完成再复查。程序保存候选不代表语义验收通过，未清零不能进入 Sol 验收或导出。
+独立审校改为整轮保存和验收：review/final_review 各批仍逐条语义核对并输出六维证据，batch-finish 只保存候选，不当批质量返修。全部批次完成后，运行 review-scan --stage review --prepare-repairs（润色复审用 final_review），统一严格检查证据和译文；通过项落库，失败 ID 跨原批次合并为下一轮。已通过项保留，下一轮也必须全部完成再复查。程序保存候选不代表语义验收通过，未清零不能进入标准档验收或导出。
 
-Sol 最终验收按固定范围整轮收集，详细协议和样例见 [独立审校与 Sol 整轮验收](review_rounds.md)：
+标准档最终验收按固定范围整轮收集，详细协议和样例见 [独立审校与标准档整轮验收](review_rounds.md)：
 
 ```powershell
 & $python $flow --project $project quality-report --kind final
 # 按返回 inspection_manifest 分包实际阅读，并分次保存本轮结论
-& $python $flow --project $project sol-round-record --decisions <本次实际检查结论JSON>
+& $python $flow --project $project standard-round-record --decisions <本次实际检查结论JSON>
 # 本轮全部检查齐备后，才集中派修或批准
-& $python $flow --project $project sol-round-finish
+& $python $flow --project $project standard-round-finish
 ```
 
-正文后 Sol 是高质量、高成本的定向难题处理者。最终报告只将独立审校明确遗留的 issues 交给 Sol 裁决；数字、否定、条件、变量、长句、术语例外和历史改动只是独立审校的提示，不自动升级；普通抽样也不交 Sol。coverage.risk_records 只是风险统计，不是派发量，实际看 coverage.sol_records 和 remaining_checks。试译改由主 AI 做整体校准评估。源文与真实审校证据保留，负责验收的 Sol 实例只裁决，不代写译文。
+正文后标准档是高质量、高成本的定向难题处理者。最终报告只将独立审校明确遗留的 issues 交给标准档裁决；数字、否定、条件、变量、长句、术语例外和历史改动只是独立审校的提示，不自动升级；普通抽样也不交标准档。coverage.risk_records 只是风险统计，不是派发量，实际看 coverage.standard_records 和 remaining_checks。试译改由主 AI 做整体校准评估。源文与真实审校证据保留，负责验收的标准档实例只裁决，不代写译文。
 
-同源多译和角色口吻分组本身不是争议，不自动产生 Sol 检查项。独立审校发现确切冲突时须按具体 ID 留下原文依据与未解决 issues，才进入难题裁决；不得将整个组或全文转给 Sol，也不能在本轮逐条插入修订。
+同源多译和角色口吻分组本身不是争议，不自动产生标准档检查项。独立审校发现确切冲突时须按具体 ID 留下原文依据与未解决 issues，才进入难题裁决；不得将整个组或全文转给标准档，也不能在本轮逐条插入修订。
 
-Sol 用 pass/contextual 记录通过，repair 写明原文依据、错误、验收要求及确切受影响语句 ID。每个本轮检查 ID 都要有结论；有任何未检查项时程序拒绝关闭或派修。检查期间 checkpoint-quality --kind final 也仅保存进度，reopen-body 不得用于逐条抢先返修。本轮范围与 hash 固定，重复 quality-report 只提供剩余待查内容；完整证据和分包归档于 reports/sol_rounds/。
+标准档用 pass/contextual 记录通过，repair 写明原文依据、错误、验收要求及确切受影响语句 ID。每个本轮检查 ID 都要有结论；有任何未检查项时程序拒绝关闭或派修。检查期间 checkpoint-quality --kind final 也仅保存进度，reopen-body 不得用于逐条抢先返修。本轮范围与 hash 固定，重复 quality-report 只提供剩余待查内容；完整证据和分包归档于 reports/standard_rounds/。
 
-本轮结束后，Sol 问题统一合批为子代理审校修复任务；全部批次完成再 review-scan。通过结论按内容签名复用，下一轮只裁决仍然遗留的具体争议；独立复查通过的修订不再触发 Sol。旧大范围轮已有的问题作为 carried_findings 保留并交修复，不重读、不静默忽略。无争议无问题时通过 sol-round-finish 完成质量闭环，不创建模型审查任务或编造逐项通过。仍有 carried_findings 时 approve/export 拒绝放行。
+本轮结束后，标准档问题统一合批为子代理审校修复任务；全部批次完成再 review-scan。通过结论按内容签名复用，下一轮只裁决仍然遗留的具体争议；独立复查通过的修订不再触发标准档。旧大范围轮已有的问题作为 carried_findings 保留并交修复，不重读、不静默忽略。无争议无问题时通过 standard-round-finish 完成质量闭环，不创建模型审查任务或编造逐项通过。仍有 carried_findings 时 approve/export 拒绝放行。
 
-正文后的常规修复按条目累计最多 6 轮，之后自动生成 Sol 子代理修复任务，不询问追加轮次。任务执行重试仍使用 max_attempts；修复轮计数独立保存，不通过换任务 ID 刷新，不自动重启全量审校。试译不进入该修复链，使用 pilot-report/pilot-decide/pilot-retry；已接受试译不因正文流程升级重跑。
+正文后的常规修复按条目累计最多 6 轮，之后自动生成标准档子代理修复任务，不询问追加轮次。任务执行重试仍使用 max_attempts；修复轮计数独立保存，不通过换任务 ID 刷新，不自动重启全量审校。试译不进入该修复链，使用 pilot-report/pilot-decide/pilot-retry；已接受试译不因正文流程升级重跑。
 
 ```powershell
 # 若上一轮派发了修复，完成全部 review/final_review 批次后：
 & $python $flow --project $project review-scan --stage review --prepare-repairs
-# 存在剩余问题继续整轮修复；clean 后重新开始 Sol 剩余检查轮
+# 存在剩余问题继续整轮修复；clean 后重新开始标准档剩余检查轮
 & $python $flow --project $project quality-report --kind final
-# 记录本轮全部实际结论并 sol-round-finish 通过后：
+# 记录本轮全部实际结论并 standard-round-finish 通过后：
 & $python $flow --project $project export
 ```
 
@@ -124,7 +124,7 @@ payload_files 每项为 `{path:项目内载荷路径,game_path:游戏根目录�
 & $python $flow --project $project release-check
 ```
 
-保存 reports/in_game_check.json。release-check 校验当前 Sol 验收、正式 CSV、实测载荷及证据哈希。发布程序对已初始化的自定义项目要求检查通过，且打包的每个文件、游戏相对安装路径、版本和平台与实测一致；dry-run 仅预览，不能替代验证。README 分别记录文本验收和实机验收，不承诺未测场景。
+保存 reports/in_game_check.json。release-check 校验当前标准档验收、正式 CSV、实测载荷及证据哈希。发布程序对已初始化的自定义项目要求检查通过，且打包的每个文件、游戏相对安装路径、版本和平台与实测一致；dry-run 仅预览，不能替代验证。README 分别记录文本验收和实机验收，不承诺未测场景。
 
 ## 旧运行升级及交付
 
@@ -136,10 +136,10 @@ payload_files 每项为 `{path:项目内载荷路径,game_path:游戏根目录�
 
 修复包继续携带本句全部命中术语，并以 repair_constraints 区分 satisfied_terms（已有字面命中）、context_exceptions（已有语境说明）和 missing_terms（当前缺失）。仅修必要部分，不能为了一个术语破坏其他术语或将形容词误译成人物名词。字面命中只表示程序约束满足，不代表语义已经审校通过。
 
-已有 exceptions 默认继承，返回时省略或 [] 不清除；补充或修订按 source 合并，撤销必须提供 exception_changes=[{source,action:"remove",reason:"原文依据"}]。程序不判断例外语义为真，仍保留独立审校与 Sol 验收。批次保存、直接 submit、草稿原始候选及逐条身份日志沿用同一合并规则。
+已有 exceptions 默认继承，返回时省略或 [] 不清除；补充或修订按 source 合并，撤销必须提供 exception_changes=[{source,action:"remove",reason:"原文依据"}]。程序不判断例外语义为真，仍保留独立审校与标准档验收。批次保存、直接 submit、草稿原始候选及逐条身份日志沿用同一合并规则。
 
-仅在整轮统一复查时对比修复前后，记录 regressed_terms 和具体诊断；通过一个术语却丢失另一个也算回退。相同条目在同阶段两次回退后，自动提前进入 Sol 修复队列（required_model），不等 6 轮、不询问追加授权。标准和 Sol 条目分批派发。计数以任务去重，重复读取报告不增加次数；仍只检查本轮影响 ID，不插入当批检查，不扩大到全文。Sol 结合语境排查词义冲突，不允许用删检查或无依据例外提高通过率。
+仅在整轮统一复查时对比修复前后，记录 regressed_terms 和具体诊断；通过一个术语却丢失另一个也算回退。相同条目在同阶段两次回退后，自动提前进入标准档修复队列（required_tier），不等 6 轮、不询问追加授权。便宜档和标准档条目分批派发。计数以任务去重，重复读取报告不增加次数；仍只检查本轮影响 ID，不插入当批检查，不扩大到全文。标准档结合语境排查词义冲突，不允许用删检查或无依据例外提高通过率。
 
-审校批量还受预计输出预算限制，Sol 升级后也有累计轮数与无进展停止条件；跨阶段/跨 revision 计数及恢复边界见 [整轮验收](review_rounds.md#修复计数与停止条件)。
+审校批量还受预计输出预算限制，标准档升级后也有累计轮数与无进展停止条件；跨阶段/跨 revision 计数及恢复边界见 [整轮验收](review_rounds.md#修复计数与停止条件)。
 
 任务输入和输出模板统一在派发前由程序准备；独立审校者仍负责真实语义核对，机器校验与结果合并由程序执行。详见 [统一职责](custom_workflow.md#程序准备任务子代理专注本职)。

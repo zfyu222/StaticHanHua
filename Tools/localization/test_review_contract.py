@@ -19,8 +19,8 @@ class ReviewContractTests(unittest.TestCase):
         for batch in batches:
             self.assertLessEqual(sum(flow.estimate_review_output(r, 'review') for r in batch),
                                  flow.review_output_budget(config, 'review'))
-        self.assertEqual(flow.review_output_budget(config, 'review'), flow.review_output_budget(config, 'review', 'codex'))
-        self.assertEqual(batches, list(flow.review_batches(rows, config, 'review', 'codex')))
+        self.assertEqual(flow.review_output_budget(config, 'review'), flow.review_output_budget(config, 'review', 'subagent'))
+        self.assertEqual(batches, list(flow.review_batches(rows, config, 'review', 'subagent')))
 
     def test_single_oversized_review_record_stops_before_creating_a_task(self):
         flow = Workflow('.')

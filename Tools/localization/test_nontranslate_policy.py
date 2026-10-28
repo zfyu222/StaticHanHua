@@ -131,7 +131,7 @@ class NontranslatePolicyTests(unittest.TestCase):
             root=Path(directory);source=root/'fixture_text.csv'
             with source.open('w',encoding='utf-8-sig',newline='') as stream:
                 csv.writer(stream).writerows([['retrain'],['Please retrain.'],['Sword']])
-            flow=Workflow(root);flow.init(source,dict(pilot_ordinals=[3],backend='codex'))
+            flow=Workflow(root);flow.init(source,dict(pilot_ordinals=[3],backend='subagent'))
             legacy=dict(characters=[],terms=[],non_translate=[dict(source='retrain',evidence_rows=[1,2])])
             old_path=flow.root/'glossary/legacy.json';workflow.write_json(old_path,legacy)
             with flow.db() as db:
@@ -181,7 +181,7 @@ class NontranslatePolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);source=root/'fixture_text.csv'
             with source.open('w',encoding='utf-8-sig',newline='') as stream:csv.writer(stream).writerows([['Press Tab.']])
-            flow=Workflow(root);flow.init(source,dict(backend='codex'))
+            flow=Workflow(root);flow.init(source,dict(backend='subagent'))
             path=flow.root/'glossary/fixture.json';workflow.write_json(path,dict(characters=[],terms=[],non_translate=[dict(source='Tab')]))
             with flow.db() as db:
                 flow.put(db,'glossary',dict(path=str(path.relative_to(flow.root)),hash=workflow.digest(path),revision=1))

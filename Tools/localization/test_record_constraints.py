@@ -38,13 +38,13 @@ class RecordConstraintTests(unittest.TestCase):
             {'case_sensitive': False, 'whole_word': True}, rules=rules), [])
 
     def test_api_escalation_preserves_tier_and_limits(self):
-        route = ReviewRoundMixin.repair_routing({'escalation_backend': 'api'}, 'sol')
-        self.assertEqual(route['repair_tier'], 'sol')
+        route = ReviewRoundMixin.repair_routing({'escalation_backend': 'api'}, 'standard')
+        self.assertEqual(route['repair_tier'], 'standard')
         self.assertEqual(route['escalation_backend'], 'api')
-        self.assertIsNone(route['required_model'])
+        self.assertIsNone(route['required_tier'])
         self.assertEqual(route['repair_round_limit'], 6)
         self.assertTrue(route['automatic_escalation'])
-        self.assertEqual(ReviewRoundMixin.repair_routing({}, 'sol')['required_model'], 'gpt-6-sol')
+        self.assertEqual(ReviewRoundMixin.repair_routing({}, 'standard')['required_tier'], 'standard')
 
     def test_export_matching_uses_bound_rules_without_cross_record_cache_leak(self):
         suffix = '{NATHAN: player action without closing brace.'
