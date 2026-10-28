@@ -94,7 +94,9 @@ def _run(out,client,limit):
                               usage={k:result.get(k) for k in ('prompt_eval_count','eval_count','total_duration','load_duration','prompt_eval_duration','eval_duration')})
             except Exception as exc:
                 failures.append(dict(id=job['id'],error=str(exc),raw_reply=str(archive.relative_to(out)) if archive.exists() else None))
-                break
+                # A single degenerate candidate must not block the remaining queue;
+                # it stays recorded and is routed to explicit visual review.
+                continue
             finally:
                 actual={}
                 if archive.exists():
@@ -109,7 +111,7 @@ def _run(out,client,limit):
             import_findings(out,path)
         except Exception as exc:
             failures.append(dict(id=job['id'],error=str(exc)))
-            break
+            continue
         write_json(cache,envelope);usage.append(dict(cached=was_cached,server=envelope.get('usage')))
         print(f'local Qwen {i}/{len(jobs)}; {content["presence"]}; cached={cached}; elapsed={time.perf_counter()-started:.1f}s',flush=True)
     fresh=[x['server'] for x in usage if not x['cached']]
@@ -123,5 +125,5 @@ def _run(out,client,limit):
                                   for key in ('prompt_eval_count','eval_count','total_duration')}
     write_json(out/'local_vlm/reports'/f'{time.time_ns()}.json',report)
     write_json(out/'local_vlm/report.json',report)
-    if failures:raise RuntimeError('Local inference stopped; see local_vlm/report.json')
+    if failures:print(f'local Qwen completed with {len(failures)} failed candidate(s) routed to visual review; see local_vlm/report.json',flush=True)
     return report

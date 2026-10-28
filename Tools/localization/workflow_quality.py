@@ -77,7 +77,50 @@ class ReviewContractError(ValueError):
         super().__init__(message + '; ' + repair + ' Fields: ' + json.dumps(fields, ensure_ascii=False))
 
 
+class StructuralMismatchError(ValueError):
+    def __init__(self, record_id, detail):
+        self.detail = detail
+        super().__init__(f'{record_id}: structural mismatch ' +
+                         json.dumps(detail, ensure_ascii=True))
+
+
+def structure_failure_detail(source, translation, rules, failures, config=None):
+    """Explain the existing gate; never repair text or infer semantic acceptance."""
+    from ainiee_bridge import counted
+    fields = []
+    def tokens(counter):
+        return [{'text': token, 'escaped': ascii(token), 'count': count,
+                 'codepoints': [f'U+{ord(char):04X}' for char in token]}
+                for token, count in counter.items()]
+    for name, pattern in rules:
+        if name not in failures:
+            continue
+        expected = counted(pattern, source)
+        destination = pattern
+        # Match the validator's Latin identifier boundary semantics exactly.
+        if (name.startswith('exclusion_') and '\\b' in pattern.pattern and pattern.pattern.isascii()
+                and '(?u' not in pattern.pattern
+                and all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', token) for token in expected)):
+            destination = re.compile(pattern.pattern, (pattern.flags & ~re.UNICODE) | re.ASCII)
+        actual = counted(destination, translation)
+        field = {'rule': name, 'regex': pattern.pattern,
+                 'missing': tokens(expected - actual), 'unexpected': tokens(actual - expected)}
+        if name.startswith('exclusion_'):
+            entries = (config or {}).get('exclusions', [])
+            index = int(name.split('_')[1])
+            if index < len(entries) and isinstance(entries[index], dict):
+                field['info'] = entries[index].get('info', '')
+        fields.append(field)
+    return {'category': 'structure_gate', 'code': 'structural_mismatch',
+            'failed_rules': list(failures), 'fields': fields,
+            'repair': '按原文逐字符保留完整保护片段及次数；匹配中的标点、空格和控制字符也属于保护内容，'
+                      '不得按正文标点删除、移动或替换。仅修改保护片段外的正文。'
+                      '旧候选未通过不代表现有译文错误；独立审校后正确的现有译文应保留，仍须提供真实审校证据。'}
+
+
 def review_failure_detail(error):
+    if isinstance(error, StructuralMismatchError):
+        return error.detail
     if isinstance(error, ReviewContractError):
         return error.detail
     text = str(error)
@@ -88,8 +131,16 @@ def review_failure_detail(error):
     return {'category': category, 'code': 'validation_error', 'message': text}
 
 
-def review_candidate_failure_detail(error, candidate, source, before):
+def review_candidate_failure_detail(error, candidate, source, before, *, rules=None, config=None, source_row=None):
     """Enrich legacy pending tasks on rendering, without rewriting their state."""
+    if ('structural mismatch' in str(error) and isinstance(candidate, dict)
+            and isinstance(candidate.get('translation'), str) and rules is not None):
+        import ainiee_bridge as bridge
+        row = source_row if source_row is not None else {'id': '', 'source': source}
+        effective = bridge.record_rules(row, config or {}, rules)
+        failures = bridge.record_structural_issues(row, candidate['translation'], rules, config or {})
+        if failures:
+            return structure_failure_detail(source, candidate['translation'], effective, failures, config)
     if isinstance(candidate, dict) and str(error).startswith((
             'Meaning/completeness/logic checks cannot', 'Invalid review change evidence')):
         try:

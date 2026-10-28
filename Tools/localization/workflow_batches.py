@@ -192,7 +192,8 @@ class BatchMixin:
             if row.get('diagnostic') and row.get('candidate'):
                 from workflow_quality import review_candidate_failure_detail
                 row['diagnostic_detail'] = review_candidate_failure_detail(
-                    row['diagnostic'], row['candidate'], raw, original.get('translation', ''))
+                    row['diagnostic'], row['candidate'], raw, original.get('translation', ''),
+                    rules=rules, config=config, source_row=source_row)
             # A missing literal translation is a question for the model, not a
             # semantic verdict. Show both ways to resolve it using the existing
             # exceptions contract; no new approval state or model phase is needed.

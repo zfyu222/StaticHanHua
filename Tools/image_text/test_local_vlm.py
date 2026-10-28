@@ -44,11 +44,32 @@ class LocalTests(unittest.TestCase):
         self.assertFalse(read_json(self.out/'vision_findings.json')['human_approval'])
 
     def test_failure_is_counted_and_model_is_unloaded(self):
-        fixtures.HandoffTests.queue(self,negative_samples=0,low_signal_samples=0)
+        queue=fixtures.HandoffTests.queue(self,negative_samples=0,low_signal_samples=0)
         client=Mock();client.identity={};client.options={};client.request.side_effect=requests.Timeout('fixture timeout')
-        with patch('local_vlm.Client',return_value=client),self.assertRaises(RuntimeError):run(self.out)
-        self.assertEqual(read_json(self.out/'local_vlm/report.json')['requests'],1)
+        with patch('local_vlm.Client',return_value=client):report=run(self.out)
+        self.assertEqual(report['requests'],1);self.assertEqual(report['completed'],0)
+        self.assertEqual([x['id'] for x in report['failures']],[queue['jobs'][0]['id']])
+        self.assertFalse((self.out/'vision_findings.json').exists())
         client.unload.assert_called_once();client.http.close.assert_called_once()
+
+    def test_single_failure_does_not_stop_remaining_queue(self):
+        queue=fixtures.HandoffTests.queue(self,policy='full-audit',negative_samples=0,low_signal_samples=0)
+        jobs=queue['jobs'];self.assertGreater(len(jobs),1)
+        client=Mock();client.identity={'model':'fixture'};client.options={};client.gpu_status.return_value={}
+        seen=[]
+        def request(image,archive):
+            seen.append(1)
+            raw=json.dumps(dict(done=True,done_reason='stop',eval_count=3,prompt_eval_count=1)).encode()
+            archive.parent.mkdir(parents=True,exist_ok=True);archive.write_bytes(raw)
+            if len(seen)==1:raise RuntimeError('degenerate reply')
+            return dict(presence='no_text',reason='blank fixture',regions=[]),raw,json.loads(raw)
+        client.request.side_effect=request
+        with patch('local_vlm.Client',return_value=client):report=run(self.out)
+        self.assertEqual(report['requests'],len(jobs));self.assertEqual(report['completed'],len(jobs)-1)
+        self.assertEqual([x['id'] for x in report['failures']],[jobs[0]['id']])
+        self.assertEqual(read_json(self.out/'local_vlm/report.json')['failures'],report['failures'])
+        self.assertFalse(read_json(self.out/'vision_findings.json')['human_approval'])
+        client.unload.assert_called_once()
 
     def test_pipeline_waits_for_full_ocr_before_starting_vlm(self):
         from test_ocr_policy import standard_config
@@ -90,10 +111,10 @@ class LocalTests(unittest.TestCase):
             archive.parent.mkdir(parents=True,exist_ok=True);archive.write_text(json.dumps(actual),encoding='utf-8')
             return json.loads(actual['message']['content']),archive.read_bytes(),actual
         client.request.side_effect=request
-        with patch('local_vlm.Client',return_value=client),self.assertRaises(RuntimeError):run(self.out)
+        with patch('local_vlm.Client',return_value=client):run(self.out)
         report=read_json(self.out/'local_vlm/report.json')
         self.assertEqual(report['fresh_request_totals']['eval_count'],actual['eval_count'])
-        self.assertEqual(report['completed'],0)
+        self.assertEqual(report['completed'],0);self.assertEqual(len(report['failures']),1)
         self.assertFalse((self.out/'vision_findings.json').exists())
 
 if __name__=='__main__':unittest.main()

@@ -204,7 +204,7 @@ Tools/image_text/.venv/Scripts/python.exe Tools/image_text/cli.py review --out D
 
 ### 已确认图片的局部背景样式
 
-合入命令可选 `--texture-styles <JSON>`，按源像素 image_id 设置 `mask_rgba`、`stroke_width`、`blur_radius` 及 `erase_text_ink`；缺省改为alpha64与1像素描边。`dark_rows` 可指定黑色字的已确认CSV行号。仅对审核过的文字框启用清字：此选项需要OpenCV与NumPy，局部颜色检测加inpaint近似修补原字，无法恢复被字形遮挡的真实细节。清字后再应用可选模糊及半透明底色，矩形外像素保持原样。地图颜色检测不是通用清字方法，不自动套用于人像、复杂插画或图标图集；针对这些素材选择相应修补/重绘方案。样式及每框清除像素数记录在清单中，visual_review默认pending。必须对照原图查看底图保留、英文重影、修补痕迹、配色和字号，再记录视觉检查结果并交引擎适配；这不是自动发现或翻译漏字的功能。降低透明度不等于自动得到美观结果，既有项目不自动重建。
+合入命令可选 `--texture-styles <JSON>`，按源像素 image_id 设置 `mask_rgba`、`stroke_width`、`blur_radius`、`erase_text_ink` 及 `erase_light_ink`；缺省改为alpha64与1像素描边。`dark_rows` 可指定黑色字的已确认CSV行号。`erase_text_ink` 按暗字/地图红色调检测笔画，`erase_light_ink` 改按浅色（雕刻、浮雕、浅色漆字）检测，适用于深色底上的浅色原字；两者互斥，同时启用时以浅色检测为准。仅对审核过的文字框启用清字：此选项需要OpenCV与NumPy，局部颜色检测加inpaint近似修补原字，无法恢复被字形遮挡的真实细节。清字后再应用可选模糊及半透明底色，矩形外像素保持原样。地图颜色检测不是通用清字方法，不自动套用于人像、复杂插画或图标图集；针对这些素材选择相应修补/重绘方案。样式及每框清除像素数记录在清单中，visual_review默认pending。必须对照原图查看底图保留、英文重影、修补痕迹、配色和字号，再记录视觉检查结果并交引擎适配；这不是自动发现或翻译漏字的功能。降低透明度不等于自动得到美观结果，既有项目不自动重建。
 
 ## 验证
 

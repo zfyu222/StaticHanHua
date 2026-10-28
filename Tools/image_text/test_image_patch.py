@@ -51,6 +51,30 @@ class PatchTests(unittest.TestCase):
         self.assertEqual(clean.getpixel((70,45)),image.getpixel((70,45)))
         self.assertNotEqual(clean.getpixel((35,20)),image.getpixel((35,20)))
 
+    def test_light_ink_cleanup_targets_pale_lettering_on_dark_art(self):
+        image=Image.new('RGBA',(120,60),(20,30,45,255));draw=ImageDraw.Draw(image)
+        draw.rectangle((30,15,60,30),fill=(225,220,200,255))
+        before=image.tobytes();clean,count=clean_map_ink(image,prefer_light=True)
+        self.assertGreater(count,0);self.assertEqual(image.tobytes(),before)
+        self.assertNotEqual(clean.getpixel((45,22)),image.getpixel((45,22)))
+        self.assertEqual(clean.getpixel((100,50)),image.getpixel((100,50)))
+
+    def test_light_ink_style_is_opt_in_and_recorded(self):
+        source_images=self.root/'carved';source_images.mkdir()
+        image=Image.new('RGBA',(180,80),(18,28,42,255))
+        ImageDraw.Draw(image).rectangle((30,20,90,50),fill=(228,222,200,255));image.save(source_images/'map.png')
+        out=self.root/'carved_work';manifest=inventory(source_images,out);key=manifest['images'][0]['image_id']
+        mapping=dict(self.mapping,regions=[dict(self.mapping['regions'][0],image_id=key,sources=manifest['images'][0]['sources'])])
+        write_json(self.source.with_suffix('.mapping.json'),mapping)
+        result=build(out,self.source,self.translated,self.validation,FONT,self.root/'carved_patch',
+            texture_styles={key:dict(erase_light_ink=True,mask_rgba=[18,28,42,90])})
+        entry=result['entries'][0]
+        self.assertTrue(entry['rendering']['style_flags']['erase_light_ink'])
+        self.assertEqual(entry['rendering']['background_mode'],'inpainted_texture_mask')
+        self.assertGreater(entry['rendering']['erased_ink_pixels'],0)
+        patched=load_image(self.root/'carved_patch'/result['files'][0]['path'])
+        self.assertEqual(patched.getpixel((0,0)),(18,28,42,255))
+
     def test_per_image_soft_plate_keeps_texture_and_outside_pixels(self):
         result=build(self.out,self.source,self.translated,self.validation,FONT,self.root/'soft',
             texture_styles={self.key:dict(mask_rgba=[72,50,25,96],blur_radius=2,stroke_width=1)})

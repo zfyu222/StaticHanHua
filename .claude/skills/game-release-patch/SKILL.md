@@ -38,6 +38,8 @@ description: Generate an external-release game localization patch ZIP under Proj
 6. 在游戏独立Git仓库提交小型源代码/说明/报告；Game与大体积二进制、ZIP不提交。推送origin，创建对应GitHub Release、上传ZIP、设为最新稳定版；匿名下载验证哈希及公开状态，保留旧版。GitHub正文必须同步简明TXT内容与地址，不回填工程细节。
 7. README记录技术方案、内部验证证据、真实限制、补丁名称、支持版本及公开链接，提交并推送。玩家说明简短不等于删除工程记录。
 
+用户明确要求在实机检查待完成时直接发布，可用`Workflow.record_release_acceptance`单独保存本次人类发布授权，再执行`release-check`。该授权必须绑定当前正式译文、最终质量报告、完整载荷及安装路径、授权证据文件，状态明确为`in_game_validation=pending`；不得用虚构的fonts/layout等pass代替实机记录。没有明确人类授权时仍要求当前实机验证；译文、载荷或质量报告改变后旧授权失效。该分支仅改变发布授权，不放松文本质量、文件哈希和安装验证；授权及限制保存于机器报告，不写进玩家说明。
+
 ## 安装配置
 
 `--installer-config` JSON包括`exe`、`exe_sha256`、`steam_app_id`、`originals:[{path,sha256}]`及`legacy:[{path,sha256}]`。originals只列会覆盖的原文件；legacy列已发布版本对应载荷哈希，避免将旧中文资源当作原件。新装自动保存原件，升级保留原件，卸载自动恢复；从无原件的旧包升级则自动交Steam校验恢复。不可分发原始游戏文件作备份。只适用于经过该游戏验证的文件替换方案；需要其他引擎动作时写对应适配器。

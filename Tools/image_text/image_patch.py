@@ -9,19 +9,22 @@ from translation_bridge import validate
 DEFAULT_MASK_ALPHA=64
 DEFAULT_STROKE_WIDTH=1
 
-def clean_map_ink(image,prefer_dark=False):
+def clean_map_ink(image,prefer_dark=False,prefer_light=False):
     """Local color mask + deterministic inpainting inside a confirmed text box.
 
     This approximates paper under old lettering; it cannot recover hidden art.
     Only an explicit texture style enables it. Original evidence is unchanged.
+    prefer_light targets pale carved/embossed lettering on darker art.
     """
     import cv2
     import numpy as np
     rgb=np.array(image.convert('RGB'));r,g,b=[rgb[:,:,i].astype('float32') for i in range(3)]
     red=(r>2.2*g)&(r-b>45)&(g<130)
+    light=(r>185)&(g>180)&(b>150)
     dark=prefer_dark or int(red.sum())<5
     selected=(r<170)&(g<145)&(b<115) if dark else red
-    mask=cv2.dilate(selected.astype('uint8')*255,np.ones((3,3),dtype='uint8'),iterations=2 if dark else 1)
+    if prefer_light:selected=light
+    mask=cv2.dilate(selected.astype('uint8')*255,np.ones((3,3),dtype='uint8'),iterations=2 if (dark or prefer_light) else 1)
     if int((mask>0).sum())>=mask.size*0.98:raise ValueError('Ink mask leaves insufficient texture; inspect the confirmed region/style')
     result=Image.fromarray(cv2.inpaint(rgb,mask,3,cv2.INPAINT_TELEA)).convert('RGBA');result.putalpha(image.getchannel('A'))
     return result,int((mask>0).sum())
@@ -60,7 +63,16 @@ def build(out,source,translated,validation,font_path,destination,mode='texture',
     texture_styles=texture_styles or {}
     if not isinstance(texture_styles,dict) or set(texture_styles)-set(images):raise ValueError('Unknown texture style image')
     for style in texture_styles.values():
-        if not isinstance(style,dict) or set(style)-{'mask_rgba','blur_radius','stroke_width','erase_text_ink','dark_rows'}:raise ValueError('Unknown texture style field')
+        if not isinstance(style,dict) or set(style)-{'mask_rgba','blur_radius','stroke_width','erase_text_ink','erase_light_ink','clear_transparent_bg','dark_rows','max_font_size','text_rgba'}:raise ValueError('Unknown texture style field')
+        if type(style.get('erase_light_ink',False)) is not bool or type(style.get('clear_transparent_bg',False)) is not bool:raise ValueError('Invalid ink cleanup flag')
+        if 'max_font_size' in style:
+            mfs=style['max_font_size']
+            if type(mfs) is int:
+                if not 6<=mfs<=400:raise ValueError('Invalid max font size')
+            elif isinstance(mfs,dict):
+                if any(not str(k).isdigit() or type(v) is not int or not 6<=v<=400 for k,v in mfs.items()):raise ValueError('Invalid per-row max font size')
+            else:raise ValueError('Invalid max font size')
+        if 'text_rgba' in style and (not isinstance(style['text_rgba'],(list,tuple)) or len(style['text_rgba'])!=4 or any(type(c) is not int or not 0<=c<=255 for c in style['text_rgba']) or style['text_rgba'][3]==0):raise ValueError('Invalid style text color')
         if not isinstance(style.get('dark_rows',[]),list) or any(type(n) is not int or n<1 for n in style.get('dark_rows',[])):raise ValueError('Invalid dark-ink row list')
         if type(style.get('erase_text_ink',False)) is not bool:raise ValueError('Invalid ink cleanup flag')
         color=style.get('mask_rgba',[96,96,96,mask_alpha])
@@ -89,25 +101,28 @@ def build(out,source,translated,validation,font_path,destination,mode='texture',
                 mask=list(style.get('mask_rgba',[96,96,96,mask_alpha]));rendering={}
                 if mode=='texture':
                     alpha=original_image.crop(rect).getchannel('A').histogram();pixels=sum(alpha)
-                    transparent_ink=alpha[0]/pixels>0.1 and alpha[255]/pixels<0.5
+                    transparent_ink=(alpha[0]/pixels>0.1 and alpha[255]/pixels<0.5) or style.get('clear_transparent_bg',False)
                     width,height=rect[2]-rect[0],rect[3]-rect[1]
                     padding=(2 if min(width,height)>=28 else 1) if transparent_ink else 0
-                    font,lines,step=layout(text,font_path,width-2*padding,height-2*padding,max_size=96)
+                    row_limit=style.get('max_font_size',96)
+                    if isinstance(row_limit,dict):row_limit=row_limit.get(str(row['csv_row']),96)
+                    font,lines,step=layout(text,font_path,width-2*padding,height-2*padding,max_size=row_limit)
                     if transparent_ink:mask=[0,0,0,0]
                     radius=0 if transparent_ink else style.get('blur_radius',0)
                     erased=0
                     background=original_image.crop(rect)
-                    if not transparent_ink and style.get('erase_text_ink'):
-                        background,erased=clean_map_ink(background,row['csv_row'] in style.get('dark_rows',[]))
+                    if not transparent_ink and (style.get('erase_text_ink') or style.get('erase_light_ink')):
+                        background,erased=clean_map_ink(background,row['csv_row'] in style.get('dark_rows',[]),style.get('erase_light_ink',False))
                     if radius:background=background.filter(ImageFilter.GaussianBlur(radius))
                     if erased or radius:im.paste(background,tuple(rect))
                     patch=Image.new('RGBA',(width,height),tuple(mask));draw=ImageDraw.Draw(patch)
                     y=max(padding,(patch.height-step*len(lines))//2)
+                    ink=tuple(style.get('text_rgba',text_rgba))
                     for line in lines:
-                        x=max(padding,(patch.width-font.getlength(line))/2);draw.text((x,y),line,font=font,fill=tuple(text_rgba),anchor='lt',stroke_width=1 if transparent_ink else style.get('stroke_width',DEFAULT_STROKE_WIDTH),stroke_fill='black');y+=step
+                        x=max(padding,(patch.width-font.getlength(line))/2);draw.text((x,y),line,font=font,fill=ink,anchor='lt',stroke_width=1 if transparent_ink else style.get('stroke_width',DEFAULT_STROKE_WIDTH),stroke_fill='black');y+=step
                     if transparent_ink:im.paste((0,0,0,0),tuple(rect))
                     im.alpha_composite(patch,(rect[0],rect[1]))
-                    rendering=dict(font_size=font.size,lines=lines,background_mode='transparent_text_replacement' if transparent_ink else 'inpainted_texture_mask' if erased else 'softened_texture_mask' if radius else 'mask',blur_radius=radius,erased_ink_pixels=erased,stroke_width=1 if transparent_ink else style.get('stroke_width',DEFAULT_STROKE_WIDTH))
+                    rendering=dict(font_size=font.size,lines=lines,background_mode='transparent_text_replacement' if transparent_ink else 'inpainted_texture_mask' if erased else 'softened_texture_mask' if radius else 'mask',blur_radius=radius,erased_ink_pixels=erased,stroke_width=1 if transparent_ink else style.get('stroke_width',DEFAULT_STROKE_WIDTH),style_flags=dict(clear_transparent_bg=bool(style.get('clear_transparent_bg')),erase_light_ink=bool(style.get('erase_light_ink')),erase_text_ink=bool(style.get('erase_text_ink')),max_font_size=style.get('max_font_size')))
                 entries.append(dict(image_id=key,box=row['box'],text=text,csv_row=row['csv_row'],sources=row['sources'],mask_rgba=mask,text_rgba=list(text_rgba),rendering=rendering))
             if mode=='texture':
                 name=f'images/{key}.png';path=destination/name;path.parent.mkdir(parents=True,exist_ok=True);im.save(path)

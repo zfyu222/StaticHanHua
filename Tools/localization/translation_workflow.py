@@ -855,7 +855,9 @@ class Workflow(RestartMixin, PilotMixin, AllocationMixin, StandardRoundMixin, Re
             raise ValueError('Context exceptions need source and reason')
         failures = bridge.record_structural_issues(row, translation, rules, config)
         if failures:
-            raise ValueError(f'{item["id"]}: structural mismatch {failures}')
+            from workflow_quality import StructuralMismatchError, structure_failure_detail
+            raise StructuralMismatchError(item['id'], structure_failure_detail(
+                row['source'], translation, bridge.record_rules(row, config, rules), failures, config))
         known_sources = {t['src'] for t in terms}
         if any(e['source'] not in known_sources for e in exceptions):
             raise ValueError('Context exception refers to an unrelated term')

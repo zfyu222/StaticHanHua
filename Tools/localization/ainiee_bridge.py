@@ -390,11 +390,14 @@ def restore(text, mapping, *, allow_original=False):
     # remains, and no fabricated transport marker is present. Structural checks
     # still run against the original source after this function.
     if allow_original and mapping and all(item['placeholder'] not in text for item in mapping):
-        expected = Counter(item['original'] for item in mapping)
         marker = re.fullmatch(r'\[(P+)\d+\]', mapping[0]['placeholder'])
         fabricated = (re.search(r'⟪SHH_[^⟫]*⟫', text) or
                       (marker and re.search(r'\[' + marker[1] + r'\d+\]', text)))
-        if not fabricated and all(text.count(original) == count for original, count in expected.items()):
+        if not fabricated:
+            # Exact multiplicity is verified afterwards against the source by
+            # structural_issues(). Counting here cannot be exact: a literal such as
+            # \x03 also occurs inside the longer Opal command \x01@\x03, and the
+            # mapping records each distinct literal once per protected span.
             return text
     for item in mapping:
         if text.count(item['placeholder']) != 1:
@@ -457,6 +460,29 @@ def record_rules(row, config, rules):
     return [*rules, ('record_literal_suffix', re.compile(re.escape(suffix) + r'\Z'))]
 
 
+# Command byte may be stored as the literal escape `\x01` or as the raw byte.
+_OPAL_COMMAND = re.compile(r'(?:\\x01|\x01)(?:(?:\\x[0-9A-Fa-f]{2})|[^\r\n]){2}')
+
+
+def counted(pattern, text):
+    """Count rule matches, ignoring printf-like hits inside Opal commands.
+
+    An Opal command such as `\\x01@%` ends with a percent sign, so a printf rule
+    reads a bogus `% c` from the first letter of the next word. Percent signs
+    inside a command are command bytes, not format specifiers; the project
+    validator already excludes them, so exclude them here too.
+    """
+    if '%' not in pattern.pattern:
+        return Counter(m.group(0) for m in pattern.finditer(text))
+    spans = [m.span() for m in _OPAL_COMMAND.finditer(text)]
+    result = Counter()
+    for match in pattern.finditer(text):
+        if any(start <= match.start() < end for start, end in spans):
+            continue
+        result[match.group(0)] += 1
+    return result
+
+
 def record_structural_issues(row, translation, rules, config):
     return structural_issues(row['source'], translation, record_rules(row, config, rules),
                              record_constraint(row, config).get('physical_newlines'))
@@ -476,7 +502,7 @@ def structural_issues(source, translation, rules, expected_newlines=None):
         issues.append('boundary_whitespace')
     for name, pattern in rules:
         # finditer.group(0), not findall: captures in format patterns are not the full tag.
-        originals = Counter(m.group(0) for m in pattern.finditer(source))
+        originals = counted(pattern, source)
         destination_pattern = pattern
         # Identifier boundaries describe Latin variable keys, not translated prose.
         # Unicode \b otherwise loses intact XX/RationsLost when Chinese touches it.
@@ -485,7 +511,7 @@ def structural_issues(source, translation, rules, expected_newlines=None):
                 and '(?u' not in pattern.pattern
                 and all(re.fullmatch(r'[A-Za-z_][A-Za-z0-9_]*', token) for token in originals)):
             destination_pattern = re.compile(pattern.pattern, (pattern.flags & ~re.UNICODE) | re.ASCII)
-        if originals != Counter(m.group(0) for m in destination_pattern.finditer(translation)):
+        if originals != counted(destination_pattern, translation):
             issues.append(name)
     expected = re.findall(r'\r\n|\r|\n', source) if expected_newlines is None else expected_newlines
     if expected != re.findall(r'\r\n|\r|\n', translation):

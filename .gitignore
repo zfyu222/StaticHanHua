@@ -21,6 +21,7 @@
 *.tmp
 *.bak
 *.bak0000
+*.bak_*
 __pycache__/
 *.py[cod]
 *.obj

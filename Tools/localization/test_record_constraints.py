@@ -37,6 +37,17 @@ class RecordConstraintTests(unittest.TestCase):
         self.assertEqual(bridge.matched_terms(analysis, [row['source']],
             {'case_sensitive': False, 'whole_word': True}, rules=rules), [])
 
+    def test_percent_inside_opal_command_is_not_read_as_format_specifier(self):
+        rules = [x for x in bridge.patterns() if '%' in x[1].pattern]
+        self.assertTrue(rules)
+        # The trailing byte of `\x01@%s` is a command byte, not a format specifier.
+        self.assertEqual(bridge.structural_issues(r'\x01@%s Come here.', r'\x01@%s 过来。', rules), [])
+        self.assertEqual(bridge.structural_issues('\x01@%s Come here.', '\x01@%s 过来。', rules), [])
+        # A real format specifier outside the command is still enforced.
+        self.assertNotIn('printf', bridge.structural_issues('Damage %s here.', '伤害 %s。', rules))
+        self.assertIn('printf', bridge.structural_issues('Damage %s here.', '伤害。', rules))
+        self.assertIn('printf', bridge.structural_issues(r'\x01@%s Damage %s.', r'\x01@%s 伤害。', rules))
+
     def test_api_escalation_preserves_tier_and_limits(self):
         route = ReviewRoundMixin.repair_routing({'escalation_backend': 'api'}, 'standard')
         self.assertEqual(route['repair_tier'], 'standard')
